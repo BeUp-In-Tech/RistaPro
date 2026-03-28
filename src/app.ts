@@ -44,7 +44,7 @@ const limiter = rateLimit({
 
 app.use(limiter);
 
-app.get('/', (req: Request, res: Response) => {
+app.get('/', async (req: Request, res: Response) => {
   res.send('Welcome to the RistaPro server');
 });
 
