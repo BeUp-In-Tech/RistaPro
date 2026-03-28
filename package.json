@@ -10,7 +10,9 @@
     "build": "tsc",
     "format": "npx prettier --write ."
   },
-  "keywords": ["Matrimony, Dating, Matchmaking"],
+  "keywords": [
+    "Matrimony, Dating, Matchmaking"
+  ],
   "author": "",
   "license": "ISC",
   "devDependencies": {
@@ -55,6 +57,7 @@
     "passport-google-oauth20": "^2.0.0",
     "passport-local": "^1.0.0",
     "redis": "^5.8.3",
+    "socket.io": "^4.8.3",
     "zod": "^4.0.8"
   }
 }

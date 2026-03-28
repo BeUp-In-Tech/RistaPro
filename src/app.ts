@@ -10,9 +10,16 @@ import env from './app/config/env';
 import expressSession from 'express-session';
 import passport from 'passport';
 import './app/config/passport.config'
+import http from 'http';
+import { initSocket } from './app/socket/socket';
+
 
 
 const app = express();
+const server = http.createServer(app);
+
+// Socket
+initSocket(server);
 
 app.use(expressSession({
   secret: env.EXPRESS_SESSION_SECRET,
@@ -50,4 +57,4 @@ app.use(globalErrorHandler);
 // NO ROUTE MATCH
 app.use(NotFound);
 
-export default app;
+export default server;
