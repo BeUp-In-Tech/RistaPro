@@ -20,6 +20,10 @@ interface EnvInterfaces {
   REQUEST_RATE_LIMIT_TIME: number;
 
   EXPRESS_SESSION_SECRET: string;
+
+  GOOGLE_OAUTH_ID: string;
+  GOOGLE_OAUTH_SECRET: string;
+  GOOGLE_CALLBACK_URL: string;
 }
 
 const loadEnvVarbles = (): EnvInterfaces => {
@@ -44,7 +48,11 @@ const loadEnvVarbles = (): EnvInterfaces => {
     'REQUEST_RATE_LIMIT',
     'REQUEST_RATE_LIMIT_TIME',
 
-    "EXPRESS_SESSION_SECRET"
+    'EXPRESS_SESSION_SECRET',
+
+    'GOOGLE_OAUTH_ID',
+    'GOOGLE_OAUTH_SECRET',
+    'GOOGLE_CALLBACK_URL',
   ];
 
   requireEnvVariables.forEach((KEY) => {
@@ -73,6 +81,10 @@ const loadEnvVarbles = (): EnvInterfaces => {
     REQUEST_RATE_LIMIT:Number( process.env.REQUEST_RATE_LIMIT) as number,
 
     EXPRESS_SESSION_SECRET: process.env.EXPRESS_SESSION_SECRET as string,
+
+    GOOGLE_OAUTH_ID: process.env.GOOGLE_OAUTH_ID as string,
+    GOOGLE_OAUTH_SECRET: process.env.GOOGLE_OAUTH_SECRET as string,
+    GOOGLE_CALLBACK_URL: process.env.GOOGLE_CALLBACK_URL as string,
   };
 };
 

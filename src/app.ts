@@ -21,6 +21,7 @@ const server = http.createServer(app);
 // Socket
 initSocket(server);
 
+app.set('trust proxy', 1);
 app.use(expressSession({
   secret: env.EXPRESS_SESSION_SECRET,
   resave: false,
