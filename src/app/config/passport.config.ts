@@ -1,70 +1,17 @@
+// /* eslint-disable no-console */
+// /* eslint-disable @typescript-eslint/no-explicit-any */
 // import passport from 'passport';
-// import { Strategy as LocalStrategy } from 'passport-local';
 // import {
 //   Strategy as GoogleStrategy,
 //   Profile,
 //   VerifyCallback,
 // } from 'passport-google-oauth20';
-// import {
-//   Strategy as FacebookStrategy,
-//   // Profile as FacebookProfile,
-// } from 'passport-facebook';
+
 // import env from './env';
-// import bcrypt from 'bcrypt';
+// import User from './../modules/user/user.model';
 
-// CREDENTIALS LOGIN LOCAL STRATEGY
-// passport.use(
-//   new LocalStrategy(
-//     { usernameField: 'email', passwordField: 'password' },
-//     async (email: string, password: string, done: any) => {
-//       try {
-//         const user = await User.findOne({ email });
 
-//         if (!user) {
-//           return done(null, false, { message: 'User does not exist!' });
-//         }
-
-//         const isGoogleUser = user.auths?.some(
-//           (provider) => provider.provider === 'google'
-//         );
-//         const isFacebookUser = user.auths?.some(
-//           (provider) => provider.provider === 'facebook'
-//         );
-
-//         if (isGoogleUser) {
-//           return done(null, false, {
-//             message:
-//               'You are authenticate through Google. If you want to login with credentials, then at first login with Google and set a password to your gmail an then you can login with email and password!',
-//           });
-//         }
-
-//         if (isFacebookUser) {
-//           return done(null, false, {
-//             message:
-//               'You are authenticate through Facebook. If you want to login with credentials, then at first login with Facebook and set a password to your gmail an then you can login with email and password!',
-//           });
-//         }
-
-//         // Matching Password
-//         const isMatchPassowrd = await bcrypt.compare(
-//           password,
-//           user.password as string
-//         );
-
-//         if (!isMatchPassowrd) {
-//           return done(null, false, { message: 'Password incorrect!' });
-//         }
-
-//         return done(null, user);
-//       } catch (error) {
-//         console.log('Passport Local login error: ', error);
-//         done(error);
-//       }
-//     }
-//   )
-// );
-
-// USER GOOGLE REGISTER STRATEGY
+// // USER GOOGLE REGISTER STRATEGY
 // passport.use(
 //   new GoogleStrategy(
 //     {
@@ -122,7 +69,7 @@
 //     const user = await User.findById(id);
 //     done(null, user);
 //   } catch (error) {
-//     console.log(error);
+//     console.log("Passort deserializeUser error" error);
 //     done(error);
 //   }
 // });
