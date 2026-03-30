@@ -12,8 +12,8 @@ export const createUserTokens = async (user: JwtPayload) => {
   // Jsonwebtoken
   const accessToken = generateToken(
     jwtPayload,
-    env?.JWT_SECRET,
-    env?.JWT_EXPIRATION
+    env?.JWT_ACCESS_SECRET,
+    env?.JWT_ACCESS_EXPIRATION
   );
   const refreshToken = generateToken(
     jwtPayload,

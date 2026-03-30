@@ -1,17 +1,19 @@
-/* eslint-disable no-console */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { NextFunction, Request, Response } from 'express';
 import { CatchAsync } from '../../utils/CatchAsync';
 import passport from 'passport';
 import AppError from '../../errorHelpers/AppError';
-import httpStatus from 'http-status-codes';
+import httpStatus, { StatusCodes } from 'http-status-codes';
 import { SetCookies } from '../../utils/setCookie';
 import { createUserTokens } from '../../utils/user.tokens';
 import { JwtPayload } from 'jsonwebtoken';
 import env from '../../config/env';
 import { SendResponse } from '../../utils/SendResponse';
+import { authServices } from './auth.service';
 
+
+// REGISTER WITH GOOGLE
 const googleRegister = CatchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
     const redirect = (req.query?.redirect as string) || '/';
@@ -24,6 +26,7 @@ const googleRegister = CatchAsync(
   }
 );
 
+// GOOGLE CALLBACK
 const googleCallback = CatchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
     let redirectTo = req.query.state ? (req.query.state as string) : '';
@@ -40,48 +43,8 @@ const googleCallback = CatchAsync(
   }
 );
 
-const facebookRegister = (req: Request, res: Response, next: NextFunction) => {
-  const redirect = (req.query?.redirect as string) || '/';
 
-  passport.authenticate('facebook', {
-    scope: ['email', 'public_profile'],
-    state: redirect,
-    session: false,
-  })(req, res, next);
-};
-
-const facebookCallback = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
-  passport.authenticate(
-    'facebook',
-    { session: false },
-    async (error: any, user: any, info: any) => {
-      if (error) {
-        console.error('Facebook auth error: ', error);
-        return res.redirect(`${env.FRONTEND_URL}/login`);
-      }
-
-      if (!user) {
-        console.log(`No user found from Facebook!`);
-      }
-
-      let redirectTo = req.query.state ? (req.query.state as string) : '';
-      if (redirectTo.startsWith('/')) {
-        redirectTo = redirectTo.slice(1);
-      }
-
-      const token = await createUserTokens(user);
-      SetCookies(res, token);
-
-      // Redirect to frontend after successful login
-      return res.redirect(`${env.FRONTEND_URL}/${redirectTo}`);
-    }
-  )(req, res, next);
-};
-
+// CREDENTIALS LOGIN
 const credentialsLogin = CatchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
     passport.authenticate('local', async (err: any, user: any, info: any) => {
@@ -99,14 +62,96 @@ const credentialsLogin = CatchAsync(
         statusCode: httpStatus.OK,
         message: 'Login success',
         data: {
-          _id: user._id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          isVerified: user.isVerified,
-        },
+          accessToken: userTokens.accessToken },
       });
     })(req, res, next);
+  }
+);
+
+// CHANGE PASSWORD
+const changePassword = CatchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const { userId } = req.user as JwtPayload;
+    const { oldPassword, newPassword } = req.body;
+    await authServices.changePasswordService(userId, oldPassword, newPassword);
+
+    SendResponse(res, {
+      success: true,
+      statusCode: StatusCodes.OK,
+      message: 'Password has been changed',
+      data: null,
+    });
+  }
+);
+
+// FORGET PASSWORD
+const forgetPassword = CatchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const { email } = req.params;
+    const result = await authServices.forgetPasswordService(email as string);
+
+    SendResponse(res, {
+      success: true,
+      statusCode: StatusCodes.OK,
+      message: 'Password reset OTP sent',
+      data: result,
+    });
+  }
+);
+
+// VERIFY FORGET PASSWORD OTP
+const verifyForgetPasswordOTP = CatchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const { email, otp } = req.body;
+    const result = await authServices.verifyForgetPasswordOTPService(
+      email as string,
+      otp
+    );
+
+    SendResponse(res, {
+      success: true,
+      statusCode: StatusCodes.OK,
+      message: 'OTP verified',
+      data: result,
+    });
+  }
+);
+
+// VERIFY FORGET PASSWORD OTP
+const resetPassword = CatchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const token = req.headers.token as string;
+
+    const { newPassword } = req.body;
+    const result = await authServices.resetPasswordService(token, newPassword);
+
+    SendResponse(res, {
+      success: true,
+      statusCode: StatusCodes.OK,
+      message: 'Password reset success',
+      data: result,
+    });
+  }
+);
+
+// VERIFY FORGET PASSWORD OTP
+const getNewAccessToken = CatchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const refreshToken = req.cookies.refreshToken as string;
+    
+    const result = await authServices.getNewAccessTokenService(refreshToken);
+
+    SetCookies(res, {
+      accessToken: result.newAccessToken,
+      refreshToken: result.newRefreshToken,
+    });
+
+    SendResponse(res, {
+      success: true,
+      statusCode: StatusCodes.OK,
+      message: 'New access token generated',
+      data: result,
+    });
   }
 );
 
@@ -114,6 +159,9 @@ export const authController = {
   googleRegister,
   googleCallback,
   credentialsLogin,
-  facebookCallback,
-  facebookRegister,
+  changePassword,
+  forgetPassword,
+  verifyForgetPasswordOTP,
+  resetPassword,
+  getNewAccessToken
 };

@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 import app from './app';
 import envVars from './app/config/env';
 import { connectRedis } from './app/config/redis.config';
+import { createAdmin } from './app/utils/seedAdmin';
 
  
 dotenv.config();
@@ -31,6 +32,7 @@ const startServer = async () => {
 (async () => {
   await connectRedis();
   await startServer();
+  await createAdmin();
 })();
 
 

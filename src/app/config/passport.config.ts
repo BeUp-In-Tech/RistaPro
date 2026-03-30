@@ -6,6 +6,10 @@ import {
   Profile,
   VerifyCallback,
 } from 'passport-google-oauth20';
+import {Strategy as LocalStrategy} from 'passport-local';
+import bcrypt from 'bcrypt';
+
+
 
 import env from './env';
 import User from './../modules/user/user.model';
@@ -55,6 +59,59 @@ passport.use(
         return done(null, user);
       } catch (error) {
         console.log('Google strategy error', error);
+        done(error);
+      }
+    }
+  )
+);
+
+// CREDENTIALS LOGIN LOCAL STRATEGY
+passport.use(
+  new LocalStrategy(
+    { usernameField: 'email', passwordField: 'password' },
+    async (email: string, password: string, done: any) => {
+      try {
+        const user = await User.findOne({ email });
+
+        if (!user) {
+          return done(null, false, { message: 'User does not exist!' });
+        }
+
+        const isGoogleUser = user.auths?.some(
+          (provider) => provider.provider === 'google'
+        );
+        const isAppleUser = user.auths?.some(
+          (provider) => provider.provider === 'apple'
+        );
+    
+
+        if (isGoogleUser) {
+          return done(null, false, {
+            message:
+              'You are authenticate through Google. Try to login with Google',
+          });
+        }
+
+        if (isAppleUser) {
+          return done(null, false, {
+            message:
+              'You are authenticate through Apple. Try to login with Apple',
+          });
+        }
+
+        // Matching Password
+        const isMatchPassowrd = await bcrypt.compare(
+          password,
+          user.password as string
+        );
+
+        if (!isMatchPassowrd) {
+          return done(null, false, { message: 'Password incorrect!' });
+        }
+
+        return done(null, user);
+      } catch (error) {
+        console.log('Passport Local login error: ', error);
         done(error);
       }
     }

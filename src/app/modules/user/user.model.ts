@@ -1,5 +1,7 @@
 import mongoose, { Schema } from 'mongoose';
 import { ActiveStatus, IAuthProvider, IUser, Role } from './user.interface';
+import bcrypt from 'bcrypt';
+import env from '../../config/env';
 
 const authProviderSchema = new Schema<IAuthProvider>(
   {
@@ -13,6 +15,7 @@ const userSchema = new Schema<IUser>(
   {
     full_name: { type: String, required: true },
     email: { type: String, required: true, unique: true, lowercase: true },
+    password: { type: String },
     picture: { type: String },
     plan: { type: String },
     dailyLikeRemaining: { type: Number, default: 0 },
@@ -27,12 +30,27 @@ const userSchema = new Schema<IUser>(
     },
     role: { type: String, enum: Object.values(Role), default: Role.USER },
     auths: { type: [authProviderSchema], default: [] },
+    deviceTokens: { type: [String] }
   },
   {
     versionKey: false,
     timestamps: true,
   }
 );
+
+// Hashed password
+userSchema.pre('save', async function () {
+  if (!this.isModified('password')) return;  // Only hash the password if it has been modified
+  
+  if (this.password) {
+    const hashedPassword = await bcrypt.hash(
+      this.password,
+      parseInt(env.BCRYPT_SALT_ROUND)
+    );
+    this.password = hashedPassword;
+  }
+});
+
 
 
 const User = mongoose.model<IUser>('user', userSchema);
