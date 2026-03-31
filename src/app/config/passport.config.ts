@@ -8,12 +8,10 @@ import {
 } from 'passport-google-oauth20';
 import {Strategy as LocalStrategy} from 'passport-local';
 import bcrypt from 'bcrypt';
-
-
-
 import env from './env';
 import User from './../modules/user/user.model';
 import { Role } from '../modules/user/user.interface';
+import { ensureNotificationPreference } from '../modules/notification/notification.service';
 
 
 // USER GOOGLE REGISTER STRATEGY
@@ -55,6 +53,11 @@ passport.use(
             ],
           });
         }
+
+        await ensureNotificationPreference(
+          user._id.toString(),
+          user.role ?? Role.USER
+        );
 
         return done(null, user);
       } catch (error) {

@@ -1,5 +1,6 @@
 import { Schema, model } from 'mongoose';
-import { INotification, INotificationPreference, NotificationChannel, NotificationType } from './notification.interface';
+import { INotification, INotificationPreference, NotificationType } from './notification.interface';
+import { Role } from '../user/user.interface';
 
 const notificationSchema = new Schema<INotification>(
   {
@@ -19,7 +20,14 @@ const notificationSchema = new Schema<INotification>(
 const preferenceSchema = new Schema<INotificationPreference>(
   {
     user: { type: Schema.Types.ObjectId, ref: 'user', required: true },
-    channel: { type: String, enum: Object.values(NotificationChannel), default: NotificationChannel.ALL },
+    channel: {
+      type: {
+        push: { type: Boolean, default: true },
+        email: { type: Boolean, default: true },
+        all: { type: Boolean, default: true }
+      },
+     },
+     role: { type: String, enum: Object.values(Role), default: Role.USER, required: true },
     push_user_reports: { type: Boolean, default: true },
     push_user_registration: { type: Boolean, default: true },
     email_user_reports: { type: Boolean, default: true },
