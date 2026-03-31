@@ -4,6 +4,8 @@ import { JwtPayload } from 'jsonwebtoken';
 import AppError from '../errorHelpers/AppError';
 import httpStatus, { StatusCodes } from 'http-status-codes';
 import env from '../config/env';
+import { ActiveStatus } from '../modules/user/user.interface';
+import User from '../modules/user/user.model';
 
 export const checkAuth =
   (...restRole: string[]) =>
@@ -25,16 +27,32 @@ export const checkAuth =
         env.JWT_ACCESS_SECRET
       ) as JwtPayload;
 
-      /*
-      ----------------------------------------------------------------
-      // More checking will be execute here based on application need
-      ----------------------------------------------------------------
-      */
 
-      // CHECK Verified
+      // CHECK VERIFIED
       if (!verifyUser) {
-        throw new AppError(httpStatus.BAD_REQUEST, 'Not Authorized');
+        throw new AppError(httpStatus.UNAUTHORIZED, 'You are unauthorized');
+      };
+
+      const isUser = await User.findById(verifyUser.userId);
+      if (!isUser) {
+        throw new AppError(StatusCodes.NOT_FOUND, "User not found");
       }
+
+
+       if (
+        isUser.isActive === ActiveStatus.INACTIVE ||
+        isUser.isActive === ActiveStatus.BLOCKED
+      ) {
+        throw new AppError(
+          httpStatus.FORBIDDEN,
+          'User is Blocked or Inactive!'
+        );
+      }
+
+      if (isUser.isDeleted) {
+        throw new AppError(httpStatus.FORBIDDEN, 'The user was deleted!');
+      }
+
 
       if (!restRole.includes(verifyUser.role)) {
         throw new AppError(
