@@ -1,5 +1,12 @@
 import mongoose, { Schema } from 'mongoose';
-import { ActiveStatus, IAuthProvider, IUser, Role } from './user.interface';
+import {
+  ActiveStatus,
+  IAuthProvider,
+  IFcmToken,
+  IPlatform,
+  IUser,
+  Role,
+} from './user.interface';
 import bcrypt from 'bcrypt';
 import env from '../../config/env';
 
@@ -11,13 +18,32 @@ const authProviderSchema = new Schema<IAuthProvider>(
   { _id: false, versionKey: false }
 );
 
+const deviceTokenSchema = new Schema<IFcmToken>(
+  {
+    deviceId: { type: String, required: true, trim: true },
+    platform: { type: String, enum: Object.values(IPlatform), required: true },
+    token: { type: String, required: true, trim: true },
+    deviceName: { type: String, default: '' },
+    lastSeenAt: { type: Date, default: Date.now },
+    isActive: { type: Boolean, default: true },
+  },
+  { _id: false, versionKey: false }
+);
+
 const userSchema = new Schema<IUser>(
   {
-    full_name: { type: String, required: true },
-    email: { type: String, required: true, unique: true, lowercase: true },
+    full_name: { type: String, required: true, trim: true },
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+      lowercase: true,
+      trim: true,
+    },
     password: { type: String },
-    picture: { type: String },
-    plan: { type: String },
+    phone: { type: String, trim: true },
+    picture: { type: String, trim: true },
+    plan: { type: String, trim: true },
     dailyLikeRemaining: { type: Number, default: 0 },
     superLikeRemaining: { type: Number, default: 0 },
     lastLikeReset: { type: Date },
@@ -30,7 +56,7 @@ const userSchema = new Schema<IUser>(
     },
     role: { type: String, enum: Object.values(Role), default: Role.USER },
     auths: { type: [authProviderSchema], default: [] },
-    deviceTokens: { type: [String] }
+    deviceTokens: { type: [deviceTokenSchema], default: [] },
   },
   {
     versionKey: false,
@@ -50,6 +76,10 @@ userSchema.pre('save', async function () {
     this.password = hashedPassword;
   }
 });
+
+userSchema.index({ role: 1, isDeleted: 1, createdAt: -1 });
+userSchema.index({ 'deviceTokens.token': 1 });
+userSchema.index({ 'deviceTokens.deviceId': 1 });
 
 
 

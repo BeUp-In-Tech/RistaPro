@@ -21,6 +21,10 @@ interface EnvInterfaces {
 
   FRONTEND_URL: string;
 
+  CLOUDINARY_NAME: string;
+  CLOUDINARY_API_KEY: string;
+  CLOUDINARY_SECRET: string;
+
   REQUEST_RATE_LIMIT: number;
   REQUEST_RATE_LIMIT_TIME: number;
 
@@ -59,6 +63,10 @@ const loadEnvVarbles = (): EnvInterfaces => {
     'BCRYPT_SALT_ROUND',
  
     'FRONTEND_URL',
+
+    'CLOUDINARY_NAME',
+    'CLOUDINARY_API_KEY',
+    'CLOUDINARY_SECRET',
 
     'REQUEST_RATE_LIMIT',
     'REQUEST_RATE_LIMIT_TIME',
@@ -105,6 +113,10 @@ const loadEnvVarbles = (): EnvInterfaces => {
     REDIS_PORT: process.env.REDIS_PORT as string,
     
     FRONTEND_URL: process.env.FRONTEND_URL as string,
+
+    CLOUDINARY_NAME: process.env.CLOUDINARY_NAME as string,
+    CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY as string,
+    CLOUDINARY_SECRET: process.env.CLOUDINARY_SECRET as string,
 
     REQUEST_RATE_LIMIT_TIME: Number(process.env.REQUEST_RATE_LIMIT_TIME) as number,
     REQUEST_RATE_LIMIT:Number( process.env.REQUEST_RATE_LIMIT) as number,
