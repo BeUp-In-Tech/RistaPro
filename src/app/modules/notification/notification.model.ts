@@ -4,12 +4,12 @@ import { Role } from '../user/user.interface';
 
 const notificationSchema = new Schema<INotification>(
   {
-    candidate: { type: Schema.Types.ObjectId, ref: 'candidate', required: true },
+    user: { type: Schema.Types.ObjectId, ref: 'user', required: true },
     type: { type: String, enum: Object.values(NotificationType), required: true },
     title: { type: String, required: true },
     body: { type: String, required: true },
     entityId: { type: Schema.Types.ObjectId },
-    entityURL: { type: String },
+    webUrl: { type: String },
     deepLink: { type: String },
     isSeen: { type: Boolean, default: false },
     data: { type: Schema.Types.Mixed },

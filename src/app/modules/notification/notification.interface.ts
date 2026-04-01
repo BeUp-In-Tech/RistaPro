@@ -10,12 +10,12 @@ export enum NotificationType {
 }
 
 export interface INotification extends Document {
-  candidate: Types.ObjectId;
+  user: Types.ObjectId;
   type: NotificationType;
   title: string;
   body: string;
   entityId?: Types.ObjectId;
-  entityURL?: string;
+  webUrl?: string;
   deepLink?: string;
   isSeen: boolean;
   data?: Record<string, unknown>;

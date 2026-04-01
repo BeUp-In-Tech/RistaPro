@@ -42,6 +42,18 @@ interface EnvInterfaces {
   EMAIL_USER: string;
   EMAIL_PASSWORD: string;
   EMAIL_SECURITY: boolean;
+
+  TYPE: string;
+  PROJECT_ID: string;
+  PRIVATE_KEY_ID: string;
+  PRIVATE_KEY: string;
+  CLIENT_EMAIL: string;
+  CLIENT_ID: string;
+  AUTH_URI: string;
+  TOKEN_URI: string;
+  AUTH_PROVIDER_X509_CERT_URL: string;
+  CLIENT_X509_CERT_URL: string;
+  UNIVERSE_DOMAIN: string;
 }
 
 const loadEnvVarbles = (): EnvInterfaces => {
@@ -59,9 +71,9 @@ const loadEnvVarbles = (): EnvInterfaces => {
 
     'REDIS_HOST',
     'REDIS_PORT',
-    
+
     'BCRYPT_SALT_ROUND',
- 
+
     'FRONTEND_URL',
 
     'CLOUDINARY_NAME',
@@ -85,6 +97,18 @@ const loadEnvVarbles = (): EnvInterfaces => {
     'EMAIL_USER',
     'EMAIL_PASSWORD',
     'EMAIL_SECURITY',
+
+    'TYPE',
+    'PROJECT_ID',
+    'PRIVATE_KEY_ID',
+    'PRIVATE_KEY',
+    'CLIENT_EMAIL',
+    'CLIENT_ID',
+    'AUTH_URI',
+    'TOKEN_URI',
+    'AUTH_PROVIDER_X509_CERT_URL',
+    'CLIENT_X509_CERT_URL',
+    'UNIVERSE_DOMAIN',
   ];
 
   requireEnvVariables.forEach((KEY) => {
@@ -102,7 +126,7 @@ const loadEnvVarbles = (): EnvInterfaces => {
 
     JWT_ACCESS_SECRET: process.env.JWT_ACCESS_SECRET as string,
     JWT_ACCESS_EXPIRATION: process.env.JWT_ACCESS_EXPIRATION as string,
-    
+
     JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET as string,
     JWT_REFRESH_EXPIRATION: process.env.JWT_REFRESH_EXPIRATION as string,
 
@@ -111,15 +135,17 @@ const loadEnvVarbles = (): EnvInterfaces => {
 
     REDIS_HOST: process.env.REDIS_HOST as string,
     REDIS_PORT: process.env.REDIS_PORT as string,
-    
+
     FRONTEND_URL: process.env.FRONTEND_URL as string,
 
     CLOUDINARY_NAME: process.env.CLOUDINARY_NAME as string,
     CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY as string,
     CLOUDINARY_SECRET: process.env.CLOUDINARY_SECRET as string,
 
-    REQUEST_RATE_LIMIT_TIME: Number(process.env.REQUEST_RATE_LIMIT_TIME) as number,
-    REQUEST_RATE_LIMIT:Number( process.env.REQUEST_RATE_LIMIT) as number,
+    REQUEST_RATE_LIMIT_TIME: Number(
+      process.env.REQUEST_RATE_LIMIT_TIME
+    ) as number,
+    REQUEST_RATE_LIMIT: Number(process.env.REQUEST_RATE_LIMIT) as number,
 
     EXPRESS_SESSION_SECRET: process.env.EXPRESS_SESSION_SECRET as string,
 
@@ -135,6 +161,19 @@ const loadEnvVarbles = (): EnvInterfaces => {
     EMAIL_USER: process.env.EMAIL_USER as string,
     EMAIL_PASSWORD: process.env.EMAIL_PASSWORD as string,
     EMAIL_SECURITY: process.env.EMAIL_SECURITY === 'true',
+
+    TYPE: process.env.TYPE as string,
+    PROJECT_ID: process.env.PROJECT_ID as string,
+    PRIVATE_KEY_ID: process.env.PRIVATE_KEY_ID as string,
+    PRIVATE_KEY: process.env.PRIVATE_KEY as string,
+    CLIENT_EMAIL: process.env.CLIENT_EMAIL as string,
+    CLIENT_ID: process.env.CLIENT_ID as string,
+    AUTH_URI: process.env.AUTH_URI as string,
+    TOKEN_URI: process.env.TOKEN_URI as string,
+    AUTH_PROVIDER_X509_CERT_URL: process.env
+      .AUTH_PROVIDER_X509_CERT_URL as string,
+    CLIENT_X509_CERT_URL: process.env.CLIENT_X509_CERT_URL as string,
+    UNIVERSE_DOMAIN: process.env.UNIVERSE_DOMAIN as string,
   };
 };
 
