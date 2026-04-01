@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import env from "../config/env";
 import { emailSendWorker } from "./workers/emailSend.worker";
 import { notificationSendWorker } from "./workers/notificationSendWorkder";
+import { imageDeleteWorker } from "./workers/imageDelete.worker";
 
 // RUN ALL WORKER JOB HERE WITH DATABASE CONNECTION
 const connectQueeuDB = async () => {
@@ -15,6 +16,9 @@ const connectQueeuDB = async () => {
 
     // NOTIFICATION WORKER
     notificationSendWorker();
+
+    // IMAGE DELETE WORKER
+    imageDeleteWorker();
     
 
   } catch (error) {

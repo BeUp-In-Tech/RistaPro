@@ -16,12 +16,12 @@ import {
   IUpdateProfilePayload,
   Role,
 } from './user.interface';
-import { asyncSingleImageDelete } from '../../utils/cloudinaryImageDelete';
 import { QueryBuilder } from './../../utils/QueryBuilder';
 import { excludeField } from './user.constant';
 import { sortObject } from '../../utils/sortQueryObject';
 import crypto from 'crypto';
 import { invalidateAllMachineryCache } from '../../utils/dynamicCacheInvalidator';
+import { deleteImageByBullMQ } from '../../utils/backgrounJobProcessingHelper';
 
 
 // REUSABLE KEYS
@@ -32,7 +32,7 @@ const USER_DETAILS_SELECT =
   '_id full_name email picture plan isVerified isActive role createdAt updatedAt';
 
 
-// =========================================API LAYER=========================================
+// =========================================API LAYER (ADMIN)=========================================
 // 1. ADMIN CREATE CONSULTANT (Check Done)
 const createConsultant = async (payload: ICreateConsultantPayload) => {
   const normalizedEmail = payload.email.trim().toLowerCase();
@@ -215,7 +215,10 @@ const updateUserByAdmin = async (
   }
 
   // DELETE PREVIOUS PICTURE
-  await asyncSingleImageDelete(existingUser.picture as string);
+  if (payload.picture) {
+    const jobId = `delete_image_${new Date()}`
+    await deleteImageByBullMQ([existingUser.picture as string], jobId);
+  }
 
 
   // CACHE INVALIDATION
@@ -263,6 +266,8 @@ const deleteUser = async (authUserId: string, targetUserId: string) => {
   return null;
 };
 
+
+// ============================ USER PART ================================
 // 6. AUTH USER PROFILE (Check Done)
 const getMe = async (userId: string) => {
   // REDIS CACHE
@@ -342,7 +347,11 @@ const updateMyProfile = async (
   }
 
   // DELETE PREVIOUS PICTURE
-  await asyncSingleImageDelete(existingUser?.picture as string);
+  if (payload.picture) {
+    const jobId = `delete_image_${new Date()}`
+    await deleteImageByBullMQ([existingUser.picture as string], jobId);
+  }
+
 
 
   // CACHE INVALIDATION

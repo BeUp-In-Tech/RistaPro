@@ -3,17 +3,6 @@
 import { deleteImageFromCLoudinary } from "../config/cloudinary.config"
 
 
-export const asyncSingleImageDelete = async (image: string) => {
-    setImmediate(async () =>  {
-        try {
-            await deleteImageFromCLoudinary(image);
-        } catch (error: any) {
-            console.log("Cloudinary image delete error: ", error.message);
-        }
-    })
-}
-
-
 export const asyncMultipleImageDelete = async (images: string[]) => {
     setImmediate(async () =>  {
         try {
