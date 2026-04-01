@@ -28,7 +28,7 @@ const USER_VERIFY_OTP_PREFIX = 'verify_otp:';
 const USER_LIST_SELECT =
   '_id full_name email picture plan isVerified isActive role createdAt updatedAt';
 const USER_DETAILS_SELECT =
-  '_id full_name email picture plan isVerified isActive role deviceTokens createdAt updatedAt';
+  '_id full_name email picture plan isVerified isActive role createdAt updatedAt';
 
 
 // =========================================API LAYER=========================================
@@ -219,7 +219,7 @@ const updateUserByAdmin = async (
 
   // CACHE INVALIDATION
   await invalidateAllMachineryCache(`user_list:admin=*`);
-
+  await redisClient.del(`get_me:${userId}`);
 
   // RETURN RESPONSE
   return updatedUser;
@@ -264,14 +264,29 @@ const deleteUser = async (authUserId: string, targetUserId: string) => {
 
 // 6. AUTH USER PROFILE (Check Done)
 const getMe = async (userId: string) => {
+  // REDIS CACHE
+  const cacheKey = `get_me:${userId}`;
+  const cachedData = await redisClient.get(cacheKey);
+  if (cachedData) {
+    return JSON.parse(cachedData);
+  }
+  
+  // DB QUERY
   const user = await User.findOne({ _id: userId, isDeleted: false })
-    .select(USER_DETAILS_SELECT)
+    .select('-deviceTokens -auths -password')
     .lean();
 
   if (!user) {
     throw new AppError(StatusCodes.NOT_FOUND, 'User not found');
   }
 
+
+  // STORE DATA IN REDIS
+  await redisClient.set(cacheKey, JSON.stringify(user), {
+    EX: 60 * 2, // 2 min
+  });
+
+  // RETURN RESPONSE
   return user;
 };
 
@@ -331,6 +346,7 @@ const updateMyProfile = async (
 
   // CACHE INVALIDATION
   await invalidateAllMachineryCache(`user_list:admin=*`);
+  await redisClient.del(`get_me:${userId}`);
 
   // RETURN UPDATE USER
   return updatedUser;
@@ -410,6 +426,7 @@ const verifyMyProfile = async (userId: string, otp: string) => {
   // CACHE INVALIDATION
   await redisClient.del(`${USER_VERIFY_OTP_PREFIX}${userId}`);
   await invalidateAllMachineryCache(`user_list:admin=*`);
+  await redisClient.del(`get_me:${userId}`);
 
   // RETURN UPDATE USER
   return null;
