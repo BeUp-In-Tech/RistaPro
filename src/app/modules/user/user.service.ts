@@ -18,12 +18,18 @@ import {
 import { asyncSingleImageDelete } from '../../utils/cloudinaryImageDelete';
 import { QueryBuilder } from './../../utils/QueryBuilder';
 import { excludeField } from './user.constant';
+import { sortObject } from '../../utils/sortQueryObject';
+import crypto from 'crypto';
+import { invalidateAllMachineryCache } from '../../utils/dynamicCacheInvalidator';
 
+
+// REUSABLE KEYS
 const USER_VERIFY_OTP_PREFIX = 'verify_otp:';
 const USER_LIST_SELECT =
   '_id full_name email picture plan isVerified isActive role createdAt updatedAt';
 const USER_DETAILS_SELECT =
   '_id full_name email picture plan isVerified isActive role deviceTokens createdAt updatedAt';
+
 
 // =========================================API LAYER=========================================
 // 1. ADMIN CREATE CONSULTANT (Check Done)
@@ -61,13 +67,30 @@ const createConsultant = async (payload: ICreateConsultantPayload) => {
     Role.CONSULTANT
   );
 
+
+  // CACHE INVALIDATION
+  await invalidateAllMachineryCache(`user_list:admin=*`);
+
+
+  // RETURN RESPONSE
   return createdConsultant;
 };
 
 // 2. ADMIN LIST USERS (Check Done)
 const getUsers = async (query: Record<string, string>) => {
-  const queryBuilder = new QueryBuilder(User.find(), query);
+  // SORT OBJECT
+  const sortedParams = sortObject(query);
+  const hashKey = `user_list:admin=${crypto.createHash('md5').update(JSON.stringify(sortedParams)).digest('hex')}`;
+  
+  // CACHED RESPONSE
+  const checkedData = await redisClient.get(hashKey);
+  if (checkedData) {
+    return JSON.parse(checkedData);
+  }
 
+
+  // DB QUERY
+  const queryBuilder = new QueryBuilder(User.find(), query);
   const users = await queryBuilder
     .filter(excludeField)
     .select()
@@ -95,11 +118,20 @@ const getUsers = async (query: Record<string, string>) => {
     totalPage: total === 0 ? 0 : Math.ceil(total / limit),
   };
 
-  // RETURN RESPONSE
-  return {
+  // DATA
+  const final_data =  {
     meta,
     data: users,
   };
+
+
+  // DATA CACHED IN REDIS
+  await redisClient.set(hashKey, JSON.stringify(final_data), {
+    EX: 60 * 60, // 1 HOUR
+  });
+  
+  // RETURN DATA
+  return final_data;
 };
 
 // 3. ADMIN GET SINGLE USER (Check Done)
@@ -184,6 +216,11 @@ const updateUserByAdmin = async (
   // DELETE PREVIOUS PICTURE
   await asyncSingleImageDelete(existingUser.picture as string);
 
+
+  // CACHE INVALIDATION
+  await invalidateAllMachineryCache(`user_list:admin=*`);
+
+
   // RETURN RESPONSE
   return updatedUser;
 };
@@ -216,6 +253,12 @@ const deleteUser = async (authUserId: string, targetUserId: string) => {
     throw new AppError(StatusCodes.NOT_FOUND, 'User not found');
   }
 
+
+  // CACHE INVALIDATION
+  await invalidateAllMachineryCache(`user_list:admin=*`);
+
+
+  // RETURN RESPONSE
   return null;
 };
 
@@ -282,7 +325,12 @@ const updateMyProfile = async (
     throw new AppError(StatusCodes.NOT_FOUND, 'User not found');
   }
 
+  // DELETE PREVIOUS PICTURE
   await asyncSingleImageDelete(existingUser?.picture as string);
+
+
+  // CACHE INVALIDATION
+  await invalidateAllMachineryCache(`user_list:admin=*`);
 
   // RETURN UPDATE USER
   return updatedUser;
@@ -359,8 +407,11 @@ const verifyMyProfile = async (userId: string, otp: string) => {
   user.isVerified = true;
   await user.save();
 
+  // CACHE INVALIDATION
   await redisClient.del(`${USER_VERIFY_OTP_PREFIX}${userId}`);
+  await invalidateAllMachineryCache(`user_list:admin=*`);
 
+  // RETURN UPDATE USER
   return null;
 };
 
