@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import multer from 'multer';
 import { Request } from 'express';
 import { cloudinaryUpload } from './cloudinary.config';
@@ -6,6 +7,7 @@ import { CloudinaryStorage } from 'multer-storage-cloudinary';
 const storage = new CloudinaryStorage({
   cloudinary: cloudinaryUpload,
   params: {
+    folder: 'RistaPro',
     public_id: (req: Request, file: Express.Multer.File) => {
       const fileName = file.originalname
         .toLowerCase()
@@ -23,7 +25,7 @@ const storage = new CloudinaryStorage({
 
       return uniqueFileName;
     }
-  },
+  } as any,
 });
 
 export const multerUpload = multer({ storage: storage });
