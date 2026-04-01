@@ -16,7 +16,7 @@ const transporter = nodemailer.createTransport({
   host: env.EMAIL_HOST,
 });
 
-interface SendEmailOptions {
+export interface SendEmailOptions {
   to: string;
   subject: string;
   templateName: string;

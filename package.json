@@ -8,7 +8,9 @@
     "dev": "nodemon --watch src --exec ts-node ./src/server.ts",
     "lint": "npx eslint ./src",
     "build": "tsc",
-    "format": "npx prettier --write ."
+    "format": "npx prettier --write .",
+    "worker:dev": "nodemon --watch src --exec ts-node ./src/app/queue/worker.ts",
+    "worker": "node ./src/app/queue/worker.ts"
   },
   "keywords": [
     "Matrimony, Dating, Matchmaking"
@@ -38,6 +40,7 @@
   "dependencies": {
     "@socket.io/redis-adapter": "^8.3.0",
     "bcrypt": "^6.0.0",
+    "bullmq": "^5.71.1",
     "cloudinary": "^1.41.3",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",

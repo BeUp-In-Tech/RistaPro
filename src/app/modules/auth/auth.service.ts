@@ -6,12 +6,13 @@ import { ActiveStatus } from '../user/user.interface';
 import env from '../../config/env';
 import { randomOTPGenerator } from '../../utils/randomOTPGenerator';
 import { redisClient } from '../../config/redis.config';
-import { sendEmail } from '../../utils/sendMail';
+import { SendEmailOptions } from '../../utils/sendMail';
 import jwt from 'jsonwebtoken';
 import { SignOptions } from 'jsonwebtoken';
 import { JwtPayload } from 'jsonwebtoken';
 import { createUserTokens } from '../../utils/user.tokens';
 import { verifyToken } from '../../utils/jwt';
+import sendMailByBullMQ from '../../utils/sendMailByBullMQ';
 
 // CHANGE PASSWORD
 const changePasswordService = async (
@@ -79,7 +80,7 @@ const forgetPasswordService = async (email: string) => {
   await redisClient.set(`otp:${user.email}`, hashedOTP, { EX: 120 }); // 2 min
 
   // SENDING OTP TO EMAIL
-  await sendEmail({
+  const emailPayload: SendEmailOptions = {
     to: user.email,
     subject: 'LinkUp:Password Reset OTP',
     templateName: 'forgetPassword_otp_send',
@@ -88,7 +89,10 @@ const forgetPasswordService = async (email: string) => {
       expirationTime: 2,
       otp,
     },
-  });
+  }
+  
+  await sendMailByBullMQ(emailPayload, user._id.toString());
+
 
   return null;
 };
