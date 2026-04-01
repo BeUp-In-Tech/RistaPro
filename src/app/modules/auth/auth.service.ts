@@ -12,7 +12,8 @@ import { SignOptions } from 'jsonwebtoken';
 import { JwtPayload } from 'jsonwebtoken';
 import { createUserTokens } from '../../utils/user.tokens';
 import { verifyToken } from '../../utils/jwt';
-import sendMailByBullMQ from '../../utils/sendMailByBullMQ';
+import { sendMailByBullMQ } from '../../utils/backgrounJobProcessingHelper';
+
 
 // CHANGE PASSWORD
 const changePasswordService = async (

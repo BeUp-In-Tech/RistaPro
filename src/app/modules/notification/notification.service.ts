@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 import mongoose from 'mongoose';
 import { StatusCodes } from 'http-status-codes';
 import admin from '../../config/firebase.admin';
@@ -44,10 +45,16 @@ async function cleanupInvalidTokens(params: {
   const { userId, invalidTokens } = params;
   if (!invalidTokens.length) return;
 
-  await User.updateOne(
+  const cleanupResult = await User.updateOne(
     { _id: userId },
     { $pull: { deviceTokens: { token: { $in: invalidTokens } } } }
   );
+
+  console.warn('[notification] removed invalid firebase tokens', {
+    userId: userId.toString(),
+    invalidTokenCount: invalidTokens.length,
+    modifiedCount: cleanupResult.modifiedCount,
+  });
 }
 
 
@@ -143,7 +150,12 @@ export async function notifyUser(input: INotification) {
   const tokens = getActiveTokens(user);
 
   if (!tokens.length) {
-       throw new AppError(StatusCodes.NOT_FOUND, "NO_ACTIVE_TOKENS");
+    console.warn('[notification] no active device tokens found', {
+      userId: userId.toString(),
+      storedDeviceTokenCount: user?.deviceTokens?.length ?? 0,
+    });
+
+    throw new AppError(StatusCodes.NOT_FOUND, 'NO_ACTIVE_TOKENS');
   }
 
   // Build one multicast message for all active devices.

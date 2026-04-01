@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 import bcrypt from 'bcrypt';
 import { StatusCodes } from 'http-status-codes';
 import env from '../../config/env';
@@ -434,40 +435,61 @@ const verifyMyProfile = async (userId: string, otp: string) => {
 
 // 10. AUTH USER REGISTER DEVICE TOKEN (Check Done)
 const registerPushToken = async (userId: string, payload: IFcmToken) => {
+  const token = payload.token.trim();
+  const deviceId = payload.deviceId.trim();
+  const deviceName = payload.deviceName?.trim() || '';
   const now = new Date();
 
-  await removeTokenFromOtherUsers(payload.token, userId);
+  const removedTokenResult = await removeTokenFromOtherUsers(token, userId);
 
-  const cleanupResult = await User.updateOne(
-    { _id: userId, isDeleted: false },
-    {
-      $pull: {
-        deviceTokens: {
-          $or: [{ deviceId: payload.deviceId }, { token: payload.token }],
-        },
-      },
-    }
-  );
-
-  if (cleanupResult.matchedCount === 0) {
-    throw new AppError(StatusCodes.NOT_FOUND, 'User not found');
+  if (removedTokenResult.removedCount > 0) {
+    console.warn('[push-token] token moved from another user', {
+      currentUserId: userId,
+      removedFromUserIds: removedTokenResult.removedFromUserIds,
+      removedCount: removedTokenResult.removedCount,
+    });
   }
 
-  await User.updateOne(
+  const registerResult = await User.updateOne(
     { _id: userId, isDeleted: false },
-    {
-      $push: {
-        deviceTokens: {
-          token: payload.token,
-          platform: payload.platform,
-          deviceId: payload.deviceId,
-          deviceName: payload.deviceName?.trim() || '',
-          lastSeenAt: now,
-          isActive: true,
+    [
+      {
+        $set: {
+          deviceTokens: {
+            $concatArrays: [
+              {
+                $filter: {
+                  input: { $ifNull: ['$deviceTokens', []] },
+                  as: 'device',
+                  cond: {
+                    $and: [
+                      { $ne: ['$$device.deviceId', deviceId] },
+                      { $ne: ['$$device.token', token] },
+                    ],
+                  },
+                },
+              },
+              [
+                {
+                  token,
+                  platform: payload.platform,
+                  deviceId,
+                  deviceName,
+                  lastSeenAt: now,
+                  isActive: true,
+                },
+              ],
+            ],
+          },
+          updatedAt: now,
         },
       },
-    }
+    ]
   );
+
+  if (registerResult.matchedCount === 0) {
+    throw new AppError(StatusCodes.NOT_FOUND, 'User not found');
+  }
 
   return null;
 };
