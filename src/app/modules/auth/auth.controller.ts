@@ -36,10 +36,22 @@ const googleCallback = CatchAsync(
 
     const user = req.user as JwtPayload;
     if (!user) throw new AppError(httpStatus.BAD_REQUEST, 'User not found');
-
     const token = await createUserTokens(user);
-    SetCookies(res, token);
-    res.redirect(`${env.FRONTEND_URL}/${redirectTo}`); // Redirected to frontend url (With specific Routes)
+
+    const userAgent = req.headers['user-agent'] || '';
+
+    const isAndroid = /android/i.test(userAgent);
+    const isIOS = /iphone|ipad|ipod/i.test(userAgent);
+
+    if (isAndroid || isIOS) {
+      res.redirect(
+        `${env.DEEP_LINK}/auth/google?access=${token.accessToken}&refresh=${token.refreshToken}`
+      );
+    }else {
+      res.redirect(
+        `${env.FRONTEND_URL}?access=${token.accessToken}&refresh=${token.refreshToken}`
+      );
+    }
   }
 );
 

@@ -20,6 +20,7 @@ interface EnvInterfaces {
   REDIS_PORT: string;
 
   FRONTEND_URL: string;
+  DEEP_LINK: string;
 
   CLOUDINARY_NAME: string;
   CLOUDINARY_API_KEY: string;
@@ -75,6 +76,7 @@ const loadEnvVarbles = (): EnvInterfaces => {
     'BCRYPT_SALT_ROUND',
 
     'FRONTEND_URL',
+    'DEEP_LINK',
 
     'CLOUDINARY_NAME',
     'CLOUDINARY_API_KEY',
@@ -137,6 +139,7 @@ const loadEnvVarbles = (): EnvInterfaces => {
     REDIS_PORT: process.env.REDIS_PORT as string,
 
     FRONTEND_URL: process.env.FRONTEND_URL as string,
+    DEEP_LINK: process.env.DEEP_LINK as string,
 
     CLOUDINARY_NAME: process.env.CLOUDINARY_NAME as string,
     CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY as string,
