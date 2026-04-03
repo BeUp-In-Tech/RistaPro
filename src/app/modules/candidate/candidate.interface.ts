@@ -27,7 +27,16 @@ export enum VerificationState {
   REJECTED = 'REJECTED',
 }
 
-// VERIFICATION DETAIL
+export enum RelationToUser {
+  SELF = 'SELF',
+  FATHER = 'FATHER',
+  MOTHER = 'MOTHER',
+  BROTHER = 'BROTHER',
+  SISTER = 'SISTER',
+  OTHERS = 'OTHERS',
+}
+
+// Snapshot of a single verification step.
 export interface IVerificationDetail {
   status: VerificationState;
   date?: Date;
@@ -35,7 +44,7 @@ export interface IVerificationDetail {
   device?: string;
 }
 
-// VERIFICATION STATUS
+// Current verification state for each profile verification flow.
 export interface IVerificationStatus {
   face_verified: IVerificationDetail;
   id_verified: IVerificationDetail;
@@ -44,17 +53,15 @@ export interface IVerificationStatus {
   admin_verified: IVerificationDetail;
 }
 
-// CANDIDATE INTERFACE
-export interface ICandidate extends Document {
-  user: Types.ObjectId;
+// Fields that a client is allowed to send while creating or updating a profile.
+export interface ICandidateProfileFields {
   name: string;
   dateOfBirth: Date;
   gender: Gender;
   height?: number;
   religion?: ReligionKey;
   sect?: SectKey;
-  cast?: CastKey;
-  caste?: string;
+  caste?: CastKey;
   profile_assist?: string;
   relationship_status?: RelationshipStatusKey;
   have_children?: ChildrenKey;
@@ -65,13 +72,22 @@ export interface ICandidate extends Document {
   drink_status?: DrinkStatusKey;
   interests?: InterestKey[];
   personality?: PersonalityKey[];
-  relationToUser?: string;
+  relationToUser?: RelationToUser;
   partnerExpectation?: string;
   bio?: string;
-  image?: string[];
-  face_verify_logs?: IVerificationDetail[];
+  images?: string[];
   address?: string;
   coordinates?: number[];
+}
+
+export type ICreateCandidatePayload = ICandidateProfileFields;
+
+export type IUpdateCandidatePayload = Partial<ICandidateProfileFields>;
+
+// Stored candidate document with system-managed fields.
+export interface ICandidate extends Document, ICandidateProfileFields {
+  user: Types.ObjectId;
+  face_verify_logs?: IVerificationDetail[];
   verification_status?: IVerificationStatus;
   isActive: ActiveStatus;
 }
