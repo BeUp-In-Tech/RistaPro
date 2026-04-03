@@ -1,5 +1,5 @@
 import { INotification } from "../modules/notification/notification.interface";
-import { imageDeleteQueue, mailQueue, notificationQueue } from "../queue/index.queue";
+import { imageDeleteQueue,  mailQueue,  notificationQueue } from "../queue/index.queue";
 import { SendEmailOptions } from "./sendMail";
 
 // SEND EMAIL JOB ADD TO QUEUE

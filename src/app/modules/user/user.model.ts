@@ -71,7 +71,7 @@ userSchema.pre('save', async function () {
   if (this.password) {
     const hashedPassword = await bcrypt.hash(
       this.password,
-      parseInt(env.BCRYPT_SALT_ROUND)
+      parseInt(env.BCRYPT_SALT_ROUND) || 10
     );
     this.password = hashedPassword;
   }

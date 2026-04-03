@@ -6,13 +6,12 @@ import {
   Profile,
   VerifyCallback,
 } from 'passport-google-oauth20';
-import {Strategy as LocalStrategy} from 'passport-local';
+import { Strategy as LocalStrategy } from 'passport-local';
 import bcrypt from 'bcrypt';
 import env from './env';
 import User from './../modules/user/user.model';
 import { Role } from '../modules/user/user.interface';
 import { ensureNotificationPreference } from '../modules/notification/notification.service';
-
 
 // USER GOOGLE REGISTER STRATEGY
 passport.use(
@@ -30,8 +29,7 @@ passport.use(
       done: VerifyCallback
     ) => {
       try {
-        const email = profile.emails?.[0].value;
-
+        const email = profile.emails?.[0]?.value;
         if (!email) {
           return done(null, false, { message: 'No email found' });
         }
@@ -42,8 +40,7 @@ passport.use(
           user = await User.create({
             full_name: profile.displayName,
             email,
-            picture: profile.photos?.[0].value,
-            role: Role.USER,
+            picture: profile.photos?.[0]?.value,
             isVerified: true,
             auths: [
               {
@@ -86,36 +83,35 @@ passport.use(
         const isAppleUser = user.auths?.some(
           (provider) => provider.provider === 'apple'
         );
-    
 
-        if (isGoogleUser) {
+        if (isGoogleUser && !user.password) {
           return done(null, false, {
             message:
               'You are authenticate through Google. Try to login with Google',
           });
         }
 
-        if (isAppleUser) {
+        if (isAppleUser && !user.password) {
           return done(null, false, {
             message:
               'You are authenticate through Apple. Try to login with Apple',
           });
         }
-
-        // Matching Password
-        const isMatchPassowrd = await bcrypt.compare(
-          password,
-          user.password as string
-        );
-
-        if (!isMatchPassowrd) {
-          return done(null, false, { message: 'Password incorrect!' });
+ 
+        if (!user.password) {
+          return done(null, false, {
+            message: 'Password not set for this account',
+          });
         }
 
-        return done(null, user);
-      } catch (error) {
-        console.log('Passport Local login error: ', error);
-        done(error);
+        // Matching Password
+        const isMatchPassword = await bcrypt.compare(password, user.password);
+
+        if (!isMatchPassword) {
+          return done(null, false, { message: 'Password incorrect!' });
+        }
+      } catch (e: any) {
+        console.log('Passport Local login error: ', e.message);
       }
     }
   )
@@ -130,7 +126,7 @@ passport.deserializeUser(async (id: string, done: any) => {
     const user = await User.findById(id);
     done(null, user);
   } catch (error: any) {
-    console.log("Passort deserializeUser error: ", error.message);
+    console.log('Passport deserializeUser error: ', error.message);
     done(error);
   }
 });

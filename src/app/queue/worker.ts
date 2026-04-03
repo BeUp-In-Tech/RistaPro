@@ -2,11 +2,11 @@
 import mongoose from "mongoose";
 import env from "../config/env";
 import { emailSendWorker } from "./workers/emailSend.worker";
-import { notificationSendWorker } from "./workers/notificationSendWorkder";
+import { notificationSendWorker } from "./workers/notificationSendWorker";
 import { imageDeleteWorker } from "./workers/imageDelete.worker";
 
 // RUN ALL WORKER JOB HERE WITH DATABASE CONNECTION
-const connectQueeuDB = async () => {
+const connectQueueDB = async () => {
   try {
     await mongoose.connect(env.MONGO_URI as string);
     console.log('Connected to queue database');
@@ -22,8 +22,8 @@ const connectQueeuDB = async () => {
     
 
   } catch (error) {
-    console.log('Error connecting to Redis:', error);
-  }
-};
+    console.error('Error connecting to MongoDB:', error);
+    process.exit(1);
+  }};
 
-connectQueeuDB();
+connectQueueDB();

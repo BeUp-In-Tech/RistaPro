@@ -32,11 +32,10 @@ export const buildCandidateLabels = (candidate: Partial<ICandidateProfileFields>
   drink_status: candidate.drink_status
     ? DRINK_STATUSES[candidate.drink_status]
     : undefined,
-  interests: candidate.interests?.map((value) => INTERESTS[value]),
+  interests: candidate.interests?.map((value) => INTERESTS[value]).filter(Boolean),
   personality: candidate.personality?.map(
     (value) => PERSONALITY_TRAITS[value]
-  ),
-});
+  ).filter(Boolean),});
 
 export const buildCandidateResponse = <T extends Partial<ICandidateProfileFields>>(
   candidate: T

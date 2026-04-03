@@ -5,7 +5,7 @@ const documentSchema = new Schema<IDocument>(
   {
     candidate: { type: Schema.Types.ObjectId, ref: 'Candidate', required: true },
     type: { type: String, enum: Object.values(DocumentType), required: true },
-    documents: { type: String, required: true },
+    document: { type: String, required: true },
     verification_status: {
       type: String,
       enum: Object.values(DocumentVerification),

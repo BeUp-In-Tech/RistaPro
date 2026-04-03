@@ -21,7 +21,7 @@ import { excludeField } from './user.constant';
 import { sortObject } from '../../utils/sortQueryObject';
 import crypto from 'crypto';
 import { invalidateAllMachineryCache } from '../../utils/dynamicCacheInvalidator';
-import { deleteImageByBullMQ } from '../../utils/backgrounJobProcessingHelper';
+import { deleteImageByBullMQ } from '../../utils/backgroundJobProcessingHelper';
 
 
 // REUSABLE KEYS
@@ -71,6 +71,7 @@ const createConsultant = async (payload: ICreateConsultantPayload) => {
 
   // CACHE INVALIDATION
   await invalidateAllMachineryCache(`user_list:admin=*`);
+  await redisClient.del(`get_me:${createdConsultant._id.toString()}`)
 
 
   // RETURN RESPONSE
@@ -215,10 +216,10 @@ const updateUserByAdmin = async (
   }
 
   // DELETE PREVIOUS PICTURE
-  if (payload.picture) {
-    const jobId = `delete_image_${new Date()}`
-    await deleteImageByBullMQ([existingUser.picture as string], jobId);
-  }
+  if (payload.picture && existingUser.picture) {
+     const jobId = `delete_image_${Date.now()}_${userId}`;
+     await deleteImageByBullMQ([existingUser.picture as string], jobId);
+   }
 
 
   // CACHE INVALIDATION

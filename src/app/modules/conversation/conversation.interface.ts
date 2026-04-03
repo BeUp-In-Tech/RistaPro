@@ -11,5 +11,5 @@ export interface IConversation extends Document {
   status: ConversationStatus;
   parentInvolvement?: boolean;
   lastMessage?: Types.ObjectId;
-  unreadCount?: number;
+  unreadCounts?: Map<string, number>; // userId -> unread count} // mulitple user count
 }

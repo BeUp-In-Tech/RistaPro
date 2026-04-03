@@ -18,7 +18,7 @@ export enum DocumentVerification {
 export interface IDocument extends Document {
   candidate: Types.ObjectId;
   type: DocumentType;
-  documents: string;
+  document: string;
   verification_status: DocumentVerification;
   rejected_reason?: string;
 }

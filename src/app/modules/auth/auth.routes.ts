@@ -21,7 +21,7 @@ router.post('/login', authController.credentialsLogin);
 // CHANGE PASSWORD
 router.patch('/change_password', checkAuth(...Object.keys(Role)), authController.changePassword);
 // FORGET PASSWORD
-router.get('/forget_password/:email', authController.forgetPassword);
+router.post('/forget_password', authController.forgetPassword);
 // VERIFY FORGET PASSWORD OTP
 router.post('/verify_forget_password_otp', authController.verifyForgetPasswordOTP);
 // RESET PASSWORD

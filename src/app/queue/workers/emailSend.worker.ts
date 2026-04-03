@@ -12,7 +12,8 @@ export const emailSendWorker = async () => {
         await sendEmail(job.data);
         console.log('Email sent');
       } catch (error: any) {
-        console.log('Email sending error from bullmq: ', error.message);
+        console.log('Email sending error from BullMQ: ', error.message);
+        throw error;
       }
     },
     { connection, concurrency: 100 } // SEND 100 EMAIL CONCURRENTLY
@@ -24,6 +25,6 @@ export const emailSendWorker = async () => {
   });
 
   worker.on('failed', (job, err) => {
-    console.error('Job failed:', err);
+    console.error(`Job ${job?.id ?? 'unknown'} failed:`, err);
   });
 };

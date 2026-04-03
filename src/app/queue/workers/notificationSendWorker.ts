@@ -3,6 +3,8 @@
 import { Worker } from 'bullmq';
 import { connection } from '../index.queue';
 import { notifyUser } from '../../modules/notification/notification.service';
+import AppError from '../../errorHelpers/AppError';
+import { StatusCodes } from 'http-status-codes';
 
 export const notificationSendWorker = async () => {
   const worker = new Worker(
@@ -13,6 +15,7 @@ export const notificationSendWorker = async () => {
         console.log('Notification sent');
       } catch (error: any) {
         console.log('Notification sending error from bullmq: ', error.message);
+        throw new AppError(StatusCodes.BAD_REQUEST, error.message)
       }
     },
     { connection, concurrency: 100 } // SEND 100 EMAIL CONCURRENTLY

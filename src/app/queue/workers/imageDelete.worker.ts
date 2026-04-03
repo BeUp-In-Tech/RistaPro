@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable no-console */
 import { Worker } from 'bullmq';
 import { connection } from '../index.queue';
@@ -8,14 +7,9 @@ export const imageDeleteWorker = async () => {
   const worker = new Worker(
     'imageDeleteQueue',
     async (job) => {
-      try {
-        await asyncMultipleImageDelete(job.data as string[])
-        console.log('Image deleted');
-      } catch (error: any) {
-        console.log('Image delete error from bullmq: ', error.message);
-      }
-    },
-    { connection, concurrency: 100 } // SEND 100 EMAIL CONCURRENTLY
+      await asyncMultipleImageDelete(job.data as string[]);
+      console.log('Image deleted');    },
+    { connection, concurrency: 100 } // SEND 100 IMAGE CONCURRENTLY
   );
 
   // LISTEN COMPLETED AND FAILED EVENT
@@ -24,6 +18,5 @@ export const imageDeleteWorker = async () => {
   });
 
   worker.on('failed', (job, err) => {
-    console.error('Image Delete Job completed:', err);
-  });
-};
+    console.error('Image Delete Job failed:', job?.id, err);
+  });};

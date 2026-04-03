@@ -19,7 +19,7 @@ const getPlans = CatchAsync(async (req: Request, res: Response) => {
 
 // PUBLIC SINGLE PLAN
 const getPlan = CatchAsync(async (req: Request, res: Response) => {
-  const result = await PlanService.getPlan(String(req.params.planType));
+  const result = await PlanService.getPlan(req.params?.planType as string);
 
   SendResponse(res, {
     success: true,

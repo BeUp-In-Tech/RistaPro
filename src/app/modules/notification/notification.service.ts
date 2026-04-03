@@ -12,29 +12,27 @@ export const ensureNotificationPreference = async (
   userId: string,
   role: Role = Role.USER
 ) => {
-  // Create default notification settings only once per user.
-  const isPreferenceExists = await NotificationPreference.exists({ user: userId });
-
-  if (isPreferenceExists) {
-    return;
-  }
-
-  return await NotificationPreference.create({
-    user: userId,
-    channel: {
-      push: true,
-      email: true,
-      all: true,
+  // Create default notification settings only once per user (upsert avoids race).
+  return await NotificationPreference.findOneAndUpdate(
+    { user: userId },
+    {
+      $setOnInsert: {
+        channel: {
+          push: true,
+          email: true,
+          all: true,
+        },
+        role,
+        push_user_reports: true,
+        push_user_registration: true,
+        email_user_reports: true,
+        email_user_registration: true,
+        payment_transaction: true,
+      },
     },
-    role,
-    push_user_reports: true,
-    push_user_registration: true,
-    email_user_reports: true,
-    email_user_registration: true,
-    payment_transaction: true,
-  });
+    { upsert: true, new: true }
+  );
 };
-
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 // Remove dead device tokens so later sends stay clean.

@@ -55,7 +55,7 @@ export const checkAuth =
       }
 
 
-      if (!restRole.includes(verifyUser.role)) {
+      if (restRole.length > 0 && !restRole.includes(verifyUser.role)) {
         throw new AppError(
           httpStatus.FORBIDDEN,
           'You are not permitted to access this route'

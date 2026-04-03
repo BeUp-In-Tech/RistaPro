@@ -11,8 +11,11 @@ const conversationSchema = new Schema<IConversation>(
     },
     parentInvolvement: { type: Boolean, default: false },
     lastMessage: { type: Schema.Types.ObjectId, ref: 'message' },
-    unreadCount: { type: Number, default: 0 },
-  },
+    unreadCounts: {
+      type: Map,
+      of: Number,
+      default: new Map(),
+    },  },
   { timestamps: true, versionKey: false }
 );
 

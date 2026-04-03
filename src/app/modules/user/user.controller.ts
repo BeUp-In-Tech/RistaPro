@@ -94,9 +94,8 @@ const updateMyProfile = CatchAsync(async (req: Request, res: Response) => {
 
   const payload = {
     ...req.body,
-    picture: req.file?.path as string,
-  }
-  
+    ...(req.file?.path && { picture: req.file.path }),
+  }  
   const result = await UserService.updateMyProfile(String(userId), payload);
 
   SendResponse(res, {
@@ -124,8 +123,8 @@ const sendVerificationOtp = CatchAsync(async (req: Request, res: Response) => {
 const verifyMyProfile = CatchAsync(async (req: Request, res: Response) => {
   const { userId } = req.user as JwtPayload;
   const result = await UserService.verifyMyProfile(
-    String(userId),
-    String(req.body.otp)
+    userId,
+    req.body.otp
   );
 
   SendResponse(res, {

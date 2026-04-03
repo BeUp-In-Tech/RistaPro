@@ -12,7 +12,7 @@ import { SignOptions } from 'jsonwebtoken';
 import { JwtPayload } from 'jsonwebtoken';
 import { createUserTokens } from '../../utils/user.tokens';
 import { verifyToken } from '../../utils/jwt';
-import { sendMailByBullMQ } from '../../utils/backgrounJobProcessingHelper';
+import { sendMailByBullMQ } from '../../utils/backgroundJobProcessingHelper';
 
 
 // CHANGE PASSWORD
@@ -143,21 +143,21 @@ const resetPasswordService = async (token: string, newPassword: string) => {
     throw new AppError(StatusCodes.BAD_REQUEST, 'Token must required!');
   }
 
-  const verifyToken = jwt.verify(
+  const decodedToken  = jwt.verify(
     token,
     env.OTP_JWT_ACCESS_SECRET
   ) as JwtPayload;
 
-  if (!verifyToken) {
+  if (!decodedToken ) {
     throw new AppError(StatusCodes.BAD_REQUEST, 'Invalid token or expired!');
   }
 
-  if (!verifyToken?.verified) {
-    throw new AppError(StatusCodes.BAD_REQUEST, "OTP wasn't verfied yet");
+  if (!decodedToken ?.verified) {
+    throw new AppError(StatusCodes.BAD_REQUEST, "OTP wasn't verified  yet");
   }
 
   // CHECK USER
-  const user = await User.findOne({ email: verifyToken?.email });
+  const user = await User.findOne({ email: decodedToken ?.email });
   if (!user) {
     throw new AppError(StatusCodes.NOT_FOUND, 'No user found!');
   }
@@ -172,7 +172,7 @@ const resetPasswordService = async (token: string, newPassword: string) => {
 // GET NEW ACCESS TOKEN
 const getNewAccessTokenService = async (refreshToken: string) => {
   if (!refreshToken) {
-    throw new AppError(StatusCodes.NOT_FOUND, 'Refresh token needed!');
+    throw new AppError(StatusCodes.UNAUTHORIZED, 'Refresh token needed!');
   }
 
   const tokenVerify = verifyToken(

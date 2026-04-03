@@ -7,6 +7,7 @@ export enum CallType {
 
 export enum CallStatus {
   INITIATED = 'INITIATED',
+  ACTIVE = 'ACTIVE',
   MISSED = 'MISSED',
   REJECTED = 'REJECTED',
   COMPLETED = 'COMPLETED',

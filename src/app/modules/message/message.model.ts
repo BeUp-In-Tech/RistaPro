@@ -3,11 +3,11 @@ import { IMessage } from './message.interface';
 
 const messageSchema = new Schema<IMessage>(
   {
-    conversation: { type: Schema.Types.ObjectId, ref: 'Conversation', required: true },
-    sender: { type: Schema.Types.ObjectId, ref: 'Candidate', required: true },
+    conversation: { type: Schema.Types.ObjectId, ref: 'conversation', required: true },
+    sender: { type: Schema.Types.ObjectId, ref: 'candidate', required: true },
     message: { type: String, required: true },
-    seen: { type: Boolean, default: false },
-    replyTo: { type: Schema.Types.ObjectId, ref: 'message' },
+    seenBy: { type: [Schema.Types.ObjectId], ref: 'user' },
+    replyTo: { type: [Schema.Types.ObjectId], ref: 'message' },
   },
   {
     timestamps: { createdAt: true, updatedAt: false },

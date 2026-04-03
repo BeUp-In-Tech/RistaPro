@@ -3,8 +3,8 @@ import { ILike, LikeType } from './like.interface';
 
 const likeSchema = new Schema<ILike>(
   {
-    likedBy: { type: Schema.Types.ObjectId, ref: 'Candidate', required: true },
-    likedProfile: { type: Schema.Types.ObjectId, ref: 'Candidate', required: true },
+    likedBy: { type: Schema.Types.ObjectId, ref: 'candidate', required: true },
+    likedProfile: { type: Schema.Types.ObjectId, ref: 'candidate', required: true },
     type: { type: String, enum: Object.values(LikeType), default: LikeType.LIKE },
   },
   { timestamps: true, versionKey: false }

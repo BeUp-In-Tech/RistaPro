@@ -5,6 +5,7 @@ import { Query } from 'mongoose';
 export class QueryBuilder<T> {
   public queryModel: Query<T[], T>;
   public query: Record<string, string>;
+  private filterConditions: Record<string, unknown> = {};
 
   constructor(queryModel: Query<T[], T>, query: Record<string, string>) {
     this.queryModel = queryModel;
@@ -17,7 +18,8 @@ export class QueryBuilder<T> {
     for (const value of excludeField) {
       delete filter[value];
     }
-
+    
+    this.filterConditions = { ...this.filterConditions, ...filter };
     this.queryModel = this.queryModel.find(filter);
     return this;
   }
@@ -30,6 +32,8 @@ export class QueryBuilder<T> {
         [field]: { $regex: searchTerm, $options: 'i' },
       })),
     };
+
+    this.filterConditions = { ...this.filterConditions, ...searchQuery };
 
     this.queryModel = this.queryModel.find(searchQuery);
     return this;
@@ -76,7 +80,7 @@ export class QueryBuilder<T> {
   async getMeta() {
     const page = Number(this.query.page) || 1;
     const limit = Number(this.query.limit) || 10;
-    const totalDocuments = await this.queryModel.model.countDocuments();
+    const totalDocuments = await this.queryModel.model.countDocuments(this.filterConditions);
     const totalPage = Math.ceil(totalDocuments / limit);
 
     return {

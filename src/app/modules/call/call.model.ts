@@ -5,8 +5,7 @@ const callSchema = new Schema<ICall>(
   {
     matchId: { type: Schema.Types.ObjectId, ref: 'match' },
     callerCandidate: { type: Schema.Types.ObjectId, ref: 'candidate', required: true },
-    receiverCandidate: { type: Schema.Types.ObjectId, ref: 'Ccndidate', required: true },
-    type: { type: String, enum: Object.values(CallType), required: true },
+    receiverCandidate: { type: Schema.Types.ObjectId, ref: 'candidate', required: true },    type: { type: String, enum: Object.values(CallType), required: true },
     status: {
       type: String,
       enum: Object.values(CallStatus),

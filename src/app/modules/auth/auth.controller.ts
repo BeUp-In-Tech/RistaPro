@@ -37,6 +37,7 @@ const googleCallback = CatchAsync(
     const user = req.user as JwtPayload;
     if (!user) throw new AppError(httpStatus.BAD_REQUEST, 'User not found');
     const token = await createUserTokens(user);
+    SetCookies(res, token);
 
     const userAgent = req.headers['user-agent'] || '';
 
@@ -49,7 +50,7 @@ const googleCallback = CatchAsync(
       );
     }else {
       res.redirect(
-        `${env.FRONTEND_URL}?access=${token.accessToken}&refresh=${token.refreshToken}`
+        `${env.FRONTEND_URL}?access=${token.accessToken}`
       );
     }
   }
@@ -96,11 +97,10 @@ const changePassword = CatchAsync(
   }
 );
 
-// FORGET PASSWORD
 const forgetPassword = CatchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
-    const { email } = req.params;
-    const result = await authServices.forgetPasswordService(email as string);
+    const { email } = req.body;
+    const result = await authServices.forgetPasswordService(email);    
 
     SendResponse(res, {
       success: true,
@@ -129,7 +129,7 @@ const verifyForgetPasswordOTP = CatchAsync(
   }
 );
 
-// VERIFY FORGET PASSWORD OTP
+// RESET PASSWORD
 const resetPassword = CatchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
     const token = req.headers.token as string;
@@ -146,13 +146,15 @@ const resetPassword = CatchAsync(
   }
 );
 
-// VERIFY FORGET PASSWORD OTP
+// GET NEW ACCESS TOKEN
 const getNewAccessToken = CatchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
     const refreshToken = req.cookies.refreshToken as string;
+    if (!refreshToken) {
+      throw new AppError(httpStatus.UNAUTHORIZED, 'Refresh token is required');
+    }
     
     const result = await authServices.getNewAccessTokenService(refreshToken);
-
     SetCookies(res, {
       accessToken: result.newAccessToken,
       refreshToken: result.newRefreshToken,

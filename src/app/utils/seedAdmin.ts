@@ -29,6 +29,5 @@ export const createAdmin = async () => {
     
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
-        console.log("Admin creationg error: ", error.message);
-    }
+        console.log("Admin creation error: ", error.message);    }
 }

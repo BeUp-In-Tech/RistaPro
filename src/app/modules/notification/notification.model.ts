@@ -21,13 +21,10 @@ const preferenceSchema = new Schema<INotificationPreference>(
   {
     user: { type: Schema.Types.ObjectId, ref: 'user', required: true },
     channel: {
-      type: {
-        push: { type: Boolean, default: true },
-        email: { type: Boolean, default: true },
-        all: { type: Boolean, default: true }
-      },
-     },
-     role: { type: String, enum: Object.values(Role), default: Role.USER, required: true },
+      push: { type: Boolean, default: true },
+      email: { type: Boolean, default: true },
+      all: { type: Boolean, default: true },
+    },     role: { type: String, enum: Object.values(Role), default: Role.USER, required: true },
     push_user_reports: { type: Boolean, default: true },
     push_user_registration: { type: Boolean, default: true },
     email_user_reports: { type: Boolean, default: true },
@@ -37,6 +34,7 @@ const preferenceSchema = new Schema<INotificationPreference>(
   { timestamps: true, versionKey: false }
 );
 
+preferenceSchema.index({ user: 1, role: 1 }, { unique: true });
 export const Notification = model<INotification>('notification', notificationSchema);
 export const NotificationPreference = model<INotificationPreference>('notificationPreference', preferenceSchema);
 

@@ -7,16 +7,18 @@ import { createAdapter } from '@socket.io/redis-adapter';
 export let io: Server;
 
 export const initSocket = async (server: any) => {
-  // MULITPLE INSTANCE HANDLING
+  // MULTIPLE INSTANCE HANDLING
   const pubClient = redisClient.duplicate();
   const subClient = redisClient.duplicate();
 
   await Promise.all([pubClient.connect(), subClient.connect()]);
   io = new Server(server, {
-    cors: { origin: '*', methods: ['GET', 'POST'] },
+    cors: { 
+      origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'],
+      methods: ['GET', 'POST'] 
+    },
     transports: ['websocket', 'polling']
   });
-
 
   // REDIS ADAPTER
   io.adapter(createAdapter(pubClient, subClient));
@@ -49,7 +51,8 @@ export const initSocket = async (server: any) => {
 
     // HANDLE DISCONNECT
     socket.on('disconnect', async () => {
-      if (currentUserId) {
+      try {
+        if (currentUserId) {
         // Check if this user has any other active connections in the cluster
         const matchingSockets = await io.in(currentUserId).fetchSockets();
 
@@ -64,6 +67,9 @@ export const initSocket = async (server: any) => {
         } else {
           console.log(`User ${currentUserId} disconnected one device, but still active elsewhere.`);
         }
+      }
+      } catch (error: any) {
+        console.log("Disconnect error", error.message);
       }
     });
   });

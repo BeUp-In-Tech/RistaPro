@@ -10,10 +10,12 @@
     "build": "tsc",
     "format": "npx prettier --write .",
     "worker:dev": "nodemon --watch src --exec ts-node ./src/app/queue/worker.ts",
-    "worker": "node ./src/app/queue/worker.ts"
+    "worker": "node ./dist/app/queue/worker.js"  
   },
   "keywords": [
-    "Matrimony, Dating, Matchmaking"
+    "Matrimony",
+    "Dating",
+    "Matchmaking"
   ],
   "author": "",
   "license": "ISC",

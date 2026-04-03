@@ -179,7 +179,9 @@ const applyCandidateBusinessRules = (
 
   if (data.religion && data.sect) {
     const religionKey = data.religion as keyof typeof SECTS;
-    const religionSects = Object.keys(SECTS[religionKey]);
+    const religionSects = SECTS[religionKey]
+      ? Object.keys(SECTS[religionKey])
+      : [];
 
     if (!religionSects.includes(data.sect)) {
       ctx.addIssue({
@@ -188,8 +190,7 @@ const applyCandidateBusinessRules = (
         message: 'Selected sect does not belong to the selected religion',
       });
     }
-  }
-};
+  }};
 
 // Candidate profile create validation.
 export const createCandidateZodSchema = z
