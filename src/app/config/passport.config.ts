@@ -71,6 +71,8 @@ passport.use(
     { usernameField: 'email', passwordField: 'password' },
     async (email: string, password: string, done: any) => {
       try {
+       
+        
         const user = await User.findOne({ email });
 
         if (!user) {
@@ -110,6 +112,8 @@ passport.use(
         if (!isMatchPassword) {
           return done(null, false, { message: 'Password incorrect!' });
         }
+
+        return done(null, user);
       } catch (e: any) {
         console.log('Passport Local login error: ', e.message);
       }
