@@ -585,6 +585,76 @@ How it behaves:
 - one account can belong to only one active candidate profile at a time
 - profile creator is automatically added as primary linked user with owner access
 
+## Candidate Profile Update
+
+### `PATCH /:candidateId`
+
+Purpose:
+- Update candidate profile fields
+- Replace candidate images by removing existing links from `deletedImages` and adding newly uploaded images from `files`
+
+Auth:
+- Bearer token
+- requester must be an active linked user of this candidate
+- linked user with `VIEWER` access cannot update
+
+Content type:
+- `application/json` or `multipart/form-data`
+
+Multipart file field:
+- `files` (optional, multiple)
+
+Body fields:
+- Any candidate update fields from create API (all optional in patch)
+- `deletedImages`: optional array of existing image links to remove
+
+JSON example (only profile info update):
+
+```json
+{
+  "occupation": "Software Engineer",
+  "bio": "Updated profile bio",
+  "partnerExpectation": "Kind and family-oriented"
+}
+```
+
+JSON example (remove old image links only):
+
+```json
+{
+  "deletedImages": [
+    "https://res.cloudinary.com/demo/image/upload/v1/RistaPro/old-1.jpg",
+    "https://res.cloudinary.com/demo/image/upload/v1/RistaPro/old-2.jpg"
+  ]
+}
+```
+
+Multipart example (remove old images + upload new images):
+
+```text
+Content-Type: multipart/form-data
+files: <binary file 1>
+files: <binary file 2>
+data: {
+  "occupation":"Software Engineer",
+  "deletedImages":[
+    "https://res.cloudinary.com/demo/image/upload/v1/RistaPro/old-1.jpg"
+  ]
+}
+```
+
+Image behavior:
+- backend loads current `candidate.images`
+- removes images found in `deletedImages`
+- appends new uploaded `files` links
+- stores the merged result in `candidate.images`
+- sends removed images to background queue delete processor (`deleteImageByBullMQ`)
+
+Validation notes:
+- patch payload can include one or many fields
+- if no valid field change and no image change is provided, request is rejected
+- `deletedImages` must be an array of non-empty unique strings
+
 ## Linked User APIs
 
 These routes manage who can access a candidate profile.
