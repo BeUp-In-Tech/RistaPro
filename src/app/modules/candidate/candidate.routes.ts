@@ -9,7 +9,10 @@ import {
   createCandidateLinkedUserZodSchema,
   updateCandidateLinkedUserZodSchema,
 } from './linked-user/candidateLinkedUser.validate';
-import { createCandidateZodSchema } from './candidate.validate';
+import {
+  createCandidateZodSchema,
+  updateCandidateZodSchema,
+} from './candidate.validate';
 import { multerUpload } from '../../config/multer.config';
 
 const router = Router();
@@ -24,6 +27,15 @@ router.post(
   multerUpload.array('files'),
   validateRequest(createCandidateZodSchema),
   CandidateController.createCandidate
+);
+
+// AUTHENTICATED LINKED USER UPDATE CANDIDATE PROFILE
+router.patch(
+  '/:candidateId',
+  checkAuth(Role.USER),
+  multerUpload.array('files'),
+  validateRequest(updateCandidateZodSchema),
+  CandidateController.updateCandidate
 );
 
 // AUTHENTICATED USER ACCESS TO CANDIDATE PROFILES

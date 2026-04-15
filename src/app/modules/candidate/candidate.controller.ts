@@ -28,6 +28,30 @@ const createCandidate = CatchAsync(async (req: Request, res: Response) => {
   });
 });
 
+// AUTH LINKED USER UPDATE CANDIDATE PROFILE
+const updateCandidate = CatchAsync(async (req: Request, res: Response) => {
+  const { userId } = req.user as JwtPayload;
+  const uploadedImages =
+    req.files && Array.isArray(req.files)
+      ? req.files.map((file) => file.path)
+      : [];
+
+  const result = await CandidateService.updateCandidate(
+    userId,
+    String(req.params.candidateId),
+    req.body,
+    uploadedImages
+  );
+
+  SendResponse(res, {
+    success: true,
+    statusCode: StatusCodes.OK,
+    message: 'Candidate profile updated successfully',
+    data: result,
+  });
+});
+
 export const CandidateController = {
   createCandidate,
+  updateCandidate,
 };

@@ -1,5 +1,22 @@
-import { CASTS, CHILDREN, DRINK_STATUSES, HIGHEST_EDUCATION, INTERESTS, MOVE_ABROAD, PERSONALITY_TRAITS, RELATIONSHIP_STATUSES, RELIGIONS, SECTS, SMOKE_STATUSES } from "../../constant/constant";
-import { ICandidateProfileFields, ICreateCandidatePayload } from "./candidate.interface";
+import {
+  CASTS,
+  CHILDREN,
+  DRINK_STATUSES,
+  HIGHEST_EDUCATION,
+  INTERESTS,
+  MOVE_ABROAD,
+  OCCUPATIONS,
+  PERSONALITY_TRAITS,
+  RELATIONSHIP_STATUSES,
+  RELIGIONS,
+  SECTS,
+  SMOKE_STATUSES,
+} from "../../constant/constant";
+import {
+  ICandidateProfileFields,
+  ICreateCandidatePayload,
+  IUpdateCandidatePayload,
+} from "./candidate.interface";
 
 export const getUniqueValues = <T extends string>(values?: T[]) =>
   values ? Array.from(new Set(values)) : undefined;
@@ -22,6 +39,9 @@ export const buildCandidateLabels = (candidate: Partial<ICandidateProfileFields>
     : undefined,
   move_abroad: candidate.move_abroad
     ? MOVE_ABROAD[candidate.move_abroad]
+    : undefined,
+  occupation: candidate.occupation
+    ? OCCUPATIONS[candidate.occupation]
     : undefined,
   highest_education: candidate.highest_education
     ? HIGHEST_EDUCATION[candidate.highest_education]
@@ -89,7 +109,7 @@ export const buildCandidateCreatePayload = (
   }
 
   if (payload.occupation !== undefined) {
-    candidatePayload.occupation = payload.occupation.trim();
+    candidatePayload.occupation = payload.occupation;
   }
 
   if (payload.highest_education !== undefined) {
@@ -139,4 +159,107 @@ export const buildCandidateCreatePayload = (
   }
 
   return candidatePayload;
+};
+
+// Build a clean update payload from validated candidate update data.
+export const buildCandidateUpdatePayload = (
+  payload: IUpdateCandidatePayload
+) => {
+  const updatePayload: Record<string, unknown> = {};
+
+  if (payload.name !== undefined) {
+    updatePayload.name = payload.name.trim();
+  }
+
+  if (payload.dateOfBirth !== undefined) {
+    updatePayload.dateOfBirth = payload.dateOfBirth;
+  }
+
+  if (payload.gender !== undefined) {
+    updatePayload.gender = payload.gender;
+  }
+
+  if (payload.height !== undefined) {
+    updatePayload.height = payload.height;
+  }
+
+  if (payload.religion !== undefined) {
+    updatePayload.religion = payload.religion;
+  }
+
+  if (payload.sect !== undefined) {
+    updatePayload.sect = payload.sect;
+  }
+
+  if (payload.caste !== undefined) {
+    updatePayload.caste = payload.caste;
+  }
+
+  if (payload.profile_assist !== undefined) {
+    updatePayload.profile_assist = payload.profile_assist.trim();
+  }
+
+  if (payload.relationship_status !== undefined) {
+    updatePayload.relationship_status = payload.relationship_status;
+  }
+
+  if (payload.have_children !== undefined) {
+    updatePayload.have_children = payload.have_children;
+  }
+
+  if (payload.move_abroad !== undefined) {
+    updatePayload.move_abroad = payload.move_abroad;
+  }
+
+  if (payload.occupation !== undefined) {
+    updatePayload.occupation = payload.occupation;
+  }
+
+  if (payload.highest_education !== undefined) {
+    updatePayload.highest_education = payload.highest_education;
+  }
+
+  if (payload.smoke_status !== undefined) {
+    updatePayload.smoke_status = payload.smoke_status;
+  }
+
+  if (payload.drink_status !== undefined) {
+    updatePayload.drink_status = payload.drink_status;
+  }
+
+  if (payload.interests !== undefined) {
+    updatePayload.interests = getUniqueValues(payload.interests);
+  }
+
+  if (payload.personality !== undefined) {
+    updatePayload.personality = getUniqueValues(payload.personality);
+  }
+
+  if (payload.relationToUser !== undefined) {
+    updatePayload.relationToUser = payload.relationToUser.trim();
+  }
+
+  if (payload.partnerExpectation !== undefined) {
+    updatePayload.partnerExpectation = payload.partnerExpectation.trim();
+  }
+
+  if (payload.bio !== undefined) {
+    updatePayload.bio = payload.bio.trim();
+  }
+
+  if (payload.images !== undefined) {
+    updatePayload.images = getUniqueValues(
+      payload.images.map((value) => value.trim())
+    );
+  }
+
+  if (payload.address !== undefined) {
+    updatePayload.address = payload.address.trim();
+  }
+
+  if (payload.coordinates !== undefined) {
+    updatePayload.coordinates = [...payload.coordinates];
+  }
+
+  return updatePayload;
 };

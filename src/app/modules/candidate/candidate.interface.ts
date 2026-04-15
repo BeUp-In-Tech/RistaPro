@@ -7,6 +7,7 @@ import {
   RelationshipStatusKey,
   ChildrenKey,
   MoveAbroadKey,
+  OccupationKey,
   HighestEducationKey,
   SmokeStatusKey,
   DrinkStatusKey,
@@ -70,7 +71,7 @@ export interface ICandidateProfileFields {
   relationship_status?: RelationshipStatusKey;
   have_children?: ChildrenKey;
   move_abroad?: MoveAbroadKey;
-  occupation?: string;
+  occupation?: OccupationKey;
   highest_education?: HighestEducationKey;
   smoke_status?: SmokeStatusKey;
   drink_status?: DrinkStatusKey;
@@ -89,6 +90,12 @@ export interface ICandidateProfileFields {
 export type ICreateCandidatePayload = ICandidateProfileFields;
 
 export type IUpdateCandidatePayload = Partial<ICandidateProfileFields>;
+
+export interface IUpdateCandidateRequestPayload extends IUpdateCandidatePayload {
+  deletedInterests?: InterestKey[];
+  deletedImages?: string[];
+  deletedPersonality?: PersonalityKey[];
+}
 
 // Stored candidate document with system-managed fields.
 export interface ICandidate extends Document, ICandidateProfileFields {

@@ -79,7 +79,67 @@ export const MOVE_ABROAD = {
 } as const;
 export type MoveAbroadKey = keyof typeof MOVE_ABROAD;
 
-// 7. HIGHEST EDUCATION
+// 7. OCCUPATIONS
+export const OCCUPATIONS = {
+  SOFTWARE_ENGINEER: 'Software Engineer',
+  ACTOR: 'ACTOR',
+  ACTRESS: 'ACTRESS',
+  ARTIST: 'Artist',
+  MUSICIAN: 'Musician',
+  DOCTOR: 'Doctor',
+  NURSE: 'Nurse',
+  PHARMACIST: 'Pharmacist',
+  DENTIST: 'Dentist',
+  SURGEON: 'Surgeon',
+  TEACHER: 'Teacher',
+  PROFESSOR: 'Professor',
+  LECTURER: 'Lecturer',
+  LAWYER: 'Lawyer',
+  JUDGE: 'Judge',
+  ACCOUNTANT: 'Accountant',
+  CHARTERED_ACCOUNTANT: 'Chartered Accountant',
+  BANKER: 'Banker',
+  FINANCIAL_ANALYST: 'Financial Analyst',
+  BUSINESS_OWNER: 'Business Owner',
+  ENTREPRENEUR: 'Entrepreneur',
+  SALES_MANAGER: 'Sales Manager',
+  MARKETING_MANAGER: 'Marketing Manager',
+  HR_MANAGER: 'HR Manager',
+  PROJECT_MANAGER: 'Project Manager',
+  PRODUCT_MANAGER: 'Product Manager',
+  DATA_ANALYST: 'Data Analyst',
+  DATA_SCIENTIST: 'Data Scientist',
+  UI_UX_DESIGNER: 'UI/UX Designer',
+  GRAPHIC_DESIGNER: 'Graphic Designer',
+  ARCHITECT: 'Architect',
+  CIVIL_ENGINEER: 'Civil Engineer',
+  MECHANICAL_ENGINEER: 'Mechanical Engineer',
+  ELECTRICAL_ENGINEER: 'Electrical Engineer',
+  GOVERNMENT_OFFICER: 'Government Officer',
+  ADMIN_OFFICER: 'Administrative Officer',
+  POLICE_OFFICER: 'Police Officer',
+  MILITARY_OFFICER: 'Military Officer',
+  PILOT: 'Pilot',
+  CABIN_CREW: 'Cabin Crew',
+  CHEF: 'Chef',
+  HOSPITALITY_MANAGER: 'Hospitality Manager',
+  HOTEL_MANAGER: 'Hotel Manager',
+  FASHION_DESIGNER: 'Fashion Designer',
+  JOURNALIST: 'Journalist',
+  CONTENT_CREATOR: 'Content Creator',
+  SOCIAL_WORKER: 'Social Worker',
+  PSYCHOLOGIST: 'Psychologist',
+  RESEARCHER: 'Researcher',
+  SCIENTIST: 'Scientist',
+  CONSULTANT: 'Consultant',
+  REAL_ESTATE_AGENT: 'Real Estate Agent',
+  AGRICULTURIST: 'Agriculturist',
+  STUDENT: 'Student',
+  OTHER: 'Other',
+} as const;
+export type OccupationKey = keyof typeof OCCUPATIONS;
+
+// 8. HIGHEST EDUCATION
 export const HIGHEST_EDUCATION = {
   HIGH_SCHOOL: 'High School Graduate',
   ASSOCIATES: "Associate's Degree",
@@ -91,7 +151,7 @@ export const HIGHEST_EDUCATION = {
 } as const;
 export type HighestEducationKey = keyof typeof HIGHEST_EDUCATION;
 
-// 8. SMOKING HABITS
+// 9. SMOKING HABITS
 export const SMOKE_STATUSES = {
   NEVER: 'Never',
   OCCASIONAL: 'Occasionally',
@@ -99,7 +159,7 @@ export const SMOKE_STATUSES = {
 } as const;
 export type SmokeStatusKey = keyof typeof SMOKE_STATUSES;
 
-// 9. ALCOHOL HABITS
+// 10. ALCOHOL HABITS
 export const DRINK_STATUSES = {
   NEVER: 'Never',
   OCCASIONAL: 'Occasionally',
@@ -108,7 +168,7 @@ export const DRINK_STATUSES = {
 } as const;
 export type DrinkStatusKey = keyof typeof DRINK_STATUSES;
 
-// 10. INTERESTS (grouped by category)
+// 11. INTERESTS (grouped by category)
 export const INTEREST_CATEGORIES = {
   ARTS_CRAFTS: 'Arts & Crafts 🎨',
   FOOD_COOKING: 'Food & Cooking 🍲',
@@ -315,7 +375,7 @@ export const INTERESTS_BY_CATEGORY: Record<keyof typeof INTEREST_CATEGORIES, Int
   ],
 };
 
-// 11. PERSONALITY TRAITS
+// 12. PERSONALITY TRAITS
 export const PERSONALITY_TRAITS = {
   OUTGOING: 'Outgoing 😃',
   INTROVERTED: 'Introverted 🤫',

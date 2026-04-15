@@ -519,6 +519,7 @@ Main response groups:
 - `relationshipStatuses`
 - `childrenStatuses`
 - `moveAbroadStatuses`
+- `occupations`
 - `highestEducations`
 - `smokeStatuses`
 - `drinkStatuses`
@@ -560,6 +561,7 @@ Body example:
   "sect": "SUNNI",
   "caste": "BENGALI",
   "relationship_status": "SINGLE",
+  "occupation": "SOFTWARE_ENGINEER",
   "highest_education": "BACHELORS",
   "interests": ["PAINTING", "TRAVEL"],
   "personality": ["HONEST", "LOYAL"],
@@ -575,7 +577,7 @@ Important field rules:
 - `name`: 2 to 100 chars
 - `dateOfBirth`: must be in the past
 - `gender`: `MALE | FEMALE | OTHER`
-- `religion`, `sect`, `caste`, `education`, `status`, `interests`, `personality`: must use constant keys from `/candidates/constants`
+- `religion`, `sect`, `caste`, `occupation`, `education`, `status`, `interests`, `personality`: must use constant keys from `/candidates/constants`
 - `sect` requires `religion`
 - selected `sect` must belong to selected `religion`
 - `interests` and `personality` cannot contain duplicates
@@ -584,6 +586,7 @@ Important field rules:
 How it behaves:
 - one account can belong to only one active candidate profile at a time
 - profile creator is automatically added as primary linked user with owner access
+- max allowed images per candidate profile: `6`
 
 ## Candidate Profile Update
 
@@ -607,14 +610,29 @@ Multipart file field:
 Body fields:
 - Any candidate update fields from create API (all optional in patch)
 - `deletedImages`: optional array of existing image links to remove
+- `interests`: optional array of interest keys to append
+- `deletedInterests`: optional array of interest keys to remove
+- `personality`: optional array of personality keys to append
+- `deletedPersonality`: optional array of personality keys to remove
 
 JSON example (only profile info update):
 
 ```json
 {
-  "occupation": "Software Engineer",
+  "occupation": "SOFTWARE_ENGINEER",
   "bio": "Updated profile bio",
   "partnerExpectation": "Kind and family-oriented"
+}
+```
+
+JSON example (incremental array update):
+
+```json
+{
+  "interests": ["EXPLORING", "NON_FICTION"],
+  "deletedInterests": ["ROAD_TRIPS"],
+  "personality": ["GOAL_ORIENTED"],
+  "deletedPersonality": ["EASY_GOING"]
 }
 ```
 
@@ -636,7 +654,7 @@ Content-Type: multipart/form-data
 files: <binary file 1>
 files: <binary file 2>
 data: {
-  "occupation":"Software Engineer",
+  "occupation":"SOFTWARE_ENGINEER",
   "deletedImages":[
     "https://res.cloudinary.com/demo/image/upload/v1/RistaPro/old-1.jpg"
   ]
@@ -648,12 +666,15 @@ Image behavior:
 - removes images found in `deletedImages`
 - appends new uploaded `files` links
 - stores the merged result in `candidate.images`
+- max allowed images per candidate profile: `6`
 - sends removed images to background queue delete processor (`deleteImageByBullMQ`)
 
 Validation notes:
 - patch payload can include one or many fields
 - if no valid field change and no image change is provided, request is rejected
 - `deletedImages` must be an array of non-empty unique strings
+- `interests` and `personality` in patch are additive (append unique values)
+- use `deletedInterests` and `deletedPersonality` for removing values
 
 ## Linked User APIs
 
@@ -821,4 +842,3 @@ Content-Type: application/json
 ## Maintenance Note
 
 If you add a new mounted module or change a route, update this README in the same PR so frontend and backend stay in sync.
-

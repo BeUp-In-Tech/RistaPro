@@ -6,6 +6,7 @@ import {
   HIGHEST_EDUCATION,
   INTERESTS,
   MOVE_ABROAD,
+  OCCUPATIONS,
   PERSONALITY_TRAITS,
   RELATIONSHIP_STATUSES,
   RELIGIONS,
@@ -29,6 +30,7 @@ const RELATIONSHIP_STATUS_KEYS = toEnumValues(
 );
 const CHILDREN_KEYS = toEnumValues(Object.keys(CHILDREN));
 const MOVE_ABROAD_KEYS = toEnumValues(Object.keys(MOVE_ABROAD));
+const OCCUPATION_KEYS = toEnumValues(Object.keys(OCCUPATIONS));
 const HIGHEST_EDUCATION_KEYS = toEnumValues(Object.keys(HIGHEST_EDUCATION));
 const SMOKE_STATUS_KEYS = toEnumValues(Object.keys(SMOKE_STATUSES));
 const DRINK_STATUS_KEYS = toEnumValues(Object.keys(DRINK_STATUSES));
@@ -39,6 +41,67 @@ const uniqueStringArray = (fieldLabel: string, values: string[]) =>
   new Set(values).size === values.length ||
   `${fieldLabel} must not contain duplicate values`;
 
+const parseStringifiedArray = (value: unknown) => {
+  if (typeof value !== 'string') {
+    return value;
+  }
+
+  try {
+    return JSON.parse(value);
+  } catch {
+    return [value];
+  }
+};
+
+const interestsArraySchema = z
+  .array(z.enum(INTEREST_KEYS), {
+    error: 'Interests must be an array of predefined constant keys',
+  })
+  .refine(
+    (values) => uniqueStringArray('Interests', values) === true,
+    'Interests must not contain duplicate values'
+  );
+
+const personalityArraySchema = z
+  .array(z.enum(PERSONALITY_KEYS), {
+    error: 'Personality must be an array of predefined constant keys',
+  })
+  .refine(
+    (values) => uniqueStringArray('Personality', values) === true,
+    'Personality must not contain duplicate values'
+  );
+
+const deletedImagesSchema = z.preprocess(
+  parseStringifiedArray,
+  z
+    .array(
+      z
+        .string({ error: 'Deleted image link must be string type!' })
+        .trim()
+        .min(1, 'Deleted image link cannot be empty')
+    )
+    .refine(
+      (values) => uniqueStringArray('Deleted images', values) === true,
+      'Deleted images must not contain duplicate values'
+    )
+);
+
+const deletedInterestsSchema = z.preprocess(
+  parseStringifiedArray,
+  interestsArraySchema
+);
+const updateInterestsSchema = z.preprocess(
+  parseStringifiedArray,
+  interestsArraySchema
+);
+const updatePersonalitySchema = z.preprocess(
+  parseStringifiedArray,
+  personalityArraySchema
+);
+const deletedPersonalitySchema = z.preprocess(
+  parseStringifiedArray,
+  personalityArraySchema
+);
 
 const candidateSchemaFields = {
   name: z
@@ -95,10 +158,9 @@ const candidateSchemaFields = {
     })
     .optional(),
   occupation: z
-    .string({ error: 'Occupation must be string type!' })
-    .trim()
-    .min(1, 'Occupation cannot be empty')
-    .max(120, 'Occupation must be at most 120 characters long')
+    .enum(OCCUPATION_KEYS, {
+      error: 'Occupation must be one of the predefined constant keys',
+    })
     .optional(),
   highest_education: z
     .enum(HIGHEST_EDUCATION_KEYS, {
@@ -115,24 +177,8 @@ const candidateSchemaFields = {
       error: 'Drink status must be one of the predefined constant keys',
     })
     .optional(),
-  interests: z
-    .array(z.enum(INTEREST_KEYS), {
-      error: 'Interests must be an array of predefined constant keys',
-    })
-    .refine(
-      (values) => uniqueStringArray('Interests', values) === true,
-      'Interests must not contain duplicate values'
-    )
-    .optional(),
-  personality: z
-    .array(z.enum(PERSONALITY_KEYS), {
-      error: 'Personality must be an array of predefined constant keys',
-    })
-    .refine(
-      (values) => uniqueStringArray('Personality', values) === true,
-      'Personality must not contain duplicate values'
-    )
-    .optional(),
+  interests: interestsArraySchema.optional(),
+  personality: personalityArraySchema.optional(),
   relationToUser: z
     .nativeEnum(RelationToUser)
     .default(RelationToUser.SELF),
@@ -200,11 +246,16 @@ export const createCandidateZodSchema = z
 
 // Candidate profile update validation for future update endpoints.
 export const updateCandidateZodSchema = z
-  .object(candidateSchemaFields)
+  .object({
+    ...candidateSchemaFields,
+    // KEEP UPDATE SAFE: DO NOT AUTO-DEFAULT RELATION ON PATCH.
+    relationToUser: z.nativeEnum(RelationToUser).optional(),
+    interests: updateInterestsSchema.optional(),
+    deletedInterests: deletedInterestsSchema.optional(),
+    personality: updatePersonalitySchema.optional(),
+    deletedPersonality: deletedPersonalitySchema.optional(),
+    deletedImages: deletedImagesSchema.optional(),
+  })
   .partial()
   .strict()
-  .refine((data) => Object.keys(data).length > 0, {
-    message: 'At least one field is required to update a candidate profile',
-    path: ['name'],
-  })
   .superRefine(applyCandidateBusinessRules);
