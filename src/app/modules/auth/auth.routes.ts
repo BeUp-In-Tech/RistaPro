@@ -14,6 +14,9 @@ router.get(
   authController.googleCallback
 );
 
+// GOOGLE AUTH FOR APPLE DEVICES
+router.post('/google/auth', authController.googleAuthSystem);
+
 // CREDENTIALS
 router.post('/login', authController.credentialsLogin);
 

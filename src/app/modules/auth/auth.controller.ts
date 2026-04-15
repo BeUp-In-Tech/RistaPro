@@ -44,6 +44,8 @@ const googleCallback = CatchAsync(
     const isAndroid = /android/i.test(userAgent);
     const isIOS = /iphone|ipad|ipod/i.test(userAgent);
 
+    console.log(token.accessToken)
+
     if (isAndroid || isIOS) {
       res.redirect(
         `${env.DEEP_LINK}/auth/google?access=${token.accessToken}&refresh=${token.refreshToken}`
@@ -53,6 +55,20 @@ const googleCallback = CatchAsync(
         `${env.FRONTEND_URL}?access=${token.accessToken}`
       );
     }
+  }
+);
+
+// GOOGLE AUTHENTICATION SYSTEM FOR MOBILE DEVICES
+const googleAuthSystem = CatchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const result = await authServices.googleAuthSystem(req.body);
+
+    SendResponse(res, {
+      success: true,
+      statusCode: 200,
+      message: 'Authentication success',
+      data: result,
+    })
   }
 );
 
@@ -177,5 +193,6 @@ export const authController = {
   forgetPassword,
   verifyForgetPasswordOTP,
   resetPassword,
-  getNewAccessToken
+  getNewAccessToken,
+  googleAuthSystem
 };

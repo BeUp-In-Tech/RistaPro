@@ -33,6 +33,10 @@ export enum RelationToUser {
   MOTHER = 'MOTHER',
   BROTHER = 'BROTHER',
   SISTER = 'SISTER',
+  GUARDIAN = 'GUARDIAN',
+  RELATIVE = 'RELATIVE',
+  CONSULTANT = 'CONSULTANT',
+  OTHER = 'OTHER',
   OTHERS = 'OTHERS',
 }
 
@@ -72,6 +76,8 @@ export interface ICandidateProfileFields {
   drink_status?: DrinkStatusKey;
   interests?: InterestKey[];
   personality?: PersonalityKey[];
+  // This is kept for request compatibility and now represents
+  // the creator's relation to the candidate profile.
   relationToUser?: RelationToUser;
   partnerExpectation?: string;
   bio?: string;

@@ -34,6 +34,8 @@ interface EnvInterfaces {
   GOOGLE_OAUTH_ID: string;
   GOOGLE_OAUTH_SECRET: string;
   GOOGLE_CALLBACK_URL: string;
+  GOOGLE_IOS_CLIENT_ID: string;
+  GOOGLE_ANDROID_CLIENT_ID: string;
 
   ADMIN_MAIL: string;
   ADMIN_PASSWORD: string;
@@ -57,7 +59,7 @@ interface EnvInterfaces {
   UNIVERSE_DOMAIN: string;
 }
 
-const loadEnvVarbles = (): EnvInterfaces => {
+const loadEnvVariables = (): EnvInterfaces => {
   const requireEnvVariables: string[] = [
     'PORT',
     'MONGO_URI',
@@ -90,6 +92,8 @@ const loadEnvVarbles = (): EnvInterfaces => {
     'GOOGLE_OAUTH_ID',
     'GOOGLE_OAUTH_SECRET',
     'GOOGLE_CALLBACK_URL',
+    'GOOGLE_ANDROID_CLIENT_ID',
+    'GOOGLE_IOS_CLIENT_ID',
 
     'ADMIN_MAIL',
     'ADMIN_PASSWORD',
@@ -155,6 +159,8 @@ const loadEnvVarbles = (): EnvInterfaces => {
     GOOGLE_OAUTH_ID: process.env.GOOGLE_OAUTH_ID as string,
     GOOGLE_OAUTH_SECRET: process.env.GOOGLE_OAUTH_SECRET as string,
     GOOGLE_CALLBACK_URL: process.env.GOOGLE_CALLBACK_URL as string,
+    GOOGLE_IOS_CLIENT_ID: process.env.GOOGLE_IOS_CLIENT_ID as string,
+    GOOGLE_ANDROID_CLIENT_ID: process.env.GOOGLE_ANDROID_CLIENT_ID as string,
 
     ADMIN_MAIL: process.env.ADMIN_MAIL as string,
     ADMIN_PASSWORD: process.env.ADMIN_PASSWORD as string,
@@ -180,4 +186,4 @@ const loadEnvVarbles = (): EnvInterfaces => {
   };
 };
 
-export default loadEnvVarbles();
+export default loadEnvVariables();

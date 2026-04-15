@@ -134,8 +134,8 @@ const candidateSchemaFields = {
     )
     .optional(),
   relationToUser: z
-    .enum(RelationToUser)
-    .optional(),
+    .nativeEnum(RelationToUser)
+    .default(RelationToUser.SELF),
   partnerExpectation: z
     .string({ error: 'Partner expectation must be string type!' })
     .trim()
