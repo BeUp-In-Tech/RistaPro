@@ -30,7 +30,7 @@ export const sendNotificationByBullMQ = async (notificationPayload: INotificatio
 }
 
 
-// IMAGGE DELETE JOB ADD TO QUEUE
+// IMAGE DELETE JOB ADD TO QUEUE
 export const deleteImageByBullMQ = async (images: string[], jobId: string) => {  
   await imageDeleteQueue.add('deleteImage', images, {
     attempts: 3,

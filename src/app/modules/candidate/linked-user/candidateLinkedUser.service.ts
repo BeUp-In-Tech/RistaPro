@@ -1,7 +1,10 @@
 import { StatusCodes } from 'http-status-codes';
 import { Types } from 'mongoose';
+import env from '../../../config/env';
 import AppError from '../../../errorHelpers/AppError';
+import { sendMailByBullMQ } from '../../../utils/backgroundJobProcessingHelper';
 import { buildCandidateResponse } from '../candidate.utility';
+import Candidate from '../candidate.model';
 import User from '../../user/user.model';
 import CandidateLinkedUser from './candidateLinkedUser.model';
 import {
@@ -199,6 +202,31 @@ const addCandidateLinkedUser = async (
   if (shouldBePrimary) {
     await syncCandidatePrimaryOwner(candidateId, targetUser._id);
   }
+
+  const [ownerUser, candidate] = await Promise.all([
+    User.findById(authUserId).select('full_name').lean<{ full_name: string } | null>(),
+    Candidate.findById(candidateId).select('name').lean<{ name: string } | null>(),
+  ]);
+
+  await sendMailByBullMQ(
+    {
+      to: targetUser.email,
+      subject: 'You have been added to RistaPro',
+      templateName: 'linkedUserGreet',
+      templateData: {
+        ownerName: ownerUser?.full_name ?? 'A RistaPro member',
+        candidateName: candidate?.name ?? 'the candidate',
+        linkedUserName,
+        linkedUserEmail: targetUser.email,
+        tempPassword: payload.password ?? 'Use your existing password',
+        loginUrl: `${env.FRONTEND_URL}/login`,
+        supportEmail: env.EMAIL_USER,
+        termsOfService: `${env.FRONTEND_URL}/terms-of-service`,
+        privacyUrl: `${env.FRONTEND_URL}/privacy-policy`,
+      },
+    },
+    `linked_user_greet_${linkedUserId.toString()}_${Date.now()}`
+  );
 
   return {
     management: await getCandidateManagementSummary(candidateId),

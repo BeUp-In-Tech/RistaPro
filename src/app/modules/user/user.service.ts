@@ -21,7 +21,7 @@ import { excludeField } from './user.constant';
 import { sortObject } from '../../utils/sortQueryObject';
 import crypto from 'crypto';
 import { invalidateAllMachineryCache } from '../../utils/dynamicCacheInvalidator';
-import { deleteImageByBullMQ } from '../../utils/backgroundJobProcessingHelper';
+import { deleteImageByBullMQ, sendMailByBullMQ } from '../../utils/backgroundJobProcessingHelper';
 
 
 // REUSABLE KEYS
@@ -438,6 +438,19 @@ const verifyMyProfile = async (userId: string, otp: string) => {
   await redisClient.del(`${USER_VERIFY_OTP_PREFIX}${userId}`);
   await invalidateAllMachineryCache(`user_list:admin=*`);
   await redisClient.del(`get_me:${userId}`);
+
+  // SEND GREETINGS MAIL
+  await sendMailByBullMQ({
+    to: user.email,
+    subject: "Welcome to RistaPro",
+    templateName: "greetings",
+    templateData: {
+      name: user.full_name,
+      profileUrl: `${env.FRONTEND_URL}/profile`,
+      privacyPolicy: `${env.FRONTEND_URL}/privacy-policy`,
+      termsOfService: `${env.FRONTEND_URL}/terms-of-service`
+    }
+  }, `greetings_${userId}`);
 
   // RETURN UPDATE USER
   return null;

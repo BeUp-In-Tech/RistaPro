@@ -4,3 +4,5 @@ dist
 .vscode
 .idea
 *frontend-note.md
+.hintrc
+index.html
