@@ -2,6 +2,7 @@ import { Types } from 'mongoose';
 import { StatusCodes } from 'http-status-codes';
 import AppError from '../../errorHelpers/AppError';
 import { deleteImageByBullMQ } from '../../utils/backgroundJobProcessingHelper';
+import User from '../user/user.model';
 import Candidate from './candidate.model';
 import {
   ICreateCandidatePayload,
@@ -38,6 +39,21 @@ const createCandidate = async (
   const creatorRelation = mapLegacyRelationToLinkedRelation(
     payload.relationToUser ?? RelationToUser.SELF
   );
+
+  const user = await User.findById(userId)
+    .select('isVerified')
+    .lean<{ isVerified?: boolean } | null>();
+
+  if (!user) {
+    throw new AppError(StatusCodes.NOT_FOUND, 'User not found');
+  }
+
+  if (!user.isVerified) {
+    throw new AppError(
+      StatusCodes.FORBIDDEN,
+      'Please verify your account before creating a candidate profile'
+    );
+  }
 
   // Each account can belong to only one active candidate profile.
   await ensureNoOtherActiveCandidateAccess({
