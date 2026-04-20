@@ -263,3 +263,13 @@ export const buildCandidateUpdatePayload = (
 
   return updatePayload;
 };
+
+export const MAX_CANDIDATE_IMAGES = 6;
+export const normalizeImageLinks = (images: string[]) =>
+  Array.from(
+    new Set(images.map((image) => image.trim()).filter((image) => image.length))
+  );
+export const normalizeArrayValues = (values: string[]) =>
+  Array.from(
+    new Set(values.map((value) => value.trim()).filter((value) => value.length))
+  );

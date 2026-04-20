@@ -37,6 +37,9 @@ const buildGoogleAllowedClientIds = () => {
 };
 
 const googleAuthSystem = async (payload: any) => {
+  // eslint-disable-next-line no-console
+  console.log("Payload: ", payload);
+  
   if (!payload || typeof payload !== 'object') {
     throw new AppError(StatusCodes.BAD_REQUEST, 'Invalid Google auth payload');
   }
@@ -189,6 +192,8 @@ const googleAuthSystem = async (payload: any) => {
       throw error;
     }
   }
+
+  
 
   const fallbackName = verifiedEmail.split('@')[0] || 'Google User';
   const providerName =

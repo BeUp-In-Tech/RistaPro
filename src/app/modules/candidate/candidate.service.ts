@@ -13,6 +13,9 @@ import {
   buildCandidateCreatePayload,
   buildCandidateResponse,
   buildCandidateUpdatePayload,
+  MAX_CANDIDATE_IMAGES,
+  normalizeArrayValues,
+  normalizeImageLinks,
 } from './candidate.utility';
 import CandidateLinkedUser from './linked-user/candidateLinkedUser.model';
 import {
@@ -26,15 +29,6 @@ import {
 } from './linked-user/candidateLinkedUser.utility';
 import { getActiveLinkedUserAccessOrThrow } from './linked-user/candidateLinkedUser.helper';
 
-const MAX_CANDIDATE_IMAGES = 6;
-const normalizeImageLinks = (images: string[]) =>
-  Array.from(
-    new Set(images.map((image) => image.trim()).filter((image) => image.length))
-  );
-const normalizeArrayValues = (values: string[]) =>
-  Array.from(
-    new Set(values.map((value) => value.trim()).filter((value) => value.length))
-  );
 
 // 1. BUILD AUTHENTICATED USER'S CANDIDATE PROFILE
 const createCandidate = async (

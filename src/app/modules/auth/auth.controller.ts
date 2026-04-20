@@ -44,6 +44,7 @@ const googleCallback = CatchAsync(
     const isAndroid = /android/i.test(userAgent);
     const isIOS = /iphone|ipad|ipod/i.test(userAgent);
 
+    // eslint-disable-next-line no-console
     console.log(token.accessToken)
 
     if (isAndroid || isIOS) {
