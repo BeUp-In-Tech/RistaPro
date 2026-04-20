@@ -43,6 +43,7 @@ const createCandidate = async (
   await ensureNoOtherActiveCandidateAccess({
     userId,
     message: 'This account is already linked to an active candidate profile',
+    images: payload.images
   });
 
   let createdCandidateId: Types.ObjectId | null = null;
@@ -54,6 +55,9 @@ const createCandidate = async (
       : undefined;
 
     if (normalizedImages && normalizedImages.length > MAX_CANDIDATE_IMAGES) {
+      // DELETE EXISTING IMAGE
+      await deleteImageByBullMQ(payload.images ?? [], `delete_image_${Date.now()}_${userId}`);
+
       throw new AppError(
         StatusCodes.BAD_REQUEST,
         `Candidate profile can have a maximum of ${MAX_CANDIDATE_IMAGES} images`
