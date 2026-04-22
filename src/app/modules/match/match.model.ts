@@ -11,6 +11,8 @@ const matchSchema = new Schema<IMatch>(
   { timestamps: true, versionKey: false }
 );
 
+matchSchema.index({ candidates: 1, createdAt: -1 });
+
 const Match = model<IMatch>('match', matchSchema);
 
 export default Match;
