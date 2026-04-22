@@ -122,6 +122,7 @@ export const OCCUPATIONS = {
   PILOT: 'Pilot',
   CABIN_CREW: 'Cabin Crew',
   CHEF: 'Chef',
+  HOMEMAKER: 'Homemaker',
   HOSPITALITY_MANAGER: 'Hospitality Manager',
   HOTEL_MANAGER: 'Hotel Manager',
   FASHION_DESIGNER: 'Fashion Designer',
