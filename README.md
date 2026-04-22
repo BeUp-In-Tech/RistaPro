@@ -7,6 +7,7 @@ Active modules today:
 - `users`
 - `plans`
 - `candidates`
+- `candidate-preferences`
 
 Other route files may exist in the codebase, but they are not publicly available until they are mounted in the main router.
 
@@ -95,7 +96,8 @@ data: {"name":"Amina","dateOfBirth":"1998-05-11","gender":"FEMALE"}
 1. Load constants from `GET /candidates/constants`
 2. Pick option `value` keys from the response
 3. Create profile with `POST /candidates`
-4. If needed, add family members with linked-user APIs
+4. Review or update partner preferences with `GET /candidate-preferences/:candidateId`
+5. If needed, add family members with linked-user APIs
 
 ### 4. Guardian-managed candidate profile
 
@@ -807,6 +809,149 @@ Safety rules:
 
 ---
 
+## Candidate Preference Module
+
+Base path: `/api/v1/candidate-preferences`
+
+This module stores the partner preferences used by the future swipe/feed system.
+
+Security rules:
+- all endpoints require `Authorization: Bearer <accessToken>`
+- requester must be an active linked user of the candidate profile
+- linked `VIEWER` users can read preferences only
+- linked `OWNER` and `EDITOR` users can create, replace, or update preferences
+
+Performance notes:
+- `GET` uses a short Redis cache after authorization
+- writes invalidate the preference cache
+- preferences are automatically created with safe defaults when a candidate profile is created
+
+Default behavior:
+- for `MALE` candidates, `preferredGenders` defaults to `["FEMALE"]`
+- for `FEMALE` candidates, `preferredGenders` defaults to `["MALE"]`
+- for `OTHER` candidates, `preferredGenders` defaults to `["MALE", "FEMALE", "OTHER"]`
+- `strictFilters.gender` defaults to `true`
+- `strictFilters.age` defaults to `true` only when `ageMin` or `ageMax` exists
+- other strict filters default to `false`
+
+### `GET /:candidateId`
+
+Purpose:
+- Get partner preferences for a candidate profile
+- If preferences do not exist yet, the backend creates default preferences and returns them
+
+Auth:
+- Bearer token
+- requester must be an active linked user of this candidate
+
+Example:
+
+```http
+GET /api/v1/candidate-preferences/665f1a2b3c4d5e6f78901234
+Authorization: Bearer <accessToken>
+```
+
+### `PUT /:candidateId`
+
+Purpose:
+- Replace the full preference document for a candidate profile
+- Missing optional array fields are saved as empty arrays
+- Missing nullable number fields are removed
+
+Auth:
+- Bearer token
+- requester must be linked `OWNER` or `EDITOR`
+
+Body example:
+
+```json
+{
+  "preferredGenders": ["FEMALE"],
+  "ageMin": 22,
+  "ageMax": 32,
+  "heightMin": 150,
+  "heightMax": 180,
+  "religions": ["ISLAM"],
+  "sects": ["SUNNI"],
+  "castes": ["BENGALI"],
+  "relationship_statuses": ["SINGLE", "NEVER_MARRIED"],
+  "have_children": ["NONE"],
+  "move_abroad": ["YES", "MAYBE"],
+  "occupations": ["SOFTWARE_ENGINEER", "DOCTOR"],
+  "highest_educations": ["BACHELORS", "MASTERS"],
+  "smoke_statuses": ["NEVER"],
+  "drink_statuses": ["NEVER"],
+  "interests": ["TRAVEL", "NON_FICTION"],
+  "personality": ["HONEST", "LOYAL"],
+  "maxDistanceKm": 50,
+  "strictFilters": {
+    "gender": true,
+    "age": true,
+    "height": false,
+    "religion": false,
+    "caste": false,
+    "location": false
+  }
+}
+```
+
+### `PATCH /:candidateId`
+
+Purpose:
+- Partially update candidate preferences
+- Only sent fields are changed
+- Send `null` for nullable number fields to clear them
+
+Auth:
+- Bearer token
+- requester must be linked `OWNER` or `EDITOR`
+
+Body example:
+
+```json
+{
+  "ageMin": 24,
+  "ageMax": 34,
+  "maxDistanceKm": null,
+  "strictFilters": {
+    "age": true,
+    "location": false
+  }
+}
+```
+
+Allowed fields:
+- `preferredGenders`: `MALE | FEMALE | OTHER`
+- `ageMin`, `ageMax`: number between `18` and `100`, or `null` in patch
+- `heightMin`, `heightMax`: number between `1` and `300`, or `null` in patch
+- `religions`, `sects`, `castes`
+- `relationship_statuses`
+- `have_children`
+- `move_abroad`
+- `occupations`
+- `highest_educations`
+- `smoke_statuses`
+- `drink_statuses`
+- `interests`
+- `personality`
+- `maxDistanceKm`: number between `1` and `10000`, or `null` in patch
+- `strictFilters.gender`
+- `strictFilters.age`
+- `strictFilters.height`
+- `strictFilters.religion`
+- `strictFilters.caste`
+- `strictFilters.location`
+
+Validation notes:
+- enum values must use constant keys from `GET /candidates/constants`
+- arrays cannot contain duplicate values
+- `ageMin` cannot be greater than `ageMax`
+- `heightMin` cannot be greater than `heightMax`
+- if both `religions` and `sects` are sent, every sect must belong to one of the selected religions
+- patch request must contain at least one preference field
+
+---
+
 ## Example Headers
 
 Bearer token request:
@@ -836,8 +981,9 @@ Content-Type: application/json
 2. Load `/plans` if pricing UI is needed
 3. Load `/candidates/constants` before candidate forms
 4. Create candidate profile
-5. Load `/candidates/my_linked_profiles` after login to fetch the current account's candidate access
-6. Use linked-user APIs to add father, mother, consultant, or other guardians
+5. Load or update `/candidate-preferences/:candidateId`
+6. Load `/candidates/my_linked_profiles` after login to fetch the current account's candidate access
+7. Use linked-user APIs to add father, mother, consultant, or other guardians
 
 ## Maintenance Note
 
