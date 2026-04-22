@@ -10,6 +10,8 @@ const likeSchema = new Schema<ILike>(
   { timestamps: true, versionKey: false }
 );
 
+likeSchema.index({ likedBy: 1, likedProfile: 1 });
+
 const Like = model<ILike>('Like', likeSchema);
 
 export default Like;
