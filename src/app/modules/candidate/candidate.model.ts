@@ -99,6 +99,11 @@ const candidateSchema = new Schema<ICandidate>(
   { timestamps: true, versionKey: false }
 );
 
+candidateSchema.index({ isActive: 1, gender: 1, dateOfBirth: 1, createdAt: -1 });
+candidateSchema.index({ isActive: 1, religion: 1, caste: 1, createdAt: -1 });
+candidateSchema.index({ isActive: 1, height: 1, createdAt: -1 });
+candidateSchema.index({ user: 1, isActive: 1 });
+
 const Candidate = model<ICandidate>('candidate', candidateSchema);
 
 export default Candidate;
