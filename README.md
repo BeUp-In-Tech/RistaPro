@@ -8,6 +8,7 @@ Active modules today:
 - `plans`
 - `candidates`
 - `candidate-preferences`
+- `swipes`
 
 Other route files may exist in the codebase, but they are not publicly available until they are mounted in the main router.
 
@@ -97,7 +98,8 @@ data: {"name":"Amina","dateOfBirth":"1998-05-11","gender":"FEMALE"}
 2. Pick option `value` keys from the response
 3. Create profile with `POST /candidates`
 4. Review or update partner preferences with `GET /candidate-preferences/:candidateId`
-5. If needed, add family members with linked-user APIs
+5. Load recommended profiles with `GET /swipes/feed?candidateId=<candidateId>`
+6. If needed, add family members with linked-user APIs
 
 ### 4. Guardian-managed candidate profile
 
@@ -993,6 +995,89 @@ Validation notes:
 
 ---
 
+## Swipe Module
+
+Base path: `/api/v1/swipes`
+
+This module powers the Tinder-style candidate discovery feed.
+
+Current phase:
+- feed/recommendation API only
+- like, super-like, and pass actions are planned for the next phase
+
+Security rules:
+- all endpoints require `Authorization: Bearer <accessToken>`
+- requester must be an active linked user of the `candidateId`
+- `OWNER`, `EDITOR`, and `VIEWER` users can view the feed
+- mutation permissions are not used yet because Phase 2 does not create swipe actions
+
+### `GET /feed`
+
+Purpose:
+- Return a ranked candidate stack for one candidate profile
+- Apply candidate preferences from `/candidate-preferences/:candidateId`
+- Exclude own profile, already acted profiles, matched profiles, and reported profiles
+- Filter out candidates whose owner account is not verified
+
+Query params:
+- `candidateId`: required candidate profile id
+- `limit`: optional, default `20`, max `50`
+- `cursor`: optional cursor returned from the previous response
+
+Example:
+
+```http
+GET /api/v1/swipes/feed?candidateId=665f1a2b3c4d5e6f78901234&limit=20
+Authorization: Bearer <accessToken>
+```
+
+Response data shape:
+
+```json
+{
+  "cards": [
+    {
+      "_id": "candidate id",
+      "name": "Amina",
+      "age": 24,
+      "gender": "FEMALE",
+      "height": 160,
+      "religion": "ISLAM",
+      "sect": "SUNNI",
+      "caste": "BENGALI",
+      "occupation": "HOMEMAKER",
+      "highest_education": "BACHELORS",
+      "interests": ["TRAVEL"],
+      "personality": ["HONEST"],
+      "bio": "Short bio",
+      "images": ["https://image-url.jpg"],
+      "labels": {},
+      "matchScore": 92,
+      "scoreReasons": [
+        "Gender matches your preference",
+        "Age matches your preference",
+        "Religion matches your preference"
+      ],
+      "isSuperLike": false
+    }
+  ],
+  "limit": 20,
+  "nextCursor": "cursor token or null",
+  "relaxed": false
+}
+```
+
+Recommendation behavior:
+- strict filters remove candidates from the query
+- soft preferences add match score
+- if strict filters return too few candidates, the API relaxes optional filters and returns `relaxed: true`
+- first page builds a short Redis feed session so later cursor pages are fast
+
+Dedicated module documentation:
+- `src/app/modules/swipe/API.md`
+
+---
+
 ## Example Headers
 
 Bearer token request:
@@ -1023,8 +1108,9 @@ Content-Type: application/json
 3. Load `/candidates/constants` before candidate forms
 4. Create candidate profile
 5. Load or update `/candidate-preferences/:candidateId`
-6. Load `/candidates/my_linked_profiles` after login to fetch the current account's candidate access
-7. Use linked-user APIs to add father, mother, consultant, or other guardians
+6. Load `/swipes/feed?candidateId=<candidateId>` for the discovery stack
+7. Load `/candidates/my_linked_profiles` after login to fetch the current account's candidate access
+8. Use linked-user APIs to add father, mother, consultant, or other guardians
 
 ## Maintenance Note
 

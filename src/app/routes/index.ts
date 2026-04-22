@@ -3,6 +3,7 @@ import { authRouter } from '../modules/auth/auth.routes';
 import { candidateRoutes } from '../modules/candidate/candidate.routes';
 import { candidatePreferenceRoutes } from '../modules/candidate-preference/candidatePreference.routes';
 import { planRoutes } from '../modules/plan/plan.routes';
+import { swipeRoutes } from '../modules/swipe/swipe.routes';
 import { userRoutes } from '../modules/user/user.routes';
 export const router = Router();
 
@@ -22,6 +23,10 @@ const moduleRoutes = [
   {
     path: '/candidate-preferences',
     route: candidatePreferenceRoutes,
+  },
+  {
+    path: '/swipes',
+    route: swipeRoutes,
   },
   {
     path: '/users',
