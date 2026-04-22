@@ -18,6 +18,23 @@ const getMyLinkedCandidates = CatchAsync(async (req: Request, res: Response) => 
   });
 });
 
+// AUTH USER GET BASIC CANDIDATE PROFILE
+const getMyCandidateBasicProfile = CatchAsync(
+  async (req: Request, res: Response) => {
+    const { userId } = req.user as JwtPayload;
+    const result = await CandidateLinkedUserService.getMyCandidateBasicProfile(
+      userId
+    );
+
+    SendResponse(res, {
+      success: true,
+      statusCode: StatusCodes.OK,
+      message: 'Candidate basic profile retrieved successfully',
+      data: result,
+    });
+  }
+);
+
 // AUTH USER LIST LINKED USERS OF A CANDIDATE PROFILE
 const getCandidateLinkedUsers = CatchAsync(async (req: Request, res: Response) => {
   const { userId } = req.user as JwtPayload;
@@ -93,6 +110,7 @@ const removeCandidateLinkedUser = CatchAsync(
 export const CandidateLinkedUserController = {
   addCandidateLinkedUser,
   getCandidateLinkedUsers,
+  getMyCandidateBasicProfile,
   getMyLinkedCandidates,
   removeCandidateLinkedUser,
   updateCandidateLinkedUser,

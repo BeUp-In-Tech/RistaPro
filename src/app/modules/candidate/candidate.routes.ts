@@ -45,6 +45,13 @@ router.get(
   CandidateLinkedUserController.getMyLinkedCandidates
 );
 
+// AUTHENTICATED USER BASIC CANDIDATE PROFILE
+router.get(
+  '/my_basic_profile',
+  checkAuth(Role.USER),
+  CandidateLinkedUserController.getMyCandidateBasicProfile
+);
+
 // AUTHENTICATED USER LIST LINKED USERS OF A CANDIDATE PROFILE
 router.get(
   '/:candidateId/linked_users',

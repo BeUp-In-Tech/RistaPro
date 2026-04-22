@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { authRouter } from '../modules/auth/auth.routes';
 import { candidateRoutes } from '../modules/candidate/candidate.routes';
+import { candidatePreferenceRoutes } from '../modules/candidate-preference/candidatePreference.routes';
 import { planRoutes } from '../modules/plan/plan.routes';
 import { userRoutes } from '../modules/user/user.routes';
 export const router = Router();
@@ -17,6 +18,10 @@ const moduleRoutes = [
   {
     path: '/candidates',
     route: candidateRoutes,
+  },
+  {
+    path: '/candidate-preferences',
+    route: candidatePreferenceRoutes,
   },
   {
     path: '/users',

@@ -46,6 +46,31 @@ import {
 } from './candidateLinkedUser.helper';
 import { redisClient } from '../../../config/redis.config';
 
+const BASIC_CANDIDATE_PROFILE_SELECT =
+  '_id name gender dateOfBirth images isActive createdAt updatedAt';
+
+interface TMyCandidateBasicProfileLean {
+  _id: Types.ObjectId;
+  name: string;
+  gender: string;
+  dateOfBirth: Date;
+  images?: string[];
+  isActive?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+interface TMyBasicLinkedCandidateRow {
+  _id: Types.ObjectId;
+  accessRole: CandidateLinkedUserAccessRole;
+  candidate: TMyCandidateBasicProfileLean | null;
+  relationshipToCandidate: CandidateLinkedUserRelation;
+  status: CandidateLinkedUserStatus;
+  isPrimary: boolean;
+  linkedBy: Types.ObjectId;
+  joinedAt?: Date;
+}
+
 /*
   Reading Guide (suggested order):
   1) addCandidateLinkedUser
@@ -522,9 +547,61 @@ const getMyLinkedCandidates = async (userId: string) => {
   ];
 };
 
+// 6. GET MY BASIC CANDIDATE PROFILE
+const getMyCandidateBasicProfile = async (userId: string) => {
+  const activeCandidateAccesses = await ensureSingleActiveCandidateAccessOrThrow({
+    userId,
+    message:
+      'This account is linked to multiple active candidate profiles. Please resolve the duplicate assignments first',
+  });
+
+  if (!activeCandidateAccesses.length) {
+    return null;
+  }
+
+  const candidateIds = activeCandidateAccesses.map((access) => access.candidateId);
+
+  // Sync legacy ownership before lookup so older profiles still resolve through the linked-user access layer.
+  await syncLegacyOwnerLinks({ userId, candidateIds });
+
+  const linkedCandidate = await CandidateLinkedUser.findOne({
+    candidate: { $in: candidateIds },
+    user: userId,
+    status: CandidateLinkedUserStatus.ACTIVE,
+  })
+    .populate({
+      path: 'candidate',
+      select: BASIC_CANDIDATE_PROFILE_SELECT,
+    })
+    .lean<TMyBasicLinkedCandidateRow | null>();
+
+  if (!linkedCandidate?.candidate) {
+    return null;
+  }
+
+  const candidate = linkedCandidate.candidate;
+  const images = candidate.images ?? [];
+
+  return {
+    candidate: {
+      _id: candidate._id,
+      name: candidate.name,
+      gender: candidate.gender,
+      dateOfBirth: candidate.dateOfBirth,
+      profileImage: images[0] ?? null,
+      images,
+      isActive: candidate.isActive,
+      createdAt: candidate.createdAt,
+      updatedAt: candidate.updatedAt,
+    },
+    myAccess: buildMyAccessResponse(linkedCandidate),
+  };
+};
+
 export const CandidateLinkedUserService = {
   addCandidateLinkedUser,
   getCandidateLinkedUsers,
+  getMyCandidateBasicProfile,
   getMyLinkedCandidates,
   removeCandidateLinkedUser,
   updateCandidateLinkedUser,

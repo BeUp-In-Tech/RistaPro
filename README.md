@@ -104,7 +104,8 @@ data: {"name":"Amina","dateOfBirth":"1998-05-11","gender":"FEMALE"}
 1. Guardian logs in
 2. Create candidate using `relationToUser`
 3. Add other linked users with `POST /candidates/:candidateId/linked-users` (link existing account or create new account with `name + email + password`)
-4. Candidate owner can load the managed candidate from `GET /candidates/my_linked_profiles`
+4. Candidate owner can load basic profile info from `GET /candidates/my_basic_profile`
+5. Candidate owner can load the full managed candidate access from `GET /candidates/my_linked_profiles`
 
 ---
 
@@ -701,6 +702,46 @@ Auth:
 
 Useful for:
 - loading the current account's candidate access after login
+
+### `GET /my_basic_profile`
+
+Purpose:
+- Get lightweight basic info for the current account's active candidate profile
+- Useful for dashboard headers, app shell state, and preference screens that only need candidate identity
+
+Auth:
+- Bearer token
+
+Response data shape:
+
+```json
+{
+  "candidate": {
+    "_id": "candidate id",
+    "name": "Amina",
+    "gender": "FEMALE",
+    "dateOfBirth": "1998-05-11T00:00:00.000Z",
+    "profileImage": "https://image-url.jpg",
+    "images": ["https://image-url.jpg"],
+    "isActive": "ACTIVE",
+    "createdAt": "2026-04-22T00:00:00.000Z",
+    "updatedAt": "2026-04-22T00:00:00.000Z"
+  },
+  "myAccess": {
+    "_id": "linked user id",
+    "accessRole": "OWNER",
+    "relationshipToCandidate": "SELF",
+    "status": "ACTIVE",
+    "isPrimary": true,
+    "linkedBy": "user id",
+    "joinedAt": "2026-04-22T00:00:00.000Z"
+  }
+}
+```
+
+Notes:
+- returns `null` when the logged-in user has no active candidate profile
+- rejects the request if the account is linked to multiple active candidate profiles
 
 ### `GET /:candidateId/linked-users`
 

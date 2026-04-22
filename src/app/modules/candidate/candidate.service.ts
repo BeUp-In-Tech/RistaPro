@@ -29,6 +29,10 @@ import {
   mapLegacyRelationToLinkedRelation,
 } from './linked-user/candidateLinkedUser.utility';
 import { getActiveLinkedUserAccessOrThrow } from './linked-user/candidateLinkedUser.helper';
+import {
+  deleteCandidatePreferenceByCandidateId,
+  ensureDefaultCandidatePreference,
+} from '../candidate-preference/candidatePreference.service';
 
 
 // 1. BUILD AUTHENTICATED USER'S CANDIDATE PROFILE
@@ -99,6 +103,13 @@ const createCandidate = async (
       user: userId,
     });
 
+    // Create the feed preference immediately so later swipe/feed reads are fast and predictable.
+    await ensureDefaultCandidatePreference({
+      candidateGender: createdCandidate.gender,
+      candidateId: createdCandidate._id,
+      createdBy: userId,
+    });
+
     const candidateResponse = buildCandidateResponse(createdCandidate.toObject());
 
     return {
@@ -122,7 +133,12 @@ const createCandidate = async (
     };
   } catch (error) {
     if (createdCandidateId) {
-      await Candidate.deleteOne({ _id: createdCandidateId });
+      // Keep the create flow atomic-ish without a transaction: remove records made in this request.
+      await Promise.all([
+        CandidateLinkedUser.deleteMany({ candidate: createdCandidateId }),
+        deleteCandidatePreferenceByCandidateId(createdCandidateId),
+        Candidate.deleteOne({ _id: createdCandidateId }),
+      ]);
     }
 
     throw error;

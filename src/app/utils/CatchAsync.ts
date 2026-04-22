@@ -6,13 +6,6 @@ type AsyncHandler = (
   next: NextFunction
 ) => Promise<void>;
 
-// export const CatchAsync = (fn: AsyncHandler) =>  async (req: Request, res: Response, next: NextFunction) => {
-//     Promise.resolve(fn(req, res, next)).catch((err: any) => {
-//         next(err);
-//     })
-// }
-
-// Alternative (Same works)
 
 export const CatchAsync =
   (fn: AsyncHandler) =>
@@ -20,6 +13,8 @@ export const CatchAsync =
     try {
       await fn(req, res, next);
     } catch (error) {
+      console.log(error);
+      
       next(error);
     }
   };
