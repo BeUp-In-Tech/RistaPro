@@ -396,9 +396,23 @@ const sendVerificationOtp = async (userId: string) => {
   ===============================================
 
   */
+const templateData = {
+    otp: otp,
+    name: user.full_name,
+    expirationTime: '5 minutes',
+  };
+
+ // SEND GREETINGS MAIL
+  await sendMailByBullMQ({
+    to: user.email,
+    subject: "Welcome to RistaPro",
+    templateName: "otp_test_email",
+    templateData: templateData
+  }, `greetings_${userId}`);
+
    
 
-  return "Twilio OTP sending should be implemented here";
+  return  null;
 };
 
 // 9. AUTH USER VERIFY PROFILE
