@@ -216,7 +216,7 @@ const googleAuthSystem = async (payload: any) => {
       },
       {
         $set: {
-          isVerified: false,
+          isVerified: env.NODE_ENV === 'development',
         },
         $addToSet: {
           auths: {

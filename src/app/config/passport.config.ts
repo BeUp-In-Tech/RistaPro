@@ -41,7 +41,7 @@ passport.use(
             full_name: profile.displayName,
             email,
             picture: profile.photos?.[0]?.value,
-            isVerified: false,
+            isVerified: env.NODE_ENV === 'development',
             auths: [
               {
                 provider: 'google',
