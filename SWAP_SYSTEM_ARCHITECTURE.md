@@ -30,11 +30,7 @@ The existing backend already has most core concepts:
   - `canVideoCall`
   - `canViewFullProfile`
   - `profileBoost`
-- `User` already stores quota fields:
-  - `dailyLikeRemaining`
-  - `superLikeRemaining`
-  - `lastLikeReset`
-  - `plan`
+- `User` stores the selected `plan`. Like and super-like remaining counts are derived from `Like` action history for the current quota window rather than stored directly on the user.
 
 The final architecture should reuse these instead of creating a separate matching identity.
 
@@ -512,9 +508,8 @@ getCandidatePlanOwnerOrThrow(candidateId)
 getUserPlanOrDefault(planOwnerUserId)
 getCurrentLikeQuotaWindow(now)
 getNextLikeQuotaResetAt(now)
-resetLikeQuotaIfNeeded(user, plan)
 assertCanUseSwipeAction(user, plan, actionType)
-consumeSwipeQuota(user, actionType)
+getSwipeQuotaUsage(candidateId, quotaWindow)
 assertCanMessage(user, plan)
 assertCanCall(user, plan, callType)
 assertCanSeeWhoLiked(user, plan)
@@ -524,8 +519,8 @@ assertCanViewFullProfile(user, plan)
 Rules:
 
 - `PASS`: free, does not consume quota.
-- `LIKE`: requires `dailyLikeRemaining > 0`; daily cap should reset to 50 at the configured daily reset time.
-- `SUPER_LIKE`: requires `superLikeRemaining > 0`.
+- `LIKE`: requires current-window `LIKE` count for the acting candidate to be below `plan.dailyLikes`.
+- `SUPER_LIKE`: requires current-window `SUPER_LIKE` count for the acting candidate to be below `plan.superLikes`.
 - `likes-me` list requires `plan.canSeeWhoLiked`.
 - Sending message requests and messages requires `plan.canMessage`.
 - Starting audio calls requires `plan.canAudioCall`.
@@ -673,9 +668,9 @@ High-level flow:
 4. Reject self action.
 5. Verify target candidate is active.
 6. Reject action if an active match already exists.
-7. Load user's plan and quota.
-8. Reset daily like quota if the fixed daily reset boundary has passed.
-9. Validate and consume quota for `LIKE` or `SUPER_LIKE`.
+7. Load the candidate owner's plan.
+8. Count current-window `LIKE` and `SUPER_LIKE` actions for the acting candidate.
+9. Validate quota for `LIKE` or `SUPER_LIKE`.
 10. Upsert `Like` record for `(likedBy, likedProfile)`.
 11. If action is `LIKE` or `SUPER_LIKE`, check reverse like:
     - reverse likedBy = target
@@ -1040,7 +1035,6 @@ Use Redis for:
 - candidate preference read cache
 - feed session cache
 - plan cache already exists
-- quota reset helper if needed
 
 Invalidate feed cache when:
 
@@ -1108,7 +1102,7 @@ Use clear errors:
 
 - Extend `Like` model with indexes and audit fields.
 - Add swipe action endpoint.
-- Add quota reset and consume helpers.
+- Add quota usage and validation helpers.
 - Implement like, super like, pass.
 - Add duplicate action handling.
 

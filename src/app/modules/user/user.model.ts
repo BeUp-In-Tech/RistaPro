@@ -44,9 +44,6 @@ const userSchema = new Schema<IUser>(
     phone: { type: String, trim: true },
     picture: { type: String, trim: true },
     plan: { type: String, trim: true },
-    dailyLikeRemaining: { type: Number, default: 0 },
-    superLikeRemaining: { type: Number, default: 0 },
-    lastLikeReset: { type: Date },
     isVerified: { type: Boolean, default: false },
     isDeleted: { type: Boolean, default: false },
     isActive: {

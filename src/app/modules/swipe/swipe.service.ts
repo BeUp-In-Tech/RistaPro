@@ -55,7 +55,7 @@ import {
 // TYPE DEFINITIONS & CONSTANTS
 // ============================================================================
 
-const USER_QUOTA_SELECT = '_id plan dailyLikeRemaining superLikeRemaining lastLikeReset isActive isDeleted';
+const USER_QUOTA_SELECT = '_id plan isActive isDeleted';
 const FEED_CANDIDATE_SELECT = '_id name dateOfBirth gender height religion sect caste relationship_status have_children move_abroad occupation highest_education smoke_status drink_status interests personality bio images address coordinates verification_status isActive user createdAt updatedAt';
 const RELAXED_FEED_REASON = 'Not enough candidates matched all strict preferences';
 
@@ -82,7 +82,7 @@ interface TSwipeMatchLean {
   updatedAt?: Date;
 }
 
-interface TSwipeQuotaUser extends Pick<IUser, '_id' | 'dailyLikeRemaining' | 'isActive' | 'isDeleted' | 'lastLikeReset' | 'plan' | 'superLikeRemaining'> {
+interface TSwipeQuotaUser extends Pick<IUser, '_id' | 'isActive' | 'isDeleted' | 'plan'> {
   _id: Types.ObjectId;
 }
 
@@ -266,55 +266,69 @@ const getSwipePlanOrDefault = async (plan?: string): Promise<TSwipePlanQuota> =>
   return planDocument ?? PLANS[planKey];
 };
 
-const resetDailyLikeQuotaIfNeeded = async (params: { now?: Date; plan: TSwipePlanQuota; user: TSwipeQuotaUser }) => {
-  const { now = new Date(), plan, user } = params;
+const getSwipeQuotaUsage = async (params: {
+  candidateId: string;
+  now?: Date;
+}) => {
+  const { candidateId, now = new Date() } = params;
   const currentWindowStart = getCurrentLikeQuotaWindowStart(now);
-  const shouldReset = !user.lastLikeReset || user.lastLikeReset < currentWindowStart || user.dailyLikeRemaining === undefined;
+  const [dailyLikeUsed, superLikeUsed] = await Promise.all([
+    Like.countDocuments({
+      createdAt: { $gte: currentWindowStart },
+      likedBy: candidateId,
+      type: LikeType.LIKE,
+      $or: [{ isActive: true }, { isActive: { $exists: false } }],
+    }),
+    Like.countDocuments({
+      createdAt: { $gte: currentWindowStart },
+      likedBy: candidateId,
+      type: LikeType.SUPER_LIKE,
+      $or: [{ isActive: true }, { isActive: { $exists: false } }],
+    }),
+  ]);
 
-  if (!shouldReset) return user;
-
-  const updatedUser = await User.findByIdAndUpdate(user._id, { $set: { dailyLikeRemaining: plan.dailyLikes, lastLikeReset: currentWindowStart } }, { new: true })
-    .select(USER_QUOTA_SELECT)
-    .lean<TSwipeQuotaUser | null>();
-
-  if (!updatedUser) throw new AppError(StatusCodes.NOT_FOUND, 'Candidate owner not found');
-  return updatedUser;
+  return {
+    dailyLikeUsed,
+    superLikeUsed,
+  };
 };
 
-const consumeSwipeQuotaOrThrow = async (params: { type: LikeType; userId: Types.ObjectId }) => {
-  const { type, userId } = params;
+const assertSwipeQuotaAvailable = async (params: {
+  candidateId: string;
+  plan: TSwipePlanQuota;
+  type: LikeType;
+}) => {
+  const { candidateId, plan, type } = params;
 
-  if (type === LikeType.LIKE) {
-    const updatedUser = await User.findOneAndUpdate({ _id: userId, dailyLikeRemaining: { $gt: 0 } }, { $inc: { dailyLikeRemaining: -1 } }, { new: true })
-      .select(USER_QUOTA_SELECT)
-      .lean<TSwipeQuotaUser | null>();
-    if (!updatedUser) throw new AppError(StatusCodes.TOO_MANY_REQUESTS, 'Daily like limit reached');
-    return updatedUser;
+  if (!isPositiveSwipeAction(type)) {
+    return;
   }
 
-  if (type === LikeType.SUPER_LIKE) {
-    const updatedUser = await User.findOneAndUpdate({ _id: userId, superLikeRemaining: { $gt: 0 } }, { $inc: { superLikeRemaining: -1 } }, { new: true })
-      .select(USER_QUOTA_SELECT)
-      .lean<TSwipeQuotaUser | null>();
-    if (!updatedUser) throw new AppError(StatusCodes.TOO_MANY_REQUESTS, 'Super like limit reached');
-    return updatedUser;
+  const quota = await buildSwipeQuotaResponse({ candidateId, plan });
+
+  if (type === LikeType.LIKE && quota.dailyLikeRemaining <= 0) {
+    throw new AppError(StatusCodes.TOO_MANY_REQUESTS, 'Daily like limit reached');
   }
 
-  return getSwipeQuotaOwnerOrThrow(userId.toString());
+  if (type === LikeType.SUPER_LIKE && quota.superLikeRemaining <= 0) {
+    throw new AppError(StatusCodes.TOO_MANY_REQUESTS, 'Super like limit reached');
+  }
 };
 
-const refundSwipeQuota = (params: { type: LikeType; userId: Types.ObjectId }) => {
-  const { type, userId } = params;
-  if (type === LikeType.LIKE) return User.findByIdAndUpdate(userId, { $inc: { dailyLikeRemaining: 1 } });
-  if (type === LikeType.SUPER_LIKE) return User.findByIdAndUpdate(userId, { $inc: { superLikeRemaining: 1 } });
-  return Promise.resolve(null);
-};
+const buildSwipeQuotaResponse = async (params: {
+  candidateId: string;
+  now?: Date;
+  plan: TSwipePlanQuota;
+}) => {
+  const { candidateId, now = new Date(), plan } = params;
+  const usage = await getSwipeQuotaUsage({ candidateId, now });
 
-const buildSwipeQuotaResponse = (user: TSwipeQuotaUser, now = new Date()) => ({
-  dailyLikeRemaining: user.dailyLikeRemaining ?? 0,
-  nextResetAt: getNextLikeQuotaResetAt(now),
-  superLikeRemaining: user.superLikeRemaining ?? 0,
-});
+  return {
+    dailyLikeRemaining: Math.max(0, plan.dailyLikes - usage.dailyLikeUsed),
+    nextResetAt: getNextLikeQuotaResetAt(now),
+    superLikeRemaining: Math.max(0, plan.superLikes - usage.superLikeUsed),
+  };
+};
 
 const getDateBeforeYears = (years: number, now = new Date()) => {
   const result = new Date(now);
@@ -564,8 +578,7 @@ const returnExistingSwipeAction = async (params: { action: TSwipeActionLean; can
 const getQuotaContextForSwipeAction = async (ownerUserId: string) => {
   const owner = await getSwipeQuotaOwnerOrThrow(ownerUserId);
   const plan = await getSwipePlanOrDefault(owner.plan);
-  const resetOwner = await resetDailyLikeQuotaIfNeeded({ plan, user: owner });
-  return { owner: resetOwner, plan };
+  return { owner, plan };
 };
 
 // ============================================================================
@@ -656,8 +669,9 @@ const performSwipeAction = async (userId: string, payload: ISwipeActionPayload):
 
     // Get quota context and reset daily likes if needed
     const { owner } = await getQuotaContextForSwipeAction(candidate.user.toString());
-    let quotaOwner = owner;
-    const currentQuota = () => buildSwipeQuotaResponse(quotaOwner);
+    const plan = await getSwipePlanOrDefault(owner.plan);
+    const currentQuota = () =>
+      buildSwipeQuotaResponse({ candidateId: payload.candidateId, plan });
 
     // Check for existing action and match
     const [existingAction, existingMatch] = await Promise.all([
@@ -668,21 +682,23 @@ const performSwipeAction = async (userId: string, payload: ISwipeActionPayload):
     // Can't swipe if already matched
     if (existingMatch) {
       if (existingAction && existingAction.type === payload.type && isPositiveSwipeAction(payload.type)) {
-        return buildSwipeActionResponse({ action: existingAction, candidateId: payload.candidateId, match: existingMatch, quota: currentQuota(), targetCandidateId: payload.targetCandidateId });
+          return buildSwipeActionResponse({ action: existingAction, candidateId: payload.candidateId, match: existingMatch, quota: await currentQuota(), targetCandidateId: payload.targetCandidateId });
       }
       throw new AppError(StatusCodes.CONFLICT, 'This candidate is already matched');
     }
 
     // Return existing action if already swiped
     if (existingAction) {
-      return returnExistingSwipeAction({ action: existingAction, candidateId: payload.candidateId, quota: currentQuota(), targetCandidateId: payload.targetCandidateId, type: payload.type });
+      return returnExistingSwipeAction({ action: existingAction, candidateId: payload.candidateId, quota: await currentQuota(), targetCandidateId: payload.targetCandidateId, type: payload.type });
     }
 
     // Consume quota for positive swipes (LIKE/SUPER_LIKE)
-    let quotaConsumed = false;
     if (isPositiveSwipeAction(payload.type)) {
-      quotaOwner = await consumeSwipeQuotaOrThrow({ type: payload.type, userId: quotaOwner._id as Types.ObjectId });
-      quotaConsumed = true;
+      await assertSwipeQuotaAvailable({
+        candidateId: payload.candidateId,
+        plan,
+        type: payload.type,
+      });
     }
 
     // Create the swipe action
@@ -696,11 +712,7 @@ const performSwipeAction = async (userId: string, payload: ISwipeActionPayload):
 
     // If duplicate write won due to race, refund quota
     if (!created) {
-      if (quotaConsumed) {
-        await refundSwipeQuota({ type: payload.type, userId: quotaOwner._id as Types.ObjectId });
-        quotaOwner = await getSwipeQuotaOwnerOrThrow((quotaOwner._id as Types.ObjectId).toString());
-      }
-      return returnExistingSwipeAction({ action, candidateId: payload.candidateId, quota: currentQuota(), targetCandidateId: payload.targetCandidateId, type: payload.type });
+      return returnExistingSwipeAction({ action, candidateId: payload.candidateId, quota: await currentQuota(), targetCandidateId: payload.targetCandidateId, type: payload.type });
     }
 
     // Check for mutual like and create match
@@ -715,7 +727,7 @@ const performSwipeAction = async (userId: string, payload: ISwipeActionPayload):
     // Invalidate feed cache asynchronously
     void clearSwipeFeedSessionsForCandidate(payload.candidateId).catch(() => undefined);
 
-    return buildSwipeActionResponse({ action, candidateId: payload.candidateId, match, quota: currentQuota(), targetCandidateId: payload.targetCandidateId });
+    return buildSwipeActionResponse({ action, candidateId: payload.candidateId, match, quota: await currentQuota(), targetCandidateId: payload.targetCandidateId });
   } finally {
     await releaseSwipeActionLock(lock);
   }

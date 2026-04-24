@@ -256,10 +256,55 @@ Base path: `/api/v1/users`
 ### `GET /me`
 
 Purpose:
-- Get logged-in user profile
+- Get logged-in user profile plus app context for frontend gating
 
 Auth:
 - Bearer token
+
+Response includes:
+- top-level user fields such as `_id`, `full_name`, `email`, `picture`, `plan`, `isVerified`, `isActive`, and `role`
+- `candidateLink`: whether this account is linked to a candidate profile, which candidate, and the user's access role
+- `permissions`: frontend-friendly booleans for swipe, messaging, calls, full profile details, and profile boost
+
+Example response data shape:
+
+```json
+{
+  "_id": "user id",
+  "full_name": "Nayem Ahmed",
+  "email": "nayemalways.sm@gmail.com",
+  "plan": "free",
+  "candidateLink": {
+    "isLinked": true,
+    "source": "LINKED_USER",
+    "candidateId": "candidate id",
+    "myAccess": {
+      "accessRole": "OWNER",
+      "relationshipToCandidate": "SELF",
+      "status": "ACTIVE",
+      "isPrimary": true
+    }
+  },
+  "permissions": {
+    "canViewSwipeFeed": true,
+    "canPerformSwipeAction": true,
+    "canUseNormalLike": true,
+    "canUseSuperLike": false,
+    "canSeeWhoLiked": false,
+    "canMessage": false,
+    "canAudioCall": false,
+    "canVideoCall": false,
+    "canViewFullProfile": false,
+    "profileBoost": false
+  }
+}
+```
+
+Frontend notes:
+- Use `permissions` for broad UI gating, such as hiding full-profile sections or disabling super-like buttons for free users.
+- The swipe action API remains the source of truth for quota and returns the latest remaining like counts after each action.
+- `GET /users/me` intentionally does not expose raw quota counters or the full plan document.
+- Plan values come from the active plan document in MongoDB. Changing `plan.constant.ts` updates future create/update payloads, but existing plan documents must be updated through the plan update API or a migration.
 
 ### `PATCH /me`
 

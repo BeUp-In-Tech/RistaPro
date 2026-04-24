@@ -22,6 +22,17 @@ import { sortObject } from '../../utils/sortQueryObject';
 import crypto from 'crypto';
 import { invalidateAllMachineryCache } from '../../utils/dynamicCacheInvalidator';
 import { deleteImageByBullMQ, sendMailByBullMQ } from '../../utils/backgroundJobProcessingHelper';
+import Candidate from '../candidate/candidate.model';
+import {
+  CandidateLinkedUserAccessRole,
+  CandidateLinkedUserStatus,
+  TActiveLinkedUserLean,
+} from '../candidate/linked-user/candidateLinkedUser.interface';
+import CandidateLinkedUser from '../candidate/linked-user/candidateLinkedUser.model';
+import { buildMyAccessResponse } from '../candidate/linked-user/candidateLinkedUser.helper';
+import { PLAN_KEYS, PlanKey, IPlan } from '../plan/plan.interface';
+import { PLANS } from '../plan/plan.constant';
+import PlanModel from '../plan/plan.model';
 
 
 // REUSABLE KEYS
@@ -30,6 +41,9 @@ const USER_LIST_SELECT =
   '_id full_name email picture plan isVerified isActive role createdAt updatedAt';
 const USER_DETAILS_SELECT =
   '_id full_name email picture plan isVerified isActive role createdAt updatedAt';
+const AUTH_USER_CONTEXT_SELECT =
+  '_id full_name email picture plan isVerified isActive role createdAt updatedAt';
+const BASIC_CANDIDATE_CONTEXT_SELECT = '_id';
 
 
 // =========================================API LAYER (ADMIN)=========================================
@@ -269,32 +283,121 @@ const deleteUser = async (authUserId: string, targetUserId: string) => {
 
 
 // ============================ USER PART ================================
+const getPlanKeyOrDefault = (plan?: string): PlanKey =>
+  PLAN_KEYS.includes(plan as PlanKey) ? (plan as PlanKey) : 'free';
+
+const getCurrentPlanOrDefault = async (plan?: string) => {
+  const planKey = getPlanKeyOrDefault(plan);
+  const planDocument = await PlanModel.findOne({
+    isActive: true,
+    key: planKey,
+  }).lean<IPlan | null>();
+
+  return {
+    ...PLANS[planKey],
+    ...(planDocument ?? {}),
+  };
+};
+
+const getCandidateLinkContext = async (userId: string) => {
+  const linkedCandidate = await CandidateLinkedUser.findOne({
+    status: CandidateLinkedUserStatus.ACTIVE,
+    user: userId,
+  })
+    .populate({
+      path: 'candidate',
+      select: BASIC_CANDIDATE_CONTEXT_SELECT,
+    })
+    .lean<
+      (TActiveLinkedUserLean & { candidate: { _id: unknown } | null }) | null
+    >();
+
+  if (linkedCandidate?.candidate) {
+    return {
+      isLinked: true,
+      source: 'LINKED_USER',
+      candidateId: linkedCandidate.candidate._id,
+      myAccess: buildMyAccessResponse(linkedCandidate),
+    };
+  }
+
+  const legacyCandidate = await Candidate.findOne({
+    isActive: ActiveStatus.ACTIVE,
+    user: userId,
+  })
+    .select(BASIC_CANDIDATE_CONTEXT_SELECT)
+    .lean<{
+      _id: unknown;
+    } | null>();
+
+  if (!legacyCandidate) {
+    return {
+      isLinked: false,
+      source: null,
+      candidateId: null,
+      myAccess: null,
+    };
+  }
+
+  return {
+    isLinked: true,
+    source: 'LEGACY_OWNER',
+    candidateId: legacyCandidate._id,
+    myAccess: {
+      accessRole: CandidateLinkedUserAccessRole.OWNER,
+      relationshipToCandidate: 'SELF',
+      status: CandidateLinkedUserStatus.ACTIVE,
+      isPrimary: true,
+    },
+  };
+};
+
 // 6. AUTH USER PROFILE (Check Done)
 const getMe = async (userId: string) => {
-  // REDIS CACHE
-  const cacheKey = `get_me:${userId}`;
-  const cachedData = await redisClient.get(cacheKey);
-  if (cachedData) {
-    return JSON.parse(cachedData);
-  }
-  
   // DB QUERY
   const user = await User.findOne({ _id: userId, isDeleted: false })
-    .select('-deviceTokens -auths -password')
+    .select(AUTH_USER_CONTEXT_SELECT)
     .lean();
 
   if (!user) {
     throw new AppError(StatusCodes.NOT_FOUND, 'User not found');
   }
 
+  const [currentPlan, candidateLink] = await Promise.all([
+    getCurrentPlanOrDefault(user.plan),
+    getCandidateLinkContext(userId),
+  ]);
 
-  // STORE DATA IN REDIS
-  await redisClient.set(cacheKey, JSON.stringify(user), {
-    EX: 60 * 2, // 2 min
-  });
+  const isEditorOrOwner =
+    candidateLink.myAccess?.accessRole === CandidateLinkedUserAccessRole.OWNER ||
+    candidateLink.myAccess?.accessRole === CandidateLinkedUserAccessRole.EDITOR;
 
-  // RETURN RESPONSE
-  return user;
+  return {
+    _id: user._id,
+    full_name: user.full_name,
+    email: user.email,
+    picture: user.picture,
+    plan: getPlanKeyOrDefault(user.plan),
+    isVerified: user.isVerified,
+    isActive: user.isActive,
+    role: user.role,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
+    candidateLink,
+    permissions: {
+      canViewSwipeFeed: candidateLink.isLinked,
+      canPerformSwipeAction: candidateLink.isLinked && isEditorOrOwner,
+      canUseNormalLike: candidateLink.isLinked && isEditorOrOwner,
+      canUseSuperLike:
+        candidateLink.isLinked && isEditorOrOwner && currentPlan.superLikes > 0,
+      canSeeWhoLiked: currentPlan.canSeeWhoLiked,
+      canMessage: currentPlan.canMessage,
+      canAudioCall: currentPlan.canAudioCall,
+      canVideoCall: currentPlan.canVideoCall,
+      canViewFullProfile: currentPlan.canViewFullProfile,
+      profileBoost: currentPlan.profileBoost,
+    },
+  };
 };
 
 // 7. AUTH USER PROFILE UPDATE (Check Done)

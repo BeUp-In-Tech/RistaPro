@@ -42,9 +42,6 @@ export interface IUser {
   phone?: string;
   picture?: string;
   plan?: string;
-  dailyLikeRemaining?: number;
-  superLikeRemaining?: number;
-  lastLikeReset?: Date;
   isVerified?: boolean;
   isDeleted?: boolean;
   isActive?: ActiveStatus;

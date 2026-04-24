@@ -23,7 +23,7 @@ import {
 } from './swipe.utility';
 
 const USER_QUOTA_SELECT =
-  '_id plan dailyLikeRemaining superLikeRemaining lastLikeReset isActive isDeleted';
+  '_id plan isActive isDeleted';
 
 export interface TSwipeActionLean {
   _id: Types.ObjectId;
@@ -51,12 +51,9 @@ export interface TSwipeMatchLean {
 interface TSwipeQuotaUserLean extends Pick<
   IUser,
   | '_id'
-  | 'dailyLikeRemaining'
   | 'isActive'
   | 'isDeleted'
-  | 'lastLikeReset'
   | 'plan'
-  | 'superLikeRemaining'
 > {
   _id: Types.ObjectId;
 }
@@ -261,115 +258,44 @@ export const getSwipePlanOrDefault = async (
   return planDocument ?? PLANS[planKey];
 };
 
-// Resets normal likes once per Bangladesh calendar day when the user takes a swipe action.
-export const resetDailyLikeQuotaIfNeeded = async (params: {
+export const getSwipeQuotaUsage = async (params: {
+  candidateId: string;
+  now?: Date;
+}) => {
+  const { candidateId, now = new Date() } = params;
+  const currentWindowStart = getCurrentLikeQuotaWindowStart(now);
+  const [dailyLikeUsed, superLikeUsed] = await Promise.all([
+    Like.countDocuments({
+      createdAt: { $gte: currentWindowStart },
+      likedBy: candidateId,
+      type: LikeType.LIKE,
+      $or: [{ isActive: true }, { isActive: { $exists: false } }],
+    }),
+    Like.countDocuments({
+      createdAt: { $gte: currentWindowStart },
+      likedBy: candidateId,
+      type: LikeType.SUPER_LIKE,
+      $or: [{ isActive: true }, { isActive: { $exists: false } }],
+    }),
+  ]);
+
+  return { dailyLikeUsed, superLikeUsed };
+};
+
+export const buildSwipeQuotaResponse = async (params: {
+  candidateId: string;
   now?: Date;
   plan: TSwipePlanQuota;
-  user: TSwipeQuotaUserLean;
 }) => {
-  const { now = new Date(), plan, user } = params;
-  const currentWindowStart = getCurrentLikeQuotaWindowStart(now);
-  const shouldReset =
-    !user.lastLikeReset ||
-    user.lastLikeReset < currentWindowStart ||
-    user.dailyLikeRemaining === undefined;
+  const { candidateId, now = new Date(), plan } = params;
+  const usage = await getSwipeQuotaUsage({ candidateId, now });
 
-  if (!shouldReset) {
-    return user;
-  }
-
-  const updatedUser = await User.findByIdAndUpdate(
-    user._id,
-    {
-      $set: {
-        dailyLikeRemaining: plan.dailyLikes,
-        lastLikeReset: currentWindowStart,
-      },
-    },
-    { new: true }
-  )
-    .select(USER_QUOTA_SELECT)
-    .lean<TSwipeQuotaUserLean | null>();
-
-  if (!updatedUser) {
-    throw new AppError(StatusCodes.NOT_FOUND, 'Candidate owner not found');
-  }
-
-  return updatedUser;
+  return {
+    dailyLikeRemaining: Math.max(0, plan.dailyLikes - usage.dailyLikeUsed),
+    nextResetAt: getNextLikeQuotaResetAt(now),
+    superLikeRemaining: Math.max(0, plan.superLikes - usage.superLikeUsed),
+  };
 };
-
-// Uses an atomic decrement so two requests cannot spend the same quota count.
-export const consumeSwipeQuotaOrThrow = async (params: {
-  type: LikeType;
-  userId: Types.ObjectId;
-}) => {
-  const { type, userId } = params;
-
-  if (type === LikeType.LIKE) {
-    const updatedUser = await User.findOneAndUpdate(
-      { _id: userId, dailyLikeRemaining: { $gt: 0 } },
-      { $inc: { dailyLikeRemaining: -1 } },
-      { new: true }
-    )
-      .select(USER_QUOTA_SELECT)
-      .lean<TSwipeQuotaUserLean | null>();
-
-    if (!updatedUser) {
-      throw new AppError(StatusCodes.TOO_MANY_REQUESTS, 'Daily like limit reached');
-    }
-
-    return updatedUser;
-  }
-
-  if (type === LikeType.SUPER_LIKE) {
-    const updatedUser = await User.findOneAndUpdate(
-      { _id: userId, superLikeRemaining: { $gt: 0 } },
-      { $inc: { superLikeRemaining: -1 } },
-      { new: true }
-    )
-      .select(USER_QUOTA_SELECT)
-      .lean<TSwipeQuotaUserLean | null>();
-
-    if (!updatedUser) {
-      throw new AppError(StatusCodes.TOO_MANY_REQUESTS, 'Super like limit reached');
-    }
-
-    return updatedUser;
-  }
-
-  return getSwipeQuotaOwnerOrThrow(userId.toString());
-};
-
-// If a duplicate write wins a race after quota decrement, refund the attempted spend.
-export const refundSwipeQuota = (params: {
-  type: LikeType;
-  userId: Types.ObjectId;
-}) => {
-  const { type, userId } = params;
-
-  if (type === LikeType.LIKE) {
-    return User.findByIdAndUpdate(userId, {
-      $inc: { dailyLikeRemaining: 1 },
-    });
-  }
-
-  if (type === LikeType.SUPER_LIKE) {
-    return User.findByIdAndUpdate(userId, {
-      $inc: { superLikeRemaining: 1 },
-    });
-  }
-
-  return Promise.resolve(null);
-};
-
-export const buildSwipeQuotaResponse = (
-  user: TSwipeQuotaUserLean,
-  now = new Date()
-) => ({
-  dailyLikeRemaining: user.dailyLikeRemaining ?? 0,
-  nextResetAt: getNextLikeQuotaResetAt(now),
-  superLikeRemaining: user.superLikeRemaining ?? 0,
-});
 
 export const findExistingSwipeAction = async (params: {
   candidateId: string;
