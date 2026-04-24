@@ -12,9 +12,10 @@ export const CatchAsync =
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       await fn(req, res, next);
-    } catch (error) {
-      console.log(error);
-      
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (error: any) {
+      // eslint-disable-next-line no-console
+      console.log(error.message);
       next(error);
     }
   };
