@@ -80,7 +80,6 @@ export interface ICandidateProfileFields {
   // This is kept for request compatibility and now represents
   // the creator's relation to the candidate profile.
   relationToUser?: RelationToUser;
-  partnerExpectation?: string;
   bio?: string;
   images?: string[];
   address?: string;

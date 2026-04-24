@@ -182,12 +182,6 @@ const candidateSchemaFields = {
   relationToUser: z
     .nativeEnum(RelationToUser)
     .default(RelationToUser.SELF),
-  partnerExpectation: z
-    .string({ error: 'Partner expectation must be string type!' })
-    .trim()
-    .min(1, 'Partner expectation cannot be empty')
-    .max(1000, 'Partner expectation must be at most 1000 characters long')
-    .optional(),
   bio: z
     .string({ error: 'Bio must be string type!' })
     .trim()

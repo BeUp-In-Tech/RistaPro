@@ -79,7 +79,6 @@ const candidateSchema = new Schema<ICandidate>(
     interests: [{ type: String, enum: Object.keys(INTERESTS) }],
     personality: [{ type: String, enum: Object.keys(PERSONALITY_TRAITS) }],
     relationToUser: { type: String, enum: RelationToUser, default: RelationToUser.SELF, trim: true },
-    partnerExpectation: { type: String, trim: true },
     bio: { type: String, trim: true },
     images: [{ type: String }],
     face_verify_logs: { type: [verificationDetailSchema], default: [] },

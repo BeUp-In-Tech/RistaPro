@@ -136,10 +136,6 @@ export const buildCandidateCreatePayload = (
     candidatePayload.relationToUser = payload.relationToUser.trim();
   }
 
-  if (payload.partnerExpectation !== undefined) {
-    candidatePayload.partnerExpectation = payload.partnerExpectation.trim();
-  }
-
   if (payload.bio !== undefined) {
     candidatePayload.bio = payload.bio.trim();
   }
@@ -239,9 +235,6 @@ export const buildCandidateUpdatePayload = (
     updatePayload.relationToUser = payload.relationToUser.trim();
   }
 
-  if (payload.partnerExpectation !== undefined) {
-    updatePayload.partnerExpectation = payload.partnerExpectation.trim();
-  }
 
   if (payload.bio !== undefined) {
     updatePayload.bio = payload.bio.trim();
