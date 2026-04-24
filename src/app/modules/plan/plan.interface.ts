@@ -13,6 +13,7 @@ export interface Plan {
   canMessage: boolean;
   canAudioCall: boolean;
   canVideoCall: boolean;
+  canViewFullProfile: boolean;
   profileBoost: boolean;
   featureList: string[];
 }

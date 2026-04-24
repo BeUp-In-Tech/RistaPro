@@ -28,6 +28,7 @@ The existing backend already has most core concepts:
   - `canMessage`
   - `canAudioCall`
   - `canVideoCall`
+  - `canViewFullProfile`
   - `profileBoost`
 - `User` already stores quota fields:
   - `dailyLikeRemaining`
@@ -484,17 +485,17 @@ For mutation actions, reject `VIEWER`.
 
 Use the candidate primary owner's `User.plan` to load the plan document.
 
-Daily normal likes should be 50 per day.
+Daily normal likes should be controlled by the plan template. The current free default is 100 per day.
 
 Daily like quota should reset at a fixed product time every day, not 24 hours after the last like. For MVP, perform this reset lazily when a like action is attempted.
 
-Plan templates should set `dailyLikes` to `50` for normal likes. Paid plans can still differ by super likes and unlocked features.
+Plan templates should set numeric `dailyLikes` values for normal likes. Paid plans can differ by daily likes, super likes, and unlocked features.
 
 Recommended default:
 
 ```txt
 Daily like reset time: 00:00 Asia/Dhaka
-Daily normal like limit: 50
+Daily normal like limit: plan.dailyLikes
 ```
 
 If the product later needs a different reset hour, make it configurable:
@@ -517,6 +518,7 @@ consumeSwipeQuota(user, actionType)
 assertCanMessage(user, plan)
 assertCanCall(user, plan, callType)
 assertCanSeeWhoLiked(user, plan)
+assertCanViewFullProfile(user, plan)
 ```
 
 Rules:
@@ -528,6 +530,7 @@ Rules:
 - Sending message requests and messages requires `plan.canMessage`.
 - Starting audio calls requires `plan.canAudioCall`.
 - Starting video calls requires `plan.canVideoCall`.
+- Viewing full candidate profile details requires `plan.canViewFullProfile`. Free feed cards stay limited; Gold and Platinum can unlock full profile details.
 - Creating a match or receiving a message request should not require paid plan. Paid plan controls who can initiate paid actions such as sending messages, calls, and first-message requests.
 
 ## Swipe Feed Algorithm

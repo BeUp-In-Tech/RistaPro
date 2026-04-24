@@ -3,32 +3,35 @@ import { Plan, PlanKey } from './plan.interface';
 const BASE_PLAN_DATA = {
   free: {
     name: 'Free',
-    dailyLikes: 5,
+    dailyLikes: 100,
     superLikes: 0,
     canSeeWhoLiked: false,
     canMessage: false,
     canAudioCall: false,
     canVideoCall: false,
+    canViewFullProfile: false,
     profileBoost: false,
   },
   gold: {
     name: 'Gold',
-    dailyLikes: 50,
+    dailyLikes: 300,
     superLikes: 10,
     canSeeWhoLiked: true,
     canMessage: true,
     canAudioCall: true,
     canVideoCall: false,
+    canViewFullProfile: true,
     profileBoost: false,
   },
   platinum: {
     name: 'Platinum',
-    dailyLikes: 50,
+    dailyLikes: 1000,
     superLikes: 30,
     canSeeWhoLiked: true,
     canMessage: true,
     canAudioCall: true,
     canVideoCall: true,
+    canViewFullProfile: true,
     profileBoost: true,
   },
 } as const;
@@ -42,6 +45,7 @@ const buildFeatures = (key: PlanKey) => {
     p.canMessage ? 'Messaging unlocked' : 'Messaging locked',
     p.canAudioCall ? 'Audio calls unlocked' : 'Audio calls locked',
     p.canVideoCall ? 'Video calls unlocked' : 'Video calls locked',
+    p.canViewFullProfile ? 'Full profile details unlocked' : 'Full profile details locked',
     p.profileBoost ? 'Profile boost included' : 'No profile boost',
   ];
 };
