@@ -957,7 +957,19 @@ Planned MVP route count in this architecture: 26 routes.
 
 ## Response Card Shape
 
-The feed should not return private user data. It should return safe candidate profile data.
+The feed should stay lightweight and photo-first. It should return only the fields needed to render the free swipe card, while full profile details stay behind a separate plan-gated profile/details endpoint.
+
+Free feed cards should include:
+
+- name
+- age
+- gender
+- images
+- religion
+- city-level location as `livesIn`
+- optional `distanceKm` when both candidates have coordinates
+- personality tags
+- `matchScore` for internal/front-end ranking display if needed
 
 ```json
 {
@@ -965,29 +977,38 @@ The feed should not return private user data. It should return safe candidate pr
   "name": "Candidate Name",
   "age": 28,
   "gender": "FEMALE",
-  "height": 165,
   "religion": "ISLAM",
-  "sect": "SUNNI",
-  "caste": "SAYYID",
-  "occupation": "SOFTWARE_ENGINEER",
-  "highest_education": "BACHELORS",
-  "interests": ["TRAVEL", "READING"],
+  "livesIn": "Dhaka",
+  "distanceKm": 10,
   "personality": ["KIND", "FAMILY_ORIENTED"],
-  "bio": "Short bio",
   "images": ["image url"],
-  "labels": {},
-  "matchScore": 87,
-  "scoreReasons": [
-    "Age matches your preference",
-    "Same religion",
-    "3 shared interests"
-  ],
-  "alreadyLikedMe": false,
-  "isSuperLike": false
+  "labels": {
+    "religion": "Islam",
+    "personality": ["Kind", "Family-oriented"]
+  },
+  "matchScore": 87
 }
 ```
 
-`alreadyLikedMe` should only be true if the viewer has `canSeeWhoLiked`; otherwise omit it or return false.
+Do not include these in the free feed card response:
+
+- full address
+- bio
+- sect
+- caste
+- height
+- occupation
+- highest education
+- relationship status
+- children preference
+- move abroad preference
+- smoke/drink status
+- interests
+- score reasons
+- verification details
+- timestamps
+
+Relationship status, interests, education, occupation, sect/caste, lifestyle fields, full bio, and detailed compatibility reasons should be returned only by the future profile/details endpoint according to the viewer's plan. Online activity should be added later when chat or presence tracking exists. `alreadyLikedMe` should only be true if the viewer has `canSeeWhoLiked`; otherwise omit it or return false.
 
 ## Notifications
 

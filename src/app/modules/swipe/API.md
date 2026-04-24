@@ -65,8 +65,7 @@ Response:
         "Gender matches your preference",
         "Age matches your preference",
         "Religion matches your preference"
-      ],
-      "isSuperLike": false
+      ]
     }
   ],
   "limit": 20,

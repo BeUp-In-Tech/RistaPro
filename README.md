@@ -106,7 +106,7 @@ data: {"name":"Amina","dateOfBirth":"1998-05-11","gender":"FEMALE"}
 
 1. Guardian logs in
 2. Create candidate using `relationToUser`
-3. Add other linked users with `POST /candidates/:candidateId/linked-users` (link existing account or create new account with `name + email + password`)
+3. Add other linked users with `POST /candidates/:candidateId/linked_users` (link existing account or create new account with `name + email + password`)
 4. Candidate owner can load basic profile info from `GET /candidates/my_basic_profile`
 5. Candidate owner can load the full managed candidate access from `GET /candidates/my_linked_profiles`
 
@@ -506,6 +506,7 @@ Base path: `/api/v1/candidates`
 This module currently includes:
 - candidate constant data
 - candidate profile creation
+- candidate profile updates
 - linked-user access management
 
 ## Constants
@@ -573,7 +574,6 @@ Body example:
   "personality": ["HONEST", "LOYAL"],
   "relationToUser": "SELF",
   "bio": "Short introduction",
-  "partnerExpectation": "Looking for a practicing and kind partner",
   "address": "Dhaka, Bangladesh",
   "coordinates": [90.4125, 23.8103]
 }
@@ -583,16 +583,23 @@ Important field rules:
 - `name`: 2 to 100 chars
 - `dateOfBirth`: must be in the past
 - `gender`: `MALE | FEMALE | OTHER`
-- `religion`, `sect`, `caste`, `occupation`, `education`, `status`, `interests`, `personality`: must use constant keys from `/candidates/constants`
+- `religion`, `sect`, `caste`, `occupation`, `highest_education`, `relationship_status`, `have_children`, `move_abroad`, `smoke_status`, `drink_status`, `interests`, `personality`: must use constant keys from `/candidates/constants`
 - `sect` requires `religion`
 - selected `sect` must belong to selected `religion`
 - `interests` and `personality` cannot contain duplicates
 - `relationToUser` defaults to `SELF`
+- request body is strict; unknown fields are rejected
 
 How it behaves:
 - one account can belong to only one active candidate profile at a time
 - profile creator is automatically added as primary linked user with owner access
+- default candidate preferences are created automatically
 - max allowed images per candidate profile: `6`
+
+Response data includes the candidate profile plus:
+- `labels`: display labels generated from constant keys
+- `management`: linked-user management summary
+- `myAccess`: the creator's active linked-user access
 
 ## Candidate Profile Update
 
@@ -626,8 +633,7 @@ JSON example (only profile info update):
 ```json
 {
   "occupation": "SOFTWARE_ENGINEER",
-  "bio": "Updated profile bio",
-  "partnerExpectation": "Kind and family-oriented"
+  "bio": "Updated profile bio"
 }
 ```
 
@@ -671,6 +677,7 @@ Image behavior:
 - backend loads current `candidate.images`
 - removes images found in `deletedImages`
 - appends new uploaded `files` links
+- duplicate image links are normalized away
 - stores the merged result in `candidate.images`
 - max allowed images per candidate profile: `6`
 - sends removed images to background queue delete processor (`deleteImageByBullMQ`)
@@ -681,6 +688,7 @@ Validation notes:
 - `deletedImages` must be an array of non-empty unique strings
 - `interests` and `personality` in patch are additive (append unique values)
 - use `deletedInterests` and `deletedPersonality` for removing values
+- if both add and delete arrays contain the same key, the final stored value includes it because additions are applied after deletions
 
 ## Linked User APIs
 
@@ -746,7 +754,7 @@ Notes:
 - returns `null` when the logged-in user has no active candidate profile
 - rejects the request if the account is linked to multiple active candidate profiles
 
-### `GET /:candidateId/linked-users`
+### `GET /:candidateId/linked_users`
 
 Purpose:
 - List linked users for one candidate profile
@@ -759,7 +767,7 @@ Response includes:
 - `myAccess`
 - `users`
 
-### `POST /:candidateId/linked-users`
+### `POST /:candidateId/linked_users`
 
 Purpose:
 - Add linked user to candidate profile, with optional account creation
@@ -820,7 +828,7 @@ Allowed `accessRole` values:
 - `EDITOR`
 - `VIEWER`
 
-### `PATCH /:candidateId/linked-users/:linkedUserId`
+### `PATCH /:candidateId/linked_users/:linkedUserId`
 
 Purpose:
 - Update linked user relation or access role
@@ -838,7 +846,7 @@ Body example:
 }
 ```
 
-### `DELETE /:candidateId/linked-users/:linkedUserId`
+### `DELETE /:candidateId/linked_users/:linkedUserId`
 
 Purpose:
 - Remove linked user from candidate profile
@@ -857,7 +865,7 @@ Safety rules:
 
 Base path: `/api/v1/candidate-preferences`
 
-This module stores the partner preferences used by the future swipe/feed system.
+This module stores the partner preferences used by the swipe/feed system.
 
 Security rules:
 - all endpoints require `Authorization: Bearer <accessToken>`
@@ -1055,8 +1063,7 @@ Response data shape:
         "Gender matches your preference",
         "Age matches your preference",
         "Religion matches your preference"
-      ],
-      "isSuperLike": false
+      ]
     }
   ],
   "limit": 20,

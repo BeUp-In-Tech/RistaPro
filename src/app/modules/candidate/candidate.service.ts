@@ -33,6 +33,7 @@ import {
   deleteCandidatePreferenceByCandidateId,
   ensureDefaultCandidatePreference,
 } from '../candidate-preference/candidatePreference.service';
+import { InterestKey, PersonalityKey } from '../../constant/constant';
 
 
 // 1. BUILD AUTHENTICATED USER'S CANDIDATE PROFILE
@@ -170,8 +171,8 @@ const updateCandidate = async (
     .lean<{
       _id: Types.ObjectId;
       images?: string[];
-      interests?: string[];
-      personality?: string[];
+      interests?: InterestKey[];
+      personality?: PersonalityKey[];
     } | null>();
 
   if (!existingCandidate) {

@@ -349,33 +349,25 @@ export const passesPostQueryStrictFilters = (params: {
 // Returns feed cards with safe public profile fields only.
 export const buildFeedCard = (
   candidate: ISwipeFeedCandidateLean,
-  score: ISwipeFeedScore
+  score: ISwipeFeedScore,
+  viewerCandidate?: ISwipeFeedCandidateLean
 ): ISwipeFeedCard => ({
   _id: candidate._id,
-  address: candidate.address,
   age: getAgeFromDateOfBirth(candidate.dateOfBirth),
-  bio: candidate.bio,
-  caste: candidate.caste,
-  createdAt: candidate.createdAt,
-  drink_status: candidate.drink_status,
   gender: candidate.gender,
-  have_children: candidate.have_children,
-  height: candidate.height,
-  highest_education: candidate.highest_education,
   images: candidate.images ?? [],
-  interests: candidate.interests ?? [],
-  isSuperLike: false,
-  labels: buildCandidateLabels(candidate),
+  labels: buildCandidateLabels({
+    personality: candidate.personality,
+    religion: candidate.religion,
+  }),
+  livesIn: candidate.address?.split(',')[0]?.trim() || undefined,
+  distanceKm: viewerCandidate
+    ? (getDistanceKm(viewerCandidate.coordinates, candidate.coordinates) ?? undefined)
+    : undefined,
   matchScore: score.matchScore,
-  move_abroad: candidate.move_abroad,
   name: candidate.name,
-  occupation: candidate.occupation,
   personality: candidate.personality ?? [],
-  relationship_status: candidate.relationship_status,
   religion: candidate.religion,
-  scoreReasons: score.scoreReasons,
-  sect: candidate.sect,
-  smoke_status: candidate.smoke_status,
 });
 
 // Keeps Mongo `$in` results in the exact ranked order stored in the feed session.

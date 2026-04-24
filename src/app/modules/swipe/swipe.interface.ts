@@ -82,30 +82,18 @@ export interface ISwipeFeedScore {
   scoreReasons: string[];
 }
 
-export interface ISwipeFeedCard extends ISwipeFeedScore {
+export interface ISwipeFeedCard {
   _id: Types.ObjectId;
-  address?: string;
   age: number;
-  bio?: string;
-  caste?: CastKey;
-  createdAt?: Date;
-  drink_status?: DrinkStatusKey;
   gender: Gender;
-  have_children?: ChildrenKey;
-  height?: number;
-  highest_education?: HighestEducationKey;
   images: string[];
-  interests: InterestKey[];
-  isSuperLike: boolean;
   labels: Record<string, unknown>;
-  move_abroad?: MoveAbroadKey;
+  livesIn?: string;
+  distanceKm?: number;
+  matchScore: number;
   name: string;
-  occupation?: OccupationKey;
   personality: PersonalityKey[];
-  relationship_status?: RelationshipStatusKey;
   religion?: ReligionKey;
-  sect?: SectKey;
-  smoke_status?: SmokeStatusKey;
 }
 
 export interface ISwipeFeedResponse {
