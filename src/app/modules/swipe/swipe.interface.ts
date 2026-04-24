@@ -17,6 +17,8 @@ import {
   Gender,
   IVerificationStatus,
 } from '../candidate/candidate.interface';
+import { LikeSource, LikeType } from '../like/like.interface';
+import { MatchStatus } from '../match/match.interface';
 import { ActiveStatus } from '../user/user.interface';
 
 export interface ISwipeFeedQuery {
@@ -112,4 +114,41 @@ export interface ISwipeFeedResponse {
   nextCursor: string | null;
   relaxed: boolean;
   relaxedReason?: string;
+}
+
+export interface ISwipeActionPayload {
+  candidateId: string;
+  source: LikeSource;
+  targetCandidateId: string;
+  type: LikeType;
+}
+
+export interface ISwipeActionResponse {
+  action: {
+    _id: Types.ObjectId;
+    actedBy?: Types.ObjectId;
+    isActive: boolean;
+    likedBy: Types.ObjectId;
+    likedProfile: Types.ObjectId;
+    source: LikeSource;
+    type: LikeType;
+    createdAt?: Date;
+    updatedAt?: Date;
+  };
+  match: {
+    _id: Types.ObjectId;
+    candidates: Types.ObjectId[];
+    conversation?: Types.ObjectId;
+    matchedBy?: Types.ObjectId;
+    pairKey: string;
+    status: MatchStatus;
+    createdAt?: Date;
+    updatedAt?: Date;
+  } | null;
+  matched: boolean;
+  quota: {
+    dailyLikeRemaining: number;
+    nextResetAt: Date;
+    superLikeRemaining: number;
+  };
 }

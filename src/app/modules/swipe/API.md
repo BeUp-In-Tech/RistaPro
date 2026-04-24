@@ -2,14 +2,17 @@
 
 Base path: `/api/v1/swipes`
 
-This module powers the Tinder-style discovery feed. Phase 2 includes the feed endpoint only. Like, super-like, and pass actions belong to the next phase.
+This module powers the Tinder-style discovery feed and swipe actions.
 
 ## Security Rules
 
 - All endpoints require `Authorization: Bearer <accessToken>`.
 - The requester must be an active linked user of the `candidateId`.
 - `OWNER`, `EDITOR`, and `VIEWER` can view the feed.
-- Mutation permissions are intentionally not handled here because this phase does not create swipe actions.
+- `OWNER` and `EDITOR` can perform swipe actions.
+- `VIEWER` cannot like, super-like, or pass.
+- Targets must be active candidates whose owner user is active, verified, and not deleted.
+- Reports and active matches block new swipe actions between the same two candidates.
 
 ## `GET /feed`
 
@@ -124,3 +127,78 @@ This keeps the feed alive instead of returning an empty stack too quickly.
 The first request builds a ranked feed session and caches candidate IDs briefly in Redis. The `nextCursor` points to the next slice of that ranked session.
 
 If Redis is unavailable, the first page still works, but `nextCursor` may be `null`.
+
+## `POST /action`
+
+Purpose:
+
+- Store one Tinder-style action from one candidate profile to another.
+- Hide acted profiles from future feed responses.
+- Consume quota for positive actions.
+- Create a match when the target candidate already liked or super-liked back.
+
+Body:
+
+```json
+{
+  "candidateId": "665f1a2b3c4d5e6f78901234",
+  "targetCandidateId": "665f1a2b3c4d5e6f78905678",
+  "type": "LIKE",
+  "source": "FEED"
+}
+```
+
+Fields:
+
+- `candidateId`: the acting candidate profile owned/managed by the logged-in user
+- `targetCandidateId`: the profile being liked, super-liked, or passed
+- `type`: `LIKE`, `SUPER_LIKE`, or `PASS`
+- `source`: optional, defaults to `FEED`; allowed values are `FEED`, `LIKES_ME`, `PROFILE`
+
+Example:
+
+```http
+POST /api/v1/swipes/action
+Authorization: Bearer <accessToken>
+Content-Type: application/json
+```
+
+Response:
+
+```json
+{
+  "action": {
+    "_id": "swipe action id",
+    "type": "LIKE",
+    "source": "FEED",
+    "likedBy": "acting candidate id",
+    "likedProfile": "target candidate id",
+    "actedBy": "logged-in user id",
+    "isActive": true
+  },
+  "matched": true,
+  "match": {
+    "_id": "match id",
+    "candidates": ["candidate a", "candidate b"],
+    "pairKey": "candidateA_candidateB",
+    "status": "ACTIVE",
+    "matchedBy": "candidate id that completed the match"
+  },
+  "quota": {
+    "dailyLikeRemaining": 49,
+    "superLikeRemaining": 10,
+    "nextResetAt": "2026-04-22T18:00:00.000Z"
+  }
+}
+```
+
+Action behavior:
+
+- `PASS` is free and never creates a match.
+- `LIKE` consumes one normal daily like.
+- `SUPER_LIKE` consumes one super-like.
+- `LIKE` and `SUPER_LIKE` both count as positive actions for mutual matching.
+- If the target already has a positive action toward this candidate, the API creates or returns one active match.
+- The same action is idempotent for safe frontend retry.
+- A different second action toward the same target is rejected; undo/unmatch should be a separate explicit feature later.
+- After a successful new action, the actor candidate's Redis feed sessions are cleared so old cursor pages do not show stale profiles.

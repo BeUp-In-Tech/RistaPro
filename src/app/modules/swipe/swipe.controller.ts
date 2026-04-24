@@ -4,7 +4,7 @@ import { JwtPayload } from 'jsonwebtoken';
 import { CatchAsync } from '../../utils/CatchAsync';
 import { SendResponse } from '../../utils/SendResponse';
 import { SwipeService } from './swipe.service';
-import { swipeFeedQueryZodSchema } from './swipe.validate';
+import { swipeActionZodSchema, swipeFeedQueryZodSchema } from './swipe.validate';
 
 // FEED API: builds the candidate stack for the active candidate profile.
 const getSwipeFeed = CatchAsync(async (req: Request, res: Response) => {
@@ -20,6 +20,21 @@ const getSwipeFeed = CatchAsync(async (req: Request, res: Response) => {
   });
 });
 
+// ACTION API: stores one Tinder-style swipe decision and returns match state.
+const performSwipeAction = CatchAsync(async (req: Request, res: Response) => {
+  const { userId } = req.user as JwtPayload;
+  const payload = await swipeActionZodSchema.parseAsync(req.body);
+  const result = await SwipeService.performSwipeAction(String(userId), payload);
+
+  SendResponse(res, {
+    success: true,
+    statusCode: StatusCodes.CREATED,
+    message: 'Swipe action saved successfully',
+    data: result,
+  });
+});
+
 export const SwipeController = {
   getSwipeFeed,
+  performSwipeAction,
 };

@@ -8,6 +8,7 @@ import {
   TCandidatePreferenceLean,
 } from '../candidate-preference/candidatePreference.interface';
 import { buildStrictFilters } from '../candidate-preference/candidatePreference.utility';
+import { LikeType } from '../like/like.interface';
 import {
   ISwipeFeedCandidateLean,
   ISwipeFeedCard,
@@ -16,10 +17,45 @@ import {
 } from './swipe.interface';
 
 const MS_PER_YEAR = 365.2425 * 24 * 60 * 60 * 1000;
+const DHAKA_UTC_OFFSET_MS = 6 * 60 * 60 * 1000;
 
 export const SWIPE_FEED_SESSION_TTL_SECONDS = 15 * 60;
 export const MIN_FEED_POOL_SIZE = 80;
 export const MAX_FEED_POOL_SIZE = 250;
+export const SWIPE_ACTION_LOCK_TTL_SECONDS = 10;
+
+// Positive actions can create a mutual match; PASS only hides the profile.
+export const isPositiveSwipeAction = (type: LikeType) =>
+  type === LikeType.LIKE || type === LikeType.SUPER_LIKE;
+
+// Sorted pair keys make candidate A/B and B/A resolve to the same match.
+export const buildSwipePairKey = (
+  firstCandidateId: string,
+  secondCandidateId: string
+) => [firstCandidateId, secondCandidateId].sort().join('_');
+
+// Keeps two quick taps from processing the same actor-target swipe at once.
+export const getSwipeActionLockKey = (
+  candidateId: string,
+  targetCandidateId: string
+) => `swipe_action:${candidateId}:${targetCandidateId}`;
+
+// The product resets normal likes at 00:00 Asia/Dhaka, independent of server timezone.
+export const getCurrentLikeQuotaWindowStart = (now = new Date()) => {
+  const dhakaDate = new Date(now.getTime() + DHAKA_UTC_OFFSET_MS);
+
+  return new Date(
+    Date.UTC(
+      dhakaDate.getUTCFullYear(),
+      dhakaDate.getUTCMonth(),
+      dhakaDate.getUTCDate()
+    ) - DHAKA_UTC_OFFSET_MS
+  );
+};
+
+// Frontend can show this value as the next time normal likes refill.
+export const getNextLikeQuotaResetAt = (now = new Date()) =>
+  new Date(getCurrentLikeQuotaWindowStart(now).getTime() + 24 * 60 * 60 * 1000);
 
 // Creates a compact cursor token that points to a cached ranked feed session.
 export const encodeFeedCursor = (cursor: ISwipeFeedCursor) =>

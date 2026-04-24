@@ -99,7 +99,8 @@ data: {"name":"Amina","dateOfBirth":"1998-05-11","gender":"FEMALE"}
 3. Create profile with `POST /candidates`
 4. Review or update partner preferences with `GET /candidate-preferences/:candidateId`
 5. Load recommended profiles with `GET /swipes/feed?candidateId=<candidateId>`
-6. If needed, add family members with linked-user APIs
+6. Like, super-like, or pass cards with `POST /swipes/action`
+7. If needed, add family members with linked-user APIs
 
 ### 4. Guardian-managed candidate profile
 
@@ -1001,15 +1002,12 @@ Base path: `/api/v1/swipes`
 
 This module powers the Tinder-style candidate discovery feed.
 
-Current phase:
-- feed/recommendation API only
-- like, super-like, and pass actions are planned for the next phase
-
 Security rules:
 - all endpoints require `Authorization: Bearer <accessToken>`
 - requester must be an active linked user of the `candidateId`
 - `OWNER`, `EDITOR`, and `VIEWER` users can view the feed
-- mutation permissions are not used yet because Phase 2 does not create swipe actions
+- `OWNER` and `EDITOR` users can like, super-like, or pass
+- `VIEWER` users can view only
 
 ### `GET /feed`
 
@@ -1073,6 +1071,70 @@ Recommendation behavior:
 - if strict filters return too few candidates, the API relaxes optional filters and returns `relaxed: true`
 - first page builds a short Redis feed session so later cursor pages are fast
 
+### `POST /action`
+
+Purpose:
+- Save one Tinder-style swipe action for a candidate profile
+- Hide the target profile from future feed results
+- Create a match when both candidates have a positive action toward each other
+
+Auth:
+- Bearer token
+- requester must be an active linked `OWNER` or `EDITOR` of `candidateId`
+
+Body:
+
+```json
+{
+  "candidateId": "665f1a2b3c4d5e6f78901234",
+  "targetCandidateId": "665f1a2b3c4d5e6f78905678",
+  "type": "LIKE",
+  "source": "FEED"
+}
+```
+
+Allowed values:
+- `type`: `LIKE`, `SUPER_LIKE`, `PASS`
+- `source`: optional, `FEED`, `LIKES_ME`, or `PROFILE`; defaults to `FEED`
+
+Behavior:
+- `PASS` is free and does not create a match
+- `LIKE` consumes one daily like
+- `SUPER_LIKE` consumes one super-like
+- mutual `LIKE`/`SUPER_LIKE` creates or returns an active match
+- duplicate same-action retries are safe
+- changing a previous action is rejected
+- active matches and reports block new swipe actions
+
+Response data shape:
+
+```json
+{
+  "action": {
+    "_id": "swipe action id",
+    "type": "LIKE",
+    "source": "FEED",
+    "likedBy": "acting candidate id",
+    "likedProfile": "target candidate id",
+    "actedBy": "logged-in user id",
+    "isActive": true
+  },
+  "matched": true,
+  "match": {
+    "_id": "match id",
+    "candidates": ["candidate a", "candidate b"],
+    "pairKey": "candidateA_candidateB",
+    "status": "ACTIVE",
+    "matchedBy": "candidate id"
+  },
+  "quota": {
+    "dailyLikeRemaining": 49,
+    "superLikeRemaining": 10,
+    "nextResetAt": "2026-04-22T18:00:00.000Z"
+  }
+}
+```
+
 Dedicated module documentation:
 - `src/app/modules/swipe/API.md`
 
@@ -1109,8 +1171,9 @@ Content-Type: application/json
 4. Create candidate profile
 5. Load or update `/candidate-preferences/:candidateId`
 6. Load `/swipes/feed?candidateId=<candidateId>` for the discovery stack
-7. Load `/candidates/my_linked_profiles` after login to fetch the current account's candidate access
-8. Use linked-user APIs to add father, mother, consultant, or other guardians
+7. Send `/swipes/action` when the user likes, super-likes, or passes a card
+8. Load `/candidates/my_linked_profiles` after login to fetch the current account's candidate access
+9. Use linked-user APIs to add father, mother, consultant, or other guardians
 
 ## Maintenance Note
 
