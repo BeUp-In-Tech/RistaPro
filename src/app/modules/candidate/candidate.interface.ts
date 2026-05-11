@@ -63,7 +63,7 @@ export interface ICandidateProfileFields {
   name: string;
   dateOfBirth: Date;
   gender: Gender;
-  height?: number;
+  height?: number; // in centimeters
   religion?: ReligionKey;
   sect?: SectKey;
   caste?: CastKey;
