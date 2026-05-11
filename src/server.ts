@@ -35,13 +35,6 @@ const startServer = async () => {
   await createAdmin();
 })();
 
-
-
-
-
-
-
-
 // SIGTERM signal detected and close the server
 process.on('SIGTERM', () => {
   console.log('SIGTERM SIGNAL FOUND and server shutting down...');
