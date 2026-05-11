@@ -22,6 +22,14 @@ const server = http.createServer(app);
 initSocket(server);
 
 app.set('trust proxy', 1);
+
+app.use(cors({
+  origin: env.FRONTEND_URL,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH']
+}));
+
+
 app.use(expressSession({
   secret: env.EXPRESS_SESSION_SECRET,
   resave: false,
@@ -31,7 +39,9 @@ app.use(expressSession({
 app.use(passport.initialize()); // Initilazed Passport
 app.use(passport.session()); // Create a session
 app.use(express.json());
-app.use(cors());
+
+
+
 app.use(cookieParser());
 app.use(express.urlencoded({ extended: true }));
 app.use(safeSanitizeMiddleware);
