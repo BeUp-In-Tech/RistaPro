@@ -13,17 +13,17 @@ import {
   RELIGIONS,
   SECTS,
   SMOKE_STATUSES,
-} from '../../constant/constant';
-import { RelationToUser } from './candidate.interface';
+} from '../../../constant/constant';
+import { RelationToUser } from '../candidate.interface';
 import {
   CandidateLinkedUserAccessRole,
   CandidateLinkedUserRelation,
-} from './linked-user/candidateLinkedUser.interface';
+} from '../linked-user/candidateLinkedUser.interface';
 import {
   CANDIDATE_CREATOR_RELATION_LABELS,
   CANDIDATE_LINKED_USER_ACCESS_ROLE_LABELS,
   CANDIDATE_LINKED_USER_RELATION_LABELS,
-} from './linked-user/candidateLinkedUser.utility';
+} from '../linked-user/candidateLinkedUser.utility';
 
 interface TSelectOption {
   label: string;

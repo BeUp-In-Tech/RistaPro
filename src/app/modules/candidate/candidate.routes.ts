@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { checkAuth } from '../../middlewares/auth.middleware';
 import { validateRequest } from '../../middlewares/validateRequest';
 import { Role } from '../user/user.interface';
-import { CandidateConstantController } from './candidate.constant.controller';
+import { CandidateConstantController } from './constant/candidate.constant.controller';
 import { CandidateController } from './candidate.controller';
 import { CandidateLinkedUserController } from './linked-user/candidateLinkedUser.controller';
 import {

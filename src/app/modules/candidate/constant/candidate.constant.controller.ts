@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { CatchAsync } from '../../utils/CatchAsync';
-import { SendResponse } from '../../utils/SendResponse';
+import { CatchAsync } from '../../../utils/CatchAsync';
+import { SendResponse } from '../../../utils/SendResponse';
 import { CandidateConstantService } from './candidate.constant.service';
 
 // PUBLIC CANDIDATE CONSTANT DATA
