@@ -49,23 +49,13 @@ Response:
       "name": "Amina",
       "age": 24,
       "gender": "FEMALE",
-      "height": 160,
-      "religion": "ISLAM",
-      "sect": "SUNNI",
-      "caste": "BENGALI",
-      "occupation": "HOMEMAKER",
-      "highest_education": "BACHELORS",
-      "interests": ["TRAVEL"],
-      "personality": ["HONEST"],
-      "bio": "Short bio",
       "images": ["https://image-url.jpg"],
       "labels": {},
+      "livesIn": "Dhaka",
+      "distanceKm": 8.4,
       "matchScore": 92,
-      "scoreReasons": [
-        "Gender matches your preference",
-        "Age matches your preference",
-        "Religion matches your preference"
-      ]
+      "personality": ["HONEST"],
+      "religion": "ISLAM"
     }
   ],
   "limit": 20,
@@ -181,7 +171,8 @@ Response:
     "candidates": ["candidate a", "candidate b"],
     "pairKey": "candidateA_candidateB",
     "status": "ACTIVE",
-    "matchedBy": "candidate id that completed the match"
+    "matchedBy": "candidate id that completed the match",
+    "conversation": "conversation id"
   },
   "quota": {
     "dailyLikeRemaining": 49,
@@ -201,3 +192,52 @@ Action behavior:
 - The same action is idempotent for safe frontend retry.
 - A different second action toward the same target is rejected; undo/unmatch should be a separate explicit feature later.
 - After a successful new action, the actor candidate's Redis feed sessions are cleared so old cursor pages do not show stale profiles.
+
+## Postman Smoke Test
+
+Use two logged-in users with one active candidate profile each.
+
+Environment variables:
+
+```txt
+baseUrl=http://localhost:3000/api/v1
+tokenA=
+tokenB=
+candidateA=
+candidateB=
+matchId=
+conversationId=
+```
+
+Steps:
+
+1. Login account A with `POST {{baseUrl}}/auth/login`, then save `data.accessToken` as `tokenA`.
+2. Call `GET {{baseUrl}}/candidates/my_linked_profiles` with `tokenA`, then save `data[0].candidate._id` as `candidateA`.
+3. Repeat the same two requests for account B, saving `tokenB` and `candidateB`.
+4. Call `GET {{baseUrl}}/swipes/feed?candidateId={{candidateA}}&limit=20` with `tokenA` to confirm feed loading.
+5. Candidate A likes candidate B with `POST {{baseUrl}}/swipes/action` using `tokenA`.
+6. Candidate B likes candidate A with `POST {{baseUrl}}/swipes/action` using `tokenB`.
+7. The second positive swipe should return `matched: true`, `match._id`, and `match.conversation`.
+8. Confirm the match with `GET {{baseUrl}}/matches?candidateId={{candidateA}}`.
+
+Candidate A action body:
+
+```json
+{
+  "candidateId": "{{candidateA}}",
+  "targetCandidateId": "{{candidateB}}",
+  "type": "LIKE",
+  "source": "FEED"
+}
+```
+
+Candidate B action body:
+
+```json
+{
+  "candidateId": "{{candidateB}}",
+  "targetCandidateId": "{{candidateA}}",
+  "type": "LIKE",
+  "source": "FEED"
+}
+```

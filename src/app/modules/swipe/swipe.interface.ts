@@ -13,13 +13,10 @@ import {
   SectKey,
   SmokeStatusKey,
 } from '../../constant/constant';
-import {
-  Gender,
-  IVerificationStatus,
-} from '../candidate/candidate.interface';
+import { Gender, IVerificationStatus } from '../candidate/candidate.interface';
 import { LikeSource, LikeType } from '../like/like.interface';
 import { MatchStatus } from '../match/match.interface';
-import { ActiveStatus } from '../user/user.interface';
+import { ActiveStatus, IUser } from '../user/user.interface';
 
 export interface ISwipeFeedQuery {
   candidateId: string;
@@ -139,4 +136,44 @@ export interface ISwipeActionResponse {
     nextResetAt: Date;
     superLikeRemaining: number;
   };
+}
+
+export interface TSwipeActionLean {
+  _id: Types.ObjectId;
+  actedBy?: Types.ObjectId;
+  isActive: boolean;
+  likedBy: Types.ObjectId;
+  likedProfile: Types.ObjectId;
+  source: LikeSource;
+  type: LikeType;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+export interface TSwipeMatchLean {
+  _id: Types.ObjectId;
+  candidates: Types.ObjectId[];
+  conversation?: Types.ObjectId;
+  matchedBy?: Types.ObjectId;
+  pairKey: string;
+  status: MatchStatus;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+export interface TSwipeQuotaUser extends Pick<
+  IUser,
+  '_id' | 'isActive' | 'isDeleted' | 'plan'
+> {
+  _id: Types.ObjectId;
+}
+
+export interface TSwipePlanQuota {
+  dailyLikes: number;
+  superLikes: number;
+}
+
+export interface TSwipeActionLock {
+  key: string;
+  token: string;
 }
