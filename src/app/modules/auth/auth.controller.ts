@@ -16,11 +16,18 @@ import { authServices } from './auth.service';
 // REGISTER WITH GOOGLE
 const googleRegister = CatchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
-    const redirect = (req.query?.redirect as string) || '/';
+    const payload = {
+      redirect: req.query.redirect || '/',
+      mobile: req.query.mobile || false
+    };
+
+    const state = Buffer
+      .from(JSON.stringify(payload))
+      .toString('base64');
 
     passport.authenticate('google', {
       scope: ['profile', 'email'],
-      state: redirect,
+      state,
       prompt: 'consent select_account',
     })(req, res, next);
   }
@@ -29,9 +36,15 @@ const googleRegister = CatchAsync(
 // GOOGLE CALLBACK
 const googleCallback = CatchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
-    let redirectTo = req.query.state ? (req.query.state as string) : '';
-    if (redirectTo.startsWith('/')) {
-      redirectTo = redirectTo.slice(1);
+    const state = req.query.state as string;
+
+    const decoded = JSON.parse(
+      Buffer.from(state, 'base64').toString()
+    );
+
+
+    if (decoded.redirect.startsWith('/')) {
+      decoded.redirect = decoded.redirect.slice(1);
     }
 
     const user = req.user as JwtPayload;
@@ -39,15 +52,12 @@ const googleCallback = CatchAsync(
     const token = await createUserTokens(user);
     SetCookies(res, token);
 
-    const userAgent = req.headers['user-agent'] || '';
-
-    const isAndroid = /android/i.test(userAgent);
-    const isIOS = /iphone|ipad|ipod/i.test(userAgent);
 
     // eslint-disable-next-line no-console
-    console.log(token.accessToken)
+    console.log(token.accessToken);
 
-    if (isAndroid || isIOS) {
+
+    if (decoded.mobile === 'true') {
       res.redirect(
         `${env.DEEP_LINK}/auth/google?access=${token.accessToken}&refresh=${token.refreshToken}`
       );
@@ -173,7 +183,6 @@ const getNewAccessToken = CatchAsync(
     
     const result = await authServices.getNewAccessTokenService(refreshToken);
     SetCookies(res, {
-      accessToken: result.newAccessToken,
       refreshToken: result.newRefreshToken,
     });
 
@@ -181,7 +190,9 @@ const getNewAccessToken = CatchAsync(
       success: true,
       statusCode: StatusCodes.OK,
       message: 'New access token generated',
-      data: result,
+      data: {
+        accessToken: result.newAccessToken,
+      },
     });
   }
 );

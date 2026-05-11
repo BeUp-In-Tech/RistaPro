@@ -30,6 +30,6 @@ router.post('/verify_forget_password_otp', authController.verifyForgetPasswordOT
 // RESET PASSWORD
 router.post('/reset_password', authController.resetPassword);
 // GET NEW ACCESS TOKEN
-router.get('/get_new_access_token', checkAuth(...Object.keys(Role)), authController.getNewAccessToken);
+router.get('/get_new_access_token', authController.getNewAccessToken);
 
 export const authRouter = router;
