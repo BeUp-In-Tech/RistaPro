@@ -37,9 +37,6 @@ const buildGoogleAllowedClientIds = () => {
 };
 
 const googleAuthSystem = async (payload: any) => {
-  // eslint-disable-next-line no-console
-  console.log("Payload: ", payload);
-  
   if (!payload || typeof payload !== 'object') {
     throw new AppError(StatusCodes.BAD_REQUEST, 'Invalid Google auth payload');
   }
@@ -339,7 +336,7 @@ const forgetPasswordService = async (email: string) => {
   // SENDING OTP TO EMAIL
   const emailPayload: SendEmailOptions = {
     to: user.email,
-    subject: 'RistaPro:Password Reset OTP',
+    subject: 'RishtaPro:Password Reset OTP',
     templateName: 'forgetPassword_otp_send',
     templateData: {
       name: user.full_name,
