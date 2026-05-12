@@ -24,7 +24,7 @@ const getMatches = CatchAsync(async (req: Request, res: Response) => {
 const getMatch = CatchAsync(async (req: Request, res: Response) => {
   const { userId } = req.user as JwtPayload;
    const candidateId = req.query.candidateId as string;
-   const matchId = req.query.matchId as string;
+   const matchId = req.params.matchId as string;
   const result = await MatchService.getMatch( userId, matchId, candidateId );
 
   SendResponse(res, {
@@ -35,12 +35,12 @@ const getMatch = CatchAsync(async (req: Request, res: Response) => {
   });
 });
 
-// AUTH OWNER/EDITOR UNMATCH A CANDIDATE PAIR
-const unmatch = CatchAsync(async (req: Request, res: Response) => {
+// AUTH OWNER/EDITOR unmatched A CANDIDATE PAIR
+const unmatched = CatchAsync(async (req: Request, res: Response) => {
   const { userId } = req.user as JwtPayload;
   const candidateId = req.query.candidateId as string;
-  const matchId = req.query.matchId as string;
-  const result = await MatchService.unmatch( userId, matchId, candidateId );
+  const matchId = req.params.matchId as string;
+  const result = await MatchService.unmatched( userId, matchId, candidateId );
 
   SendResponse(res, {
     success: true,
@@ -53,5 +53,5 @@ const unmatch = CatchAsync(async (req: Request, res: Response) => {
 export const MatchController = {
   getMatch,
   getMatches,
-  unmatch,
+  unmatched,
 };

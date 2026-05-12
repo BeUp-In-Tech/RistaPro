@@ -11,11 +11,11 @@ router.get('/', checkAuth(Role.USER), MatchController.getMatches);
 // AUTH LINKED USER GET ONE MATCH
 router.get('/:matchId', checkAuth(Role.USER), MatchController.getMatch);
 
-// AUTH OWNER/EDITOR UNMATCH A CANDIDATE PAIR
+// AUTH OWNER/EDITOR unmatched A CANDIDATE PAIR
 router.patch(
-  '/:matchId/unmatch',
+  '/:matchId/unmatched',
   checkAuth(Role.USER),
-  MatchController.unmatch
+  MatchController.unmatched
 );
 
 export const matchRoutes = router;

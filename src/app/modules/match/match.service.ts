@@ -55,8 +55,8 @@ const getMatch = async (
   return buildMatchResponse(populatedMatch);
 };
 
-// PATCH /matches/:matchId/unmatch - Closes the match and archives its open conversation.
-const unmatch = async (
+// PATCH /matches/:matchId/unmatched - Closes the match and archives its open conversation.
+const unmatched = async (
   userId: string,
   matchId: string,
   candidateId?: string
@@ -99,5 +99,5 @@ const unmatch = async (
 export const MatchService = {
   getMatch,
   getMatches,
-  unmatch,
+  unmatched,
 };
