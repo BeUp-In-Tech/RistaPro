@@ -85,8 +85,7 @@ const getCandidateConstants = () => ({
       RelationToUser.SISTER,
       RelationToUser.GUARDIAN,
       RelationToUser.RELATIVE,
-      RelationToUser.CONSULTANT,
-      RelationToUser.OTHER,
+      RelationToUser.CONSULTANT
     ],
     CANDIDATE_CREATOR_RELATION_LABELS
   ),

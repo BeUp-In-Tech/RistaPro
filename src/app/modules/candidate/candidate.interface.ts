@@ -1,5 +1,6 @@
 import { Document, Types } from 'mongoose';
 import { ActiveStatus } from '../user/user.interface';
+import { PlanKey } from '../plan/plan.interface';
 import {
   ReligionKey,
   SectKey,
@@ -99,6 +100,7 @@ export interface IUpdateCandidateRequestPayload extends IUpdateCandidatePayload 
 // Stored candidate document with system-managed fields.
 export interface ICandidate extends Document, ICandidateProfileFields {
   user: Types.ObjectId;
+  plan: PlanKey;
   face_verify_logs?: IVerificationDetail[];
   verification_status?: IVerificationStatus;
   isActive: ActiveStatus;

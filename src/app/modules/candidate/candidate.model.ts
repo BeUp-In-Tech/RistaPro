@@ -8,6 +8,7 @@ import {
   VerificationState,
 } from './candidate.interface';
 import { ActiveStatus } from '../user/user.interface';
+import { PLAN_KEYS } from '../plan/plan.interface';
 import {
   RELIGIONS,
   SECTS,
@@ -53,6 +54,7 @@ const verificationStatusSchema = new Schema<IVerificationStatus>(
 const candidateSchema = new Schema<ICandidate>(
   {
     user: { type: Schema.Types.ObjectId, ref: 'user', required: true },
+    plan: { type: String, enum: PLAN_KEYS, default: 'free', trim: true },
     name: { type: String, required: true, trim: true },
     dateOfBirth: { type: Date, required: true },
     gender: { type: String, enum: Object.values(Gender), required: true },
