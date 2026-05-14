@@ -176,7 +176,7 @@ const resetPassword = CatchAsync(
 // GET NEW ACCESS TOKEN
 const getNewAccessToken = CatchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
-    const refreshToken = req.cookies.refreshToken as string;
+    const refreshToken = req.cookies.refreshToken as string || req.query.refreshToken as string; // Cookies: For web, Query: For App
     if (!refreshToken) {
       throw new AppError(httpStatus.UNAUTHORIZED, 'Refresh token is required');
     }
