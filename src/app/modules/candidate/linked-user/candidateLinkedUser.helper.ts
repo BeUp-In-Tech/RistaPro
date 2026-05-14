@@ -32,7 +32,7 @@ export const LINKED_USER_USER_SELECT =
   '_id full_name email picture role isVerified isActive';
 
 export const LINKED_CANDIDATE_POPULATE_SELECT =
-  '_id name dateOfBirth gender height religion sect caste profile_assist relationship_status have_children move_abroad occupation highest_education smoke_status drink_status interests personality relationToUser partnerExpectation bio images address coordinates isActive createdAt updatedAt';
+  '_id name dateOfBirth gender plan height religion sect caste profile_assist relationship_status have_children move_abroad occupation highest_education smoke_status drink_status interests personality relationToUser partnerExpectation bio images address coordinates isActive createdAt updatedAt';
 
 export const buildMyAccessResponse = (
   linkedUser: TLinkedUserAccessResponseShape

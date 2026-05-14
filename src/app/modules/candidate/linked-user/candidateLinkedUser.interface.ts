@@ -2,6 +2,7 @@ import { Document, Types } from 'mongoose';
 import { TLinkedUserSafeUser } from './candidateLinkedUser.utility';
 import { ICandidateProfileFields, RelationToUser } from '../candidate.interface';
 import { ActiveStatus } from '../../user/user.interface';
+import { PlanKey } from '../../plan/plan.interface';
 
 
 
@@ -121,6 +122,7 @@ export type TCandidateProfileLean = Partial<ICandidateProfileFields> & {
   name: string;
   dateOfBirth: Date;
   gender: string;
+  plan?: PlanKey;
   images?: string[];
   relationToUser?: RelationToUser;
   isActive?: ActiveStatus

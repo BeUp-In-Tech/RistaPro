@@ -47,7 +47,7 @@ import {
 import { redisClient } from '../../../config/redis.config';
 
 const BASIC_CANDIDATE_PROFILE_SELECT =
-  '_id name gender dateOfBirth images isActive createdAt updatedAt';
+  '_id name gender dateOfBirth plan images isActive createdAt updatedAt';
 
 interface TMyCandidateBasicProfileLean {
   _id: Types.ObjectId;
