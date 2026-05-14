@@ -3,8 +3,32 @@
 import { Server } from 'socket.io';
 import { redisClient } from '../config/redis.config';
 import { createAdapter } from '@socket.io/redis-adapter';
+import env from '../config/env';
 
 export let io: Server;
+
+export const getConversationRoom = (conversationId: string) =>
+  `conversation:${conversationId}`;
+
+export const emitChatEvent = (params: {
+  conversationId?: string;
+  event: string;
+  payload: unknown;
+  userIds?: string[];
+}) => {
+  if (!io) {
+    return;
+  }
+
+  const uniqueUserIds = Array.from(new Set(params.userIds ?? []));
+  let target = uniqueUserIds.length ? io.to(uniqueUserIds) : io;
+
+  if (params.conversationId) {
+    target = target.to(getConversationRoom(params.conversationId));
+  }
+
+  target.emit(params.event, params.payload);
+};
 
 export const initSocket = async (server: any) => {
   // MULTIPLE INSTANCE HANDLING
@@ -14,7 +38,7 @@ export const initSocket = async (server: any) => {
   await Promise.all([pubClient.connect(), subClient.connect()]);
   io = new Server(server, {
     cors: { 
-      origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'],
+      origin: env.FRONTEND_URL?.split(',') || ['http://localhost:3000'],
       methods: ['GET', 'POST'] 
     },
     transports: ['websocket', 'polling']
@@ -32,6 +56,9 @@ export const initSocket = async (server: any) => {
   io.on('connection', (socket) => {
     let currentUserId: string | null = null;
 
+    console.log("User connected: ", socket.id);
+    
+
     socket.on('join-user', async (userId: string) => {
       currentUserId = userId;
       socket.join(userId);
@@ -47,6 +74,34 @@ export const initSocket = async (server: any) => {
       // 3. Broadcast to everyone
       io.emit('online_users', onlineUserIds);
     });
+
+    socket.on('join-conversation', (conversationId: string) => {
+      socket.join(getConversationRoom(conversationId));
+    });
+
+    socket.on('leave-conversation', (conversationId: string) => {
+      socket.leave(getConversationRoom(conversationId));
+    });
+
+    socket.on(
+      'typing:start',
+      (payload: { conversationId: string; candidateId?: string }) => {
+        socket.to(getConversationRoom(payload.conversationId)).emit(
+          'typing:start',
+          payload
+        );
+      }
+    );
+
+    socket.on(
+      'typing:stop',
+      (payload: { conversationId: string; candidateId?: string }) => {
+        socket.to(getConversationRoom(payload.conversationId)).emit(
+          'typing:stop',
+          payload
+        );
+      }
+    );
 
 
     // HANDLE DISCONNECT
@@ -64,6 +119,7 @@ export const initSocket = async (server: any) => {
           io.emit('online_users', onlineUserIds);
 
           console.log("User totally offline: ", currentUserId);
+          console.log("User disconnected: ", socket.id);
         } else {
           console.log(`User ${currentUserId} disconnected one device, but still active elsewhere.`);
         }
