@@ -19,7 +19,6 @@ import {
 } from '../conversation/conversation.interface';
 import Match from './match.model';
 import {
-  MatchStatus,
   TMatchCandidateLean,
   TMatchWithCandidateIds,
   TPopulatedMatchLean,
@@ -139,7 +138,7 @@ export const getMatchAccessOrThrow = async (params: {
     ) {
       throw new AppError(
         StatusCodes.FORBIDDEN,
-        'Viewer access cannot unmatch candidates'
+        'Viewer access cannot unmatched candidates'
       );
     }
 
@@ -172,7 +171,7 @@ export const getMatchAccessOrThrow = async (params: {
   ) {
     throw new AppError(
       StatusCodes.FORBIDDEN,
-      'Viewer access cannot unmatch candidates'
+      'Viewer access cannot unmatched candidates'
     );
   }
 
@@ -277,7 +276,7 @@ export const ensureMatchConversation = async (
   };
 };
 
-// Archives the open conversation when a user explicitly unmatches.
+// Archives the open conversation when a user explicitly unmatched.
 export const archiveOpenMatchConversation = async (
   match: TMatchWithCandidateIds
 ) => {
