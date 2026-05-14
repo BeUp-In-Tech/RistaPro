@@ -16,12 +16,12 @@ const transporter = nodemailer.createTransport({
   host: env.EMAIL_HOST,
 });
 
-interface SendEmailOptions {
+export interface SendEmailOptions {
   to: string;
   subject: string;
   templateName: string;
   templateData?: Record<string, any>;
-  attachements?: {
+  attachments?: {
     filename: string;
     content: Buffer | string;
     contentType: string;
@@ -33,7 +33,7 @@ export const sendEmail = async ({
   subject,
   templateName,
   templateData,
-  attachements,
+  attachments,
 }: SendEmailOptions) => {
   try {
     const templatePath = path.join(__dirname, `templates/${templateName}.ejs`);
@@ -43,7 +43,7 @@ export const sendEmail = async ({
       to: to,
       subject: subject,
       html: html,
-      attachments: attachements?.map((attachment) => ({
+      attachments: attachments?.map((attachment) => ({
         filename: attachment.filename,
         content: attachment.content,
         contentType: attachment.contentType,

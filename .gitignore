@@ -3,3 +3,6 @@ dist
 .env
 .vscode
 .idea
+*frontend-note.md
+.hintrc
+index.html

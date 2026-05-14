@@ -6,20 +6,16 @@ type AsyncHandler = (
   next: NextFunction
 ) => Promise<void>;
 
-// export const CatchAsync = (fn: AsyncHandler) =>  async (req: Request, res: Response, next: NextFunction) => {
-//     Promise.resolve(fn(req, res, next)).catch((err: any) => {
-//         next(err);
-//     })
-// }
-
-// Alternative (Same works)
 
 export const CatchAsync =
   (fn: AsyncHandler) =>
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       await fn(req, res, next);
-    } catch (error) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (error: any) {
+      // eslint-disable-next-line no-console
+      console.log(error.message);
       next(error);
     }
   };

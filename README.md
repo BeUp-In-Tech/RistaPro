@@ -1,13 +1,151 @@
-# Rista Pro
+# RistaPro API Guide
 
-### Node.js + TypeScript Backend Server
+This README documents the API modules that are currently mounted under `/api/v1`.
 
-Rista Pro is a Pakistani Tinder style Matrimony Software. Where user can create basic account and a candidate acoount. And they can browse others profile. According to Tinder, they can swap, like, dislike.
+Active modules today:
+
+- `auth`
+- `users`
+- `plans`
+- `candidates`
+- `candidate-preferences`
+- `swipes`
+- `matches`
+- `conversations`
+- `messages`
+
+Other route files may exist in the codebase, but they are not publicly available until they are mounted in the main router.
+
+## Base URL
+
+Local example:
+
+```text
+http://localhost:<PORT>/api/v1
+```
+
+## Auth Rules
+
+- Protected endpoints require `Authorization: Bearer <accessToken>`.
+- `refreshToken` is stored in an HTTP-only cookie and is used by `GET /auth/get_new_access_token`.
+- `accessToken` may also be returned in the response body for login and Google callback flows.
+- Most protected routes accept all platform roles unless the route explicitly says `ADMIN` only.
+
+## Common Response Shape
+
+Successful responses follow this shape:
+
+```json
+{
+  "statusCode": 200,
+  "success": true,
+  "message": "Human readable message",
+  "data": {},
+  "meta": {}
+}
+```
+
+Error responses follow this shape:
+
+```json
+{
+  "success": false,
+  "message": "Error message",
+  "errorSources": [],
+  "err": null,
+  "stack": null
+}
+```
+
+## Multipart Request Note
+
+Some routes accept file upload through `multer`.
+
+For multipart requests:
+
+- send files in the file field used by the route
+- send the non-file payload inside a `data` field as a JSON string
+
+Example:
+
+```text
+Content-Type: multipart/form-data
+file: <binary file>
+data: {"full_name":"Nayem Ahmed"}
+```
+
+For candidate image uploads:
+
+```text
+Content-Type: multipart/form-data
+files: <multiple binary files>
+data: {"name":"Amina","dateOfBirth":"1998-05-11","gender":"FEMALE"}
+```
+
+## Quick Start Flows
+
+### Swipe/Match APIs Added For Testing
+
+These are the currently mounted APIs for the swipe-match flow:
+
+- `GET /api/v1/swipes/feed`
+- `POST /api/v1/swipes/action`
+- `GET /api/v1/matches`
+- `GET /api/v1/matches/:matchId`
+- `PATCH /api/v1/matches/:matchId/unmatch`
+- `GET /api/v1/conversations`
+- `POST /api/v1/conversations/matches/:matchId/start`
+- `POST /api/v1/conversations/message-requests`
+- `POST /api/v1/messages`
+
+Notes:
+
+- mutual positive swipes automatically create one `Match`
+- a match also creates or returns one `Conversation`
+- the conversation id is returned as `match.conversation`
+- chat message, message-request, and guardian-request routes are mounted
+- realtime chat events are emitted through Socket.IO
+
+### 1. User login with Google
+
+1. Open `GET /auth/google`
+2. Complete Google login
+3. Read the returned access token from redirect or cookies
+4. Use `Authorization: Bearer <accessToken>` for protected routes
+
+### 2. Admin creates consultant
+
+1. Admin logs in
+2. Call `POST /users`
+3. Consultant then logs in with email and password using `POST /auth/login`
+
+### 3. User creates candidate profile
+
+1. Load constants from `GET /candidates/constants`
+2. Pick option `value` keys from the response
+3. Create profile with `POST /candidates`
+4. Review or update partner preferences with `GET /candidate-preferences/:candidateId`
+5. Load recommended profiles with `GET /swipes/feed?candidateId=<candidateId>`
+6. Like, super-like, or pass cards with `POST /swipes/action`
+7. If `POST /swipes/action` returns `matched: true`, use `match.conversation` for the chat thread
+8. Load active matches with `GET /matches?candidateId=<candidateId>`
+9. Open/list chat with `GET /conversations?candidateId=<candidateId>`
+10. Send chat messages with `POST /messages`
+11. If needed, add family members with linked-user APIs, then request chat inclusion with guardian request APIs
+
+### 4. Guardian-managed candidate profile
+
+1. Guardian logs in
+2. Create candidate using `relationToUser`
+3. Add other linked users with `POST /candidates/:candidateId/linked_users` (link existing account or create new account with `name + email + password`)
+4. Candidate owner can load basic profile info from `GET /candidates/my_basic_profile`
+5. Candidate owner can load the full managed candidate access from `GET /candidates/my_linked_profiles`
 
 ---
 
-## Key Features
+## Auth Module
 
+<<<<<<< HEAD
 - **Create Account & candidate profile**: User can create their basic profile. And then to showcasing him/her can create a candidate profile. This candidate profile will be visible to everyone.
 - **Swap**: Candidate can explore oponnent profile. Thee is a like, dislike and Swap system available. If both candidate like themselves, a match will create for them.
 - **Chat System**: Candidate can chat by text, audio and video call. There is a versatile Chat system with smooth Audio and Video call.
@@ -20,4 +158,1759 @@ Rista Pro is a Pakistani Tinder style Matrimony Software. Where user can create 
   - Id verification
 - **Privacy**: We keep user's data secure. A secure database handle user's data and documents with high quality privacy system. All the documents reviewd by our technical team.
  
+=======
+Base path: `/api/v1/auth`
 
+### `GET /google`
+
+Purpose:
+
+- Start Google OAuth login
+
+Auth:
+
+- Public
+
+Query:
+
+- `redirect` optional frontend path or state value
+
+How to use:
+
+- Open this URL in browser or mobile webview
+
+### `GET /google/callback`
+
+Purpose:
+
+- OAuth callback from Google
+
+Auth:
+
+- Public
+
+What it does:
+
+- creates user automatically if not found
+- sets auth cookies
+- redirects to frontend or deep link with token
+
+### `POST /login`
+
+Purpose:
+
+- Login with email and password
+
+Auth:
+
+- Public
+
+Body:
+
+```json
+{
+  "email": "consultant@example.com",
+  "password": "StrongPass1!"
+}
+```
+
+Notes:
+
+- local strategy uses `email` and `password`
+- good for consultant or other accounts that have password set
+
+### `PATCH /change_password`
+
+Purpose:
+
+- Change password for logged-in user
+
+Auth:
+
+- Bearer token
+
+Body:
+
+```json
+{
+  "oldPassword": "OldPass1!",
+  "newPassword": "NewPass1!"
+}
+```
+
+### `POST /forget_password`
+
+Purpose:
+
+- Request password reset OTP
+
+Auth:
+
+- Public
+
+Body:
+
+```json
+{
+  "email": "consultant@example.com"
+}
+```
+
+### `POST /verify_forget_password_otp`
+
+Purpose:
+
+- Verify reset OTP and receive reset token
+
+Auth:
+
+- Public
+
+Body:
+
+```json
+{
+  "email": "consultant@example.com",
+  "otp": "123456"
+}
+```
+
+### `POST /reset_password`
+
+Purpose:
+
+- Reset password after OTP verification
+
+Auth:
+
+- Public
+
+Headers:
+
+- `token: <otp-verification-token>`
+
+Body:
+
+```json
+{
+  "newPassword": "NewPass1!"
+}
+```
+
+### `GET /get_new_access_token`
+
+Purpose:
+
+- Rotate access and refresh token
+
+Auth:
+
+- Refresh cookie must exist
+
+Notes:
+
+- route reads refresh token from cookie
+- rotates the refresh token cookie
+- returns the new access token in response data
+
+Example:
+
+```http
+GET /api/v1/auth/get_new_access_token
+Cookie: refreshToken=<refreshToken>
+```
+
+Response data shape:
+
+```json
+{
+  "accessToken": "new access token"
+}
+```
+
+---
+
+## User Module
+>>>>>>> working
+
+Base path: `/api/v1/users`
+
+## Authenticated User Endpoints
+
+### `GET /me`
+
+Purpose:
+
+- Get logged-in user profile plus app context for frontend gating
+
+Auth:
+
+- Bearer token
+
+Response includes:
+
+- top-level user fields such as `_id`, `full_name`, `email`, `picture`, `plan`, `isVerified`, `isActive`, and `role`
+- `candidateLink`: whether this account is linked to a candidate profile, which candidate, and the user's access role
+- `permissions`: frontend-friendly booleans for swipe, messaging, calls, full profile details, and profile boost
+
+Example response data shape:
+
+```json
+{
+  "_id": "user id",
+  "full_name": "Nayem Ahmed",
+  "email": "nayemalways.sm@gmail.com",
+  "plan": "free",
+  "candidateLink": {
+    "isLinked": true,
+    "source": "LINKED_USER",
+    "candidateId": "candidate id",
+    "myAccess": {
+      "accessRole": "OWNER",
+      "relationshipToCandidate": "SELF",
+      "status": "ACTIVE",
+      "isPrimary": true
+    }
+  },
+  "permissions": {
+    "canViewSwipeFeed": true,
+    "canPerformSwipeAction": true,
+    "canUseNormalLike": true,
+    "canUseSuperLike": false,
+    "canSeeWhoLiked": false,
+    "canMessage": false,
+    "canAudioCall": false,
+    "canVideoCall": false,
+    "canViewFullProfile": false,
+    "profileBoost": false
+  }
+}
+```
+
+Frontend notes:
+
+- Use `permissions` for broad UI gating, such as hiding full-profile sections or disabling super-like buttons for free users.
+- The swipe action API remains the source of truth for quota and returns the latest remaining like counts after each action.
+- `GET /users/me` intentionally does not expose raw quota counters or the full plan document.
+- Plan values come from the active plan document in MongoDB. Changing `plan.constant.ts` updates future create/update payloads, but existing plan documents must be updated through the plan update API or a migration.
+
+### `PATCH /me`
+
+Purpose:
+
+- Update logged-in user profile
+
+Auth:
+
+- Bearer token
+
+Content type:
+
+- `application/json` or `multipart/form-data`
+
+Body:
+
+```json
+{
+  "full_name": "Nayem Ahmed"
+}
+```
+
+Multipart file field:
+
+- `file`
+
+Allowed fields:
+
+- `full_name`
+- `picture`
+
+### `POST /me/send_verification_otp`
+
+Purpose:
+
+- Send profile verification OTP
+
+Auth:
+
+- Bearer token
+
+### `POST /me/verify_profile`
+
+Purpose:
+
+- Verify profile with OTP
+
+Auth:
+
+- Bearer token
+
+Body:
+
+```json
+{
+  "otp": "123456"
+}
+```
+
+### `GET /devices`
+
+Purpose:
+
+- List logged-in user devices
+
+Auth:
+
+- Bearer token
+
+### `POST /devices`
+
+Purpose:
+
+- Register FCM device token
+
+Auth:
+
+- Bearer token
+
+Body:
+
+```json
+{
+  "token": "firebase-device-token",
+  "platform": "ANDROID",
+  "deviceId": "device-123",
+  "deviceName": "Pixel 8"
+}
+```
+
+Allowed `platform` values:
+
+- `WEB`
+- `IOS`
+- `ANDROID`
+
+### `PATCH /devices/:deviceId/inactive`
+
+Purpose:
+
+- Deactivate a device token
+
+Auth:
+
+- Bearer token
+
+## Admin Endpoints
+
+### `POST /`
+
+Purpose:
+
+- Create consultant account
+
+Auth:
+
+- `ADMIN` only
+
+Body:
+
+```json
+{
+  "full_name": "Consultant One",
+  "email": "consultant@example.com",
+  "password": "StrongPass1!"
+}
+```
+
+Validation:
+
+- `full_name`: 3 to 100 chars
+- `email`: valid email
+- `password`: minimum 6 chars, at least 1 uppercase, 1 number, 1 special character
+
+### `GET /`
+
+Purpose:
+
+- List users
+
+Auth:
+
+- `ADMIN` only
+
+Useful query params:
+
+- `page`
+- `limit`
+- `sort`
+- `fields`
+- `searchTerm`
+- direct field filters like `role`, `isActive`, `isVerified`
+
+### `GET /:id`
+
+Purpose:
+
+- Get single user by ID
+
+Auth:
+
+- `ADMIN` only
+
+### `PATCH /:id`
+
+Purpose:
+
+- Update user by admin
+
+Auth:
+
+- `ADMIN` only
+
+Content type:
+
+- `application/json` or `multipart/form-data`
+
+Allowed fields:
+
+- `full_name`
+- `picture`
+- `plan`
+- `isVerified`
+- `isActive`
+
+Multipart file field:
+
+- `file`
+
+### `DELETE /:id`
+
+Purpose:
+
+- Soft delete user
+
+Auth:
+
+- `ADMIN` only
+
+Notes:
+
+- admin cannot delete own account from this route
+
+---
+
+## Plan Module
+
+Base path: `/api/v1/plans`
+
+Available plan keys:
+
+- `free`
+- `gold`
+- `platinum`
+
+### `GET /`
+
+Purpose:
+
+- List all plans
+
+Auth:
+
+- Public
+
+### `GET /:planType`
+
+Purpose:
+
+- Get single plan
+
+Auth:
+
+- Public
+
+### `POST /`
+
+Purpose:
+
+- Create plan config
+
+Auth:
+
+- `ADMIN` only
+
+Body:
+
+```json
+{
+  "planType": "gold",
+  "price": 19.99
+}
+```
+
+Rules:
+
+- `free` must have `price = 0`
+- paid plans must have `price > 0`
+
+### `PATCH /:planType`
+
+Purpose:
+
+- Update plan config
+
+Auth:
+
+- `ADMIN` only
+
+Body:
+
+```json
+{
+  "price": 29.99,
+  "isActive": true
+}
+```
+
+---
+
+## Candidate Module
+
+Base path: `/api/v1/candidates`
+
+This module currently includes:
+
+- candidate constant data
+- candidate profile creation
+- candidate profile updates
+- linked-user access management
+
+## Constants
+
+### `GET /constants`
+
+Purpose:
+
+- Load all frontend dropdown and select data needed for candidate profile forms
+
+Auth:
+
+- Public
+
+Main response groups:
+
+- `religions`
+- `sects`
+- `castes`
+- `relationshipStatuses`
+- `childrenStatuses`
+- `moveAbroadStatuses`
+- `occupations`
+- `highestEducations`
+- `smokeStatuses`
+- `drinkStatuses`
+- `interests`
+- `interestCategories`
+- `personalityTraits`
+- `candidateCreatorRelations`
+- `candidateLinkedUserRelations`
+- `candidateLinkedUserAccessRoles`
+
+Important:
+
+- send the returned `value` keys back to the backend
+- use `label` only for display
+
+## Candidate Profile Create
+
+### `POST /`
+
+Purpose:
+
+- Create candidate profile for self or as guardian/relative
+
+Auth:
+
+- Bearer token
+
+Content type:
+
+- `application/json` or `multipart/form-data`
+
+Multipart file field:
+
+- `files`
+
+Body example:
+
+```json
+{
+  "name": "Amina",
+  "dateOfBirth": "1998-05-11",
+  "gender": "FEMALE",
+  "religion": "ISLAM",
+  "sect": "SUNNI",
+  "caste": "BENGALI",
+  "relationship_status": "SINGLE",
+  "occupation": "SOFTWARE_ENGINEER",
+  "highest_education": "BACHELORS",
+  "interests": ["PAINTING", "TRAVEL"],
+  "personality": ["HONEST", "LOYAL"],
+  "relationToUser": "SELF",
+  "bio": "Short introduction",
+  "address": "Dhaka, Bangladesh",
+  "coordinates": [90.4125, 23.8103]
+}
+```
+
+Important field rules:
+
+- `name`: 2 to 100 chars
+- `dateOfBirth`: must be in the past
+- `gender`: `MALE | FEMALE | OTHER`
+- `religion`, `sect`, `caste`, `occupation`, `highest_education`, `relationship_status`, `have_children`, `move_abroad`, `smoke_status`, `drink_status`, `interests`, `personality`: must use constant keys from `/candidates/constants`
+- `sect` requires `religion`
+- selected `sect` must belong to selected `religion`
+- `interests` and `personality` cannot contain duplicates
+- `relationToUser` defaults to `SELF`
+- request body is strict; unknown fields are rejected
+
+How it behaves:
+
+- one account can belong to only one active candidate profile at a time
+- profile creator is automatically added as primary linked user with owner access
+- default candidate preferences are created automatically
+- max allowed images per candidate profile: `6`
+
+Response data includes the candidate profile plus:
+
+- `labels`: display labels generated from constant keys
+- `management`: linked-user management summary
+- `myAccess`: the creator's active linked-user access
+
+## Candidate Profile Update
+
+### `PATCH /:candidateId`
+
+Purpose:
+
+- Update candidate profile fields
+- Replace candidate images by removing existing links from `deletedImages` and adding newly uploaded images from `files`
+
+Auth:
+
+- Bearer token
+- requester must be an active linked user of this candidate
+- linked user with `VIEWER` access cannot update
+
+Content type:
+
+- `application/json` or `multipart/form-data`
+
+Multipart file field:
+
+- `files` (optional, multiple)
+
+Body fields:
+
+- Any candidate update fields from create API (all optional in patch)
+- `deletedImages`: optional array of existing image links to remove
+- `interests`: optional array of interest keys to append
+- `deletedInterests`: optional array of interest keys to remove
+- `personality`: optional array of personality keys to append
+- `deletedPersonality`: optional array of personality keys to remove
+
+JSON example (only profile info update):
+
+```json
+{
+  "occupation": "SOFTWARE_ENGINEER",
+  "bio": "Updated profile bio"
+}
+```
+
+JSON example (incremental array update):
+
+```json
+{
+  "interests": ["EXPLORING", "NON_FICTION"],
+  "deletedInterests": ["ROAD_TRIPS"],
+  "personality": ["GOAL_ORIENTED"],
+  "deletedPersonality": ["EASY_GOING"]
+}
+```
+
+JSON example (remove old image links only):
+
+```json
+{
+  "deletedImages": [
+    "https://res.cloudinary.com/demo/image/upload/v1/RistaPro/old-1.jpg",
+    "https://res.cloudinary.com/demo/image/upload/v1/RistaPro/old-2.jpg"
+  ]
+}
+```
+
+Multipart example (remove old images + upload new images):
+
+```text
+Content-Type: multipart/form-data
+files: <binary file 1>
+files: <binary file 2>
+data: {
+  "occupation":"SOFTWARE_ENGINEER",
+  "deletedImages":[
+    "https://res.cloudinary.com/demo/image/upload/v1/RistaPro/old-1.jpg"
+  ]
+}
+```
+
+Image behavior:
+
+- backend loads current `candidate.images`
+- removes images found in `deletedImages`
+- appends new uploaded `files` links
+- duplicate image links are normalized away
+- stores the merged result in `candidate.images`
+- max allowed images per candidate profile: `6`
+- sends removed images to background queue delete processor (`deleteImageByBullMQ`)
+
+Validation notes:
+
+- patch payload can include one or many fields
+- if no valid field change and no image change is provided, request is rejected
+- `deletedImages` must be an array of non-empty unique strings
+- `interests` and `personality` in patch are additive (append unique values)
+- use `deletedInterests` and `deletedPersonality` for removing values
+- if both add and delete arrays contain the same key, the final stored value includes it because additions are applied after deletions
+
+## Linked User APIs
+
+These routes manage who can access a candidate profile.
+
+Core rules:
+
+- only linked `OWNER` can add, update, or remove linked users
+- any active linked user can view linked users for that candidate profile
+- one account can be actively linked to only one candidate profile at a time
+- if email already exists, that account is linked
+- if email does not exist, owner can create a new linked account in the same API call
+- primary linked user must have `OWNER` access
+- only one active `SELF` account is allowed per candidate profile
+
+### `GET /my_linked_profiles`
+
+Purpose:
+
+- Get the active candidate profile the current account can access
+
+Auth:
+
+- Bearer token
+
+Useful for:
+
+- loading the current account's candidate access after login
+
+### `GET /my_basic_profile`
+
+Purpose:
+
+- Get lightweight basic info for the current account's active candidate profile
+- Useful for dashboard headers, app shell state, and preference screens that only need candidate identity
+
+Auth:
+
+- Bearer token
+
+Response data shape:
+
+```json
+{
+  "candidate": {
+    "_id": "candidate id",
+    "name": "Amina",
+    "gender": "FEMALE",
+    "dateOfBirth": "1998-05-11T00:00:00.000Z",
+    "profileImage": "https://image-url.jpg",
+    "images": ["https://image-url.jpg"],
+    "isActive": "ACTIVE",
+    "createdAt": "2026-04-22T00:00:00.000Z",
+    "updatedAt": "2026-04-22T00:00:00.000Z"
+  },
+  "myAccess": {
+    "_id": "linked user id",
+    "accessRole": "OWNER",
+    "relationshipToCandidate": "SELF",
+    "status": "ACTIVE",
+    "isPrimary": true,
+    "linkedBy": "user id",
+    "joinedAt": "2026-04-22T00:00:00.000Z"
+  }
+}
+```
+
+Notes:
+
+- returns `null` when the logged-in user has no active candidate profile
+- rejects the request if the account is linked to multiple active candidate profiles
+
+### `GET /:candidateId/linked_users`
+
+Purpose:
+
+- List linked users for one candidate profile
+
+Auth:
+
+- Bearer token
+
+Response includes:
+
+- `management` summary
+- `myAccess`
+- `users`
+
+### `POST /:candidateId/linked_users`
+
+Purpose:
+
+- Add linked user to candidate profile, with optional account creation
+
+Auth:
+
+- Bearer token
+- requester must be an `OWNER`
+
+Body example (create new account and link):
+
+```json
+{
+  "name": "Candidate Father",
+  "email": "father@example.com",
+  "password": "StrongPass1!",
+  "relationshipToCandidate": "FATHER",
+  "accessRole": "EDITOR",
+  "isPrimary": false
+}
+```
+
+Body example (link existing account):
+
+```json
+{
+  "name": "Candidate Father",
+  "email": "father@example.com",
+  "relationshipToCandidate": "FATHER",
+  "accessRole": "EDITOR",
+  "isPrimary": false
+}
+```
+
+Field rules:
+
+- `name`: required, 2 to 100 chars
+- `email`: required, valid email
+- `relationshipToCandidate`: required enum
+- `password`: optional, but required when email does not already exist
+- password rule: minimum 6 chars, must include at least 1 uppercase letter, 1 number, 1 special character
+
+After creating a new linked account:
+
+- linked user can login using `POST /auth/login` with the same `email` and `password`
+- then call `GET /candidates/my_linked_profiles` to load accessible candidate profile
+
+Allowed `relationshipToCandidate` values:
+
+- `SELF`
+- `FATHER`
+- `MOTHER`
+- `BROTHER`
+- `SISTER`
+- `GUARDIAN`
+- `RELATIVE`
+- `CONSULTANT`
+- `OTHER`
+
+Allowed `accessRole` values:
+
+- `OWNER`
+- `EDITOR`
+- `VIEWER`
+
+### `PATCH /:candidateId/linked_users/:linkedUserId`
+
+Purpose:
+
+- Update linked user relation or access role
+
+Auth:
+
+- Bearer token
+- requester must be an `OWNER`
+
+Body example:
+
+```json
+{
+  "accessRole": "OWNER",
+  "isPrimary": true
+}
+```
+
+### `DELETE /:candidateId/linked_users/:linkedUserId`
+
+Purpose:
+
+- Remove linked user from candidate profile
+
+Auth:
+
+- Bearer token
+- requester must be an `OWNER`
+
+Safety rules:
+
+- primary linked user cannot be removed directly
+- last active owner cannot be removed
+
+---
+
+## Candidate Preference Module
+
+Base path: `/api/v1/candidate-preferences`
+
+This module stores the partner preferences used by the swipe/feed system.
+
+Security rules:
+
+- all endpoints require `Authorization: Bearer <accessToken>`
+- requester must be an active linked user of the candidate profile
+- linked `VIEWER` users can read preferences only
+- linked `OWNER` and `EDITOR` users can create, replace, or update preferences
+
+Performance notes:
+
+- `GET` uses a short Redis cache after authorization
+- writes invalidate the preference cache
+- preferences are automatically created with safe defaults when a candidate profile is created
+
+Default behavior:
+
+- for `MALE` candidates, `preferredGenders` defaults to `["FEMALE"]`
+- for `FEMALE` candidates, `preferredGenders` defaults to `["MALE"]`
+- for `OTHER` candidates, `preferredGenders` defaults to `["MALE", "FEMALE", "OTHER"]`
+- `strictFilters.gender` defaults to `true`
+- `strictFilters.age` defaults to `true` only when `ageMin` or `ageMax` exists
+- other strict filters default to `false`
+
+### `GET /:candidateId`
+
+Purpose:
+
+- Get partner preferences for a candidate profile
+- If preferences do not exist yet, the backend creates default preferences and returns them
+
+Auth:
+
+- Bearer token
+- requester must be an active linked user of this candidate
+
+Example:
+
+```http
+GET /api/v1/candidate-preferences/665f1a2b3c4d5e6f78901234
+Authorization: Bearer <accessToken>
+```
+
+### `PUT /:candidateId`
+
+Purpose:
+
+- Replace the full preference document for a candidate profile
+- Missing optional array fields are saved as empty arrays
+- Missing nullable number fields are removed
+
+Auth:
+
+- Bearer token
+- requester must be linked `OWNER` or `EDITOR`
+
+Body example:
+
+```json
+{
+  "preferredGenders": ["FEMALE"],
+  "ageMin": 22,
+  "ageMax": 32,
+  "heightMin": 150,
+  "heightMax": 180,
+  "religions": ["ISLAM"],
+  "sects": ["SUNNI"],
+  "castes": ["BENGALI"],
+  "relationship_statuses": ["SINGLE", "NEVER_MARRIED"],
+  "have_children": ["NONE"],
+  "move_abroad": ["YES", "MAYBE"],
+  "occupations": ["SOFTWARE_ENGINEER", "DOCTOR"],
+  "highest_educations": ["BACHELORS", "MASTERS"],
+  "smoke_statuses": ["NEVER"],
+  "drink_statuses": ["NEVER"],
+  "interests": ["TRAVEL", "NON_FICTION"],
+  "personality": ["HONEST", "LOYAL"],
+  "maxDistanceKm": 50,
+  "strictFilters": {
+    "gender": true,
+    "age": true,
+    "height": false,
+    "religion": false,
+    "caste": false,
+    "location": false
+  }
+}
+```
+
+### `PATCH /:candidateId`
+
+Purpose:
+
+- Partially update candidate preferences
+- Only sent fields are changed
+- Send `null` for nullable number fields to clear them
+
+Auth:
+
+- Bearer token
+- requester must be linked `OWNER` or `EDITOR`
+
+Body example:
+
+```json
+{
+  "ageMin": 24,
+  "ageMax": 34,
+  "maxDistanceKm": null,
+  "strictFilters": {
+    "age": true,
+    "location": false
+  }
+}
+```
+
+Allowed fields:
+
+- `preferredGenders`: `MALE | FEMALE | OTHER`
+- `ageMin`, `ageMax`: number between `18` and `100`, or `null` in patch
+- `heightMin`, `heightMax`: number between `1` and `300`, or `null` in patch
+- `religions`, `sects`, `castes`
+- `relationship_statuses`
+- `have_children`
+- `move_abroad`
+- `occupations`
+- `highest_educations`
+- `smoke_statuses`
+- `drink_statuses`
+- `interests`
+- `personality`
+- `maxDistanceKm`: number between `1` and `10000`, or `null` in patch
+- `strictFilters.gender`
+- `strictFilters.age`
+- `strictFilters.height`
+- `strictFilters.religion`
+- `strictFilters.caste`
+- `strictFilters.location`
+
+Validation notes:
+
+- enum values must use constant keys from `GET /candidates/constants`
+- arrays cannot contain duplicate values
+- `ageMin` cannot be greater than `ageMax`
+- `heightMin` cannot be greater than `heightMax`
+- if both `religions` and `sects` are sent, every sect must belong to one of the selected religions
+- patch request must contain at least one preference field
+
+---
+
+## Swipe Module
+
+Base path: `/api/v1/swipes`
+
+This module powers the Tinder-style candidate discovery feed.
+
+Security rules:
+
+- all endpoints require `Authorization: Bearer <accessToken>`
+- requester must be an active linked user of the `candidateId`
+- `OWNER`, `EDITOR`, and `VIEWER` users can view the feed
+- `OWNER` and `EDITOR` users can like, super-like, or pass
+- `VIEWER` users can view only
+
+### `GET /feed`
+
+Purpose:
+
+- Return a ranked candidate stack for one candidate profile
+- Apply candidate preferences from `/candidate-preferences/:candidateId`
+- Exclude own profile, already acted profiles, matched profiles, and reported profiles
+- Filter out candidates whose owner account is not verified
+
+Query params:
+
+- `candidateId`: required candidate profile id
+- `limit`: optional, default `20`, max `50`
+- `cursor`: optional cursor returned from the previous response
+
+Example:
+
+```http
+GET /api/v1/swipes/feed?candidateId=665f1a2b3c4d5e6f78901234&limit=20
+Authorization: Bearer <accessToken>
+```
+
+Response data shape:
+
+```json
+{
+  "cards": [
+    {
+      "_id": "candidate id",
+      "name": "Amina",
+      "age": 24,
+      "gender": "FEMALE",
+      "images": ["https://image-url.jpg"],
+      "labels": {},
+      "livesIn": "Dhaka",
+      "distanceKm": 8.4,
+      "matchScore": 92,
+      "personality": ["HONEST"],
+      "religion": "ISLAM"
+    }
+  ],
+  "limit": 20,
+  "nextCursor": "cursor token or null",
+  "relaxed": false
+}
+```
+
+Recommendation behavior:
+
+- strict filters remove candidates from the query
+- soft preferences add match score
+- if strict filters return too few candidates, the API relaxes optional filters and returns `relaxed: true`
+- first page builds a short Redis feed session so later cursor pages are fast
+
+### `POST /action`
+
+Purpose:
+
+- Save one Tinder-style swipe action for a candidate profile
+- Hide the target profile from future feed results
+- Create a match when both candidates have a positive action toward each other
+
+Auth:
+
+- Bearer token
+- requester must be an active linked `OWNER` or `EDITOR` of `candidateId`
+
+Body:
+
+```json
+{
+  "candidateId": "665f1a2b3c4d5e6f78901234",
+  "targetCandidateId": "665f1a2b3c4d5e6f78905678",
+  "type": "LIKE",
+  "source": "FEED"
+}
+```
+
+Allowed values:
+
+- `type`: `LIKE`, `SUPER_LIKE`, `PASS`
+- `source`: optional, `FEED`, `LIKES_ME`, or `PROFILE`; defaults to `FEED`
+
+Behavior:
+
+- `PASS` is free and does not create a match
+- `LIKE` consumes one daily like
+- `SUPER_LIKE` consumes one super-like
+- mutual `LIKE`/`SUPER_LIKE` creates or returns an active match and one match conversation
+- duplicate same-action retries are safe
+- changing a previous action is rejected
+- active matches and reports block new swipe actions
+
+Response data shape:
+
+```json
+{
+  "action": {
+    "_id": "swipe action id",
+    "type": "LIKE",
+    "source": "FEED",
+    "likedBy": "acting candidate id",
+    "likedProfile": "target candidate id",
+    "actedBy": "logged-in user id",
+    "isActive": true
+  },
+  "matched": true,
+  "match": {
+    "_id": "match id",
+    "candidates": ["candidate a", "candidate b"],
+    "pairKey": "candidateA_candidateB",
+    "status": "ACTIVE",
+    "matchedBy": "candidate id",
+    "conversation": "conversation id"
+  },
+  "quota": {
+    "dailyLikeRemaining": 49,
+    "superLikeRemaining": 10,
+    "nextResetAt": "2026-04-22T18:00:00.000Z"
+  }
+}
+```
+
+Dedicated module documentation:
+
+- `src/app/modules/swipe/API.md`
+- `src/app/modules/match/API.md`
+- `src/app/modules/conversation/API.md`
+- `src/app/modules/message/API.md`
+
+---
+
+## Match Module
+
+Base path: `/api/v1/matches`
+
+This module exposes candidate-to-candidate matches created by mutual swipe actions.
+
+Security rules:
+
+- all endpoints require `Authorization: Bearer <accessToken>`
+- requester must be an active linked user of at least one candidate in the match
+- `OWNER`, `EDITOR`, and `VIEWER` users can read matches
+- only `OWNER` and `EDITOR` users can unmatch
+
+Lifecycle:
+
+- a mutual `LIKE` or `SUPER_LIKE` creates one `Match`
+- the same mutual action also creates or returns one `Conversation`
+- the conversation id is stored on `match.conversation`
+- unmatch marks the match as `UNMATCHED` and archives the open conversation
+- old match/conversation data is kept for audit
+
+### `GET /`
+
+Purpose:
+
+- List active matches for one candidate profile
+
+Query params:
+
+- `candidateId`: required candidate profile id
+
+Example:
+
+```http
+GET /api/v1/matches?candidateId=665f1a2b3c4d5e6f78901234
+Authorization: Bearer <accessToken>
+```
+
+Response data shape:
+
+```json
+[
+  {
+    "_id": "match id",
+    "pairKey": "candidateA_candidateB",
+    "status": "ACTIVE",
+    "conversation": "conversation id",
+    "matchedBy": "candidate id",
+    "candidates": [
+      {
+        "_id": "candidate id",
+        "name": "Amina",
+        "age": 24,
+        "gender": "FEMALE",
+        "images": ["https://image-url.jpg"],
+        "livesIn": "Dhaka",
+        "religion": "ISLAM"
+      }
+    ],
+    "createdAt": "2026-05-11T00:00:00.000Z",
+    "updatedAt": "2026-05-11T00:00:00.000Z"
+  }
+]
+```
+
+### `GET /:matchId`
+
+Purpose:
+
+- Get one match detail
+
+Query params:
+
+- `candidateId`: optional but recommended; must be one of the matched candidates when provided
+
+Example:
+
+```http
+GET /api/v1/matches/665f1a2b3c4d5e6f78909999?candidateId=665f1a2b3c4d5e6f78901234
+Authorization: Bearer <accessToken>
+```
+
+Usage:
+
+- use this after receiving a `match._id` from `/swipes/action`
+- use `data.conversation` as the conversation id for future chat APIs
+
+### `PATCH /:matchId/unmatch`
+
+Purpose:
+
+- End an active match without deleting history
+
+Query params:
+
+- `candidateId`: optional but recommended; must be one of the matched candidates when provided
+
+Example:
+
+```http
+PATCH /api/v1/matches/665f1a2b3c4d5e6f78909999/unmatch?candidateId=665f1a2b3c4d5e6f78901234
+Authorization: Bearer <accessToken>
+```
+
+Behavior:
+
+- sets match status to `UNMATCHED`
+- archives the linked open conversation
+- `VIEWER` linked users cannot unmatch
+
+---
+
+## Conversation Module
+
+Base path: `/api/v1/conversations`
+
+This module starts/loads chat threads, manages message requests, and controls guardian/parent inclusion.
+
+Security rules:
+
+- all endpoints require `Authorization: Bearer <accessToken>`
+- requester must be an active linked user of the relevant `candidateId`
+- `OWNER` and `EDITOR` can start/respond/request
+- `VIEWER` can read allowed conversations but cannot send/respond
+- father, mother, and guardian linked users can read/send only after the opponent accepts a guardian include request, unless that linked user is the candidate's primary manager
+
+Core endpoints:
+
+- `POST /matches/:matchId/start` starts or returns a match conversation
+- `GET /?candidateId=<candidateId>` lists open conversations
+- `GET /:conversationId/messages?candidateId=<candidateId>` loads message history
+- `PATCH /:conversationId/read` marks messages as seen
+- `POST /message-requests` sends a request to chat without a match
+- `GET /message-requests` lists incoming/outgoing message requests
+- `PATCH /message-requests/:requestId/accept` accepts and opens chat
+- `PATCH /message-requests/:requestId/reject` rejects the request
+- `POST /:conversationId/guardian-requests` requests one parent/guardian include
+- `GET /guardian-requests` lists guardian include requests
+- `PATCH /guardian-requests/:requestId/accept` includes that guardian
+- `PATCH /guardian-requests/:requestId/reject` rejects that guardian
+
+Socket.IO events:
+
+- client emits `join-user` with the logged-in user id
+- client emits `join-conversation` with a conversation id while viewing a chat
+- server emits `message-request:new`, `message-request:accepted`, `conversation:started`, `message:new`, `conversation:read`, `guardian-request:new`, `guardian-request:accepted`, `guardian-request:rejected`, and `guardian:included`
+- typing indicators use `typing:start` and `typing:stop`
+
+Detailed docs: `src/app/modules/conversation/API.md`
+
+---
+
+## Message Module
+
+Base path: `/api/v1/messages`
+
+### `POST /`
+
+Purpose:
+
+- Send one text message into an open conversation
+- Update last message and unread counts
+- Emit `message:new` through Socket.IO
+
+Body:
+
+```json
+{
+  "conversationId": "conversation id",
+  "candidateId": "sender candidate id",
+  "message": "Assalamu alaikum",
+  "replyTo": "optional message id"
+}
+```
+
+Detailed docs: `src/app/modules/message/API.md`
+
+---
+
+## Postman Testing Guide: Swipe To Match
+
+Use two normal user accounts with one active candidate profile each. The target candidate's owner account must be active, not deleted, and verified, otherwise the feed/action APIs will reject the target as unavailable.
+
+Create these Postman environment variables:
+
+```text
+baseUrl=http://localhost:3000/api/v1
+tokenA=
+tokenB=
+candidateA=
+candidateB=
+matchId=
+conversationId=
+```
+
+### 1. Login account A
+
+```http
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+```
+
+Body:
+
+```json
+{
+  "email": "candidate-a@example.com",
+  "password": "StrongPass1!"
+}
+```
+
+Postman Tests script:
+
+```js
+const json = pm.response.json();
+pm.environment.set('tokenA', json.data.accessToken);
+```
+
+### 2. Load candidate A
+
+```http
+GET {{baseUrl}}/candidates/my_linked_profiles
+Authorization: Bearer {{tokenA}}
+```
+
+Postman Tests script:
+
+```js
+const json = pm.response.json();
+pm.environment.set('candidateA', json.data[0].candidate._id);
+```
+
+### 3. Login account B and load candidate B
+
+Repeat steps 1 and 2 with account B, but save the values as `tokenB` and `candidateB`.
+
+### 4. Test candidate A feed
+
+```http
+GET {{baseUrl}}/swipes/feed?candidateId={{candidateA}}&limit=20
+Authorization: Bearer {{tokenA}}
+```
+
+Expected:
+
+- `data.cards` is the discovery stack
+- use a card `_id` as `targetCandidateId`
+- `nextCursor` can be sent as `cursor` for the next page
+
+For a controlled mutual-match test, use `candidateB` as the target.
+
+### 5. Candidate A likes candidate B
+
+```http
+POST {{baseUrl}}/swipes/action
+Authorization: Bearer {{tokenA}}
+Content-Type: application/json
+```
+
+Body:
+
+```json
+{
+  "candidateId": "{{candidateA}}",
+  "targetCandidateId": "{{candidateB}}",
+  "type": "LIKE",
+  "source": "FEED"
+}
+```
+
+Expected:
+
+- `data.matched` is usually `false` if candidate B has not liked candidate A yet
+- `data.quota` shows remaining daily likes and super likes
+
+### 6. Candidate B likes candidate A
+
+```http
+POST {{baseUrl}}/swipes/action
+Authorization: Bearer {{tokenB}}
+Content-Type: application/json
+```
+
+Body:
+
+```json
+{
+  "candidateId": "{{candidateB}}",
+  "targetCandidateId": "{{candidateA}}",
+  "type": "LIKE",
+  "source": "FEED"
+}
+```
+
+Expected:
+
+- `data.matched` should be `true`
+- `data.match._id` is the match id
+- `data.match.conversation` is the auto-created conversation id
+
+Postman Tests script:
+
+```js
+const json = pm.response.json();
+pm.environment.set('matchId', json.data.match._id);
+pm.environment.set('conversationId', json.data.match.conversation);
+```
+
+### 7. List matches for candidate A
+
+```http
+GET {{baseUrl}}/matches?candidateId={{candidateA}}
+Authorization: Bearer {{tokenA}}
+```
+
+Expected:
+
+- the new match appears with `status: "ACTIVE"`
+- `conversation` matches `{{conversationId}}`
+- `candidates` contains compact profile cards for both sides
+
+### 8. Get one match
+
+```http
+GET {{baseUrl}}/matches/{{matchId}}?candidateId={{candidateA}}
+Authorization: Bearer {{tokenA}}
+```
+
+Expected:
+
+- returns the same match detail
+- use this endpoint when the frontend opens a match detail/chat entry point
+
+### 9. Optional: unmatch
+
+```http
+PATCH {{baseUrl}}/matches/{{matchId}}/unmatch?candidateId={{candidateA}}
+Authorization: Bearer {{tokenA}}
+```
+
+Expected:
+
+- `data.status` becomes `UNMATCHED`
+- the open match conversation is archived
+- the match no longer appears in `GET /matches?candidateId={{candidateA}}`
+
+## Postman Testing Guide: Chat
+
+Reuse these variables from the swipe/match guide:
+
+```text
+baseUrl=http://localhost:3000/api/v1
+tokenA=
+tokenB=
+candidateA=
+candidateB=
+matchId=
+conversationId=
+messageRequestId=
+guardianRequestId=
+guardianLinkedUserId=
+```
+
+### Start chat from a match
+
+```http
+POST {{baseUrl}}/conversations/matches/{{matchId}}/start?candidateId={{candidateA}}
+Authorization: Bearer {{tokenA}}
+```
+
+Expected:
+
+- `data._id` is the conversation id
+- save it as `conversationId` if it was not already returned by swipe matching
+
+### Send a message
+
+```http
+POST {{baseUrl}}/messages
+Authorization: Bearer {{tokenA}}
+Content-Type: application/json
+```
+
+Body:
+
+```json
+{
+  "conversationId": "{{conversationId}}",
+  "candidateId": "{{candidateA}}",
+  "message": "Assalamu alaikum"
+}
+```
+
+### Load messages
+
+```http
+GET {{baseUrl}}/conversations/{{conversationId}}/messages?candidateId={{candidateB}}&limit=50
+Authorization: Bearer {{tokenB}}
+```
+
+### Mark read
+
+```http
+PATCH {{baseUrl}}/conversations/{{conversationId}}/read
+Authorization: Bearer {{tokenB}}
+Content-Type: application/json
+```
+
+Body:
+
+```json
+{
+  "candidateId": "{{candidateB}}"
+}
+```
+
+### Start chat by message request
+
+A sends:
+
+```http
+POST {{baseUrl}}/conversations/message-requests
+Authorization: Bearer {{tokenA}}
+Content-Type: application/json
+```
+
+Body:
+
+```json
+{
+  "requesterCandidateId": "{{candidateA}}",
+  "targetCandidateId": "{{candidateB}}",
+  "firstMessage": "Can we start a conversation?"
+}
+```
+
+B lists and accepts:
+
+```http
+GET {{baseUrl}}/conversations/message-requests?candidateId={{candidateB}}&type=incoming&status=PENDING
+Authorization: Bearer {{tokenB}}
+```
+
+```http
+PATCH {{baseUrl}}/conversations/message-requests/{{messageRequestId}}/accept
+Authorization: Bearer {{tokenB}}
+Content-Type: application/json
+```
+
+Body:
+
+```json
+{
+  "candidateId": "{{candidateB}}"
+}
+```
+
+### Include a guardian or parent
+
+Use `GET /candidates/{{candidateA}}/linked_users` to find a father, mother, or guardian linked user id, then A sends:
+
+```http
+POST {{baseUrl}}/conversations/{{conversationId}}/guardian-requests
+Authorization: Bearer {{tokenA}}
+Content-Type: application/json
+```
+
+Body:
+
+```json
+{
+  "candidateId": "{{candidateA}}",
+  "linkedUserId": "{{guardianLinkedUserId}}",
+  "message": "I want to include my parent in this chat."
+}
+```
+
+B accepts:
+
+```http
+PATCH {{baseUrl}}/conversations/guardian-requests/{{guardianRequestId}}/accept
+Authorization: Bearer {{tokenB}}
+Content-Type: application/json
+```
+
+Body:
+
+```json
+{
+  "candidateId": "{{candidateB}}"
+}
+```
+
+After acceptance, the guardian account can call the conversation/message APIs using `candidateId={{candidateA}}`.
+
+## Example Headers
+
+Bearer token request:
+
+```http
+Authorization: Bearer <accessToken>
+Content-Type: application/json
+```
+
+Refresh request:
+
+```http
+Cookie: refreshToken=<refreshToken>
+```
+
+OTP password reset request:
+
+```http
+token: <otp-verification-token>
+Content-Type: application/json
+```
+
+## Recommended Frontend Integration Order
+
+1. Login user through Google or credentials
+2. Load `/plans` if pricing UI is needed
+3. Load `/candidates/constants` before candidate forms
+4. Create candidate profile
+5. Load or update `/candidate-preferences/:candidateId`
+6. Load `/swipes/feed?candidateId=<candidateId>` for the discovery stack
+7. Send `/swipes/action` when the user likes, super-likes, or passes a card
+8. If a swipe response has `matched: true`, store `match._id` and `match.conversation`
+9. Load `/matches?candidateId=<candidateId>` for the user's active match list
+10. Load `/conversations?candidateId=<candidateId>` for the chat inbox
+11. Send `/messages` for text chat
+12. Use `/conversations/message-requests` when users are not matched yet
+13. Use `/conversations/:conversationId/guardian-requests` before allowing a parent or guardian into a chat
+14. Load `/candidates/my_linked_profiles` after login to fetch the current account's candidate access
+15. Use linked-user APIs to add father, mother, consultant, or other guardians
+
+## Maintenance Note
+
+If you add a new mounted module or change a route, update this README in the same PR so frontend and backend stay in sync.

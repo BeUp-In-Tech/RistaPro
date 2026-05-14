@@ -1,26 +1,29 @@
 import { Response } from 'express';
+import jwt, { JwtPayload } from 'jsonwebtoken';
 import env from '../config/env';
 
 interface AuthTokenInfo {
-  accessToken?: string;
   refreshToken?: string;
 }
 
+const isProduction = env.NODE_ENV === 'production';
+
 export const SetCookies = (res: Response, tokenInfo: AuthTokenInfo) => {
-  if (tokenInfo.accessToken) {
-    res.cookie('accessToken', tokenInfo.accessToken, {
-      httpOnly: false,
-      secure: env.NODE_ENV === "development" ? false : true, 
-      sameSite: env.NODE_ENV === "development" ? 'lax' : 'none', 
-    });
+  const { refreshToken } = tokenInfo;
+  if (!refreshToken) {
+    return;
   }
 
-  if (tokenInfo.refreshToken) {
-    res.cookie('refreshToken', tokenInfo.refreshToken, {
-      httpOnly: true, 
-      secure: env.NODE_ENV === "development" ? false : true,
-      sameSite: env.NODE_ENV === "development" ? 'lax' : 'none'
-    });
-  }
+  const decodedToken = jwt.decode(refreshToken) as JwtPayload | null;
+  const maxAge = decodedToken?.exp
+    ? decodedToken.exp * 1000 - Date.now()
+    : undefined;
+
+  res.cookie('refreshToken', refreshToken, {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: isProduction ? 'none' : 'lax',
+    path: '/',
+    maxAge: maxAge && maxAge > 0 ? maxAge : undefined,
+  });
 };
-

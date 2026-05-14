@@ -4,6 +4,9 @@ import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import app from './app';
 import envVars from './app/config/env';
+import { connectRedis } from './app/config/redis.config';
+import { initSocket } from './app/socket/socket';
+import { createAdmin } from './app/utils/seedAdmin';
 
  
 dotenv.config();
@@ -15,7 +18,9 @@ const PORT = envVars.PORT || 3002;
 const startServer = async () => {
   try {
     await mongoose.connect(envVars.MONGO_URI);
-    console.log(`Database connceted`);
+    console.log(`Database connected`);
+
+    await initSocket(app);
 
     server = app.listen(PORT, () => {
       console.log(`Server started on http://localhost:${PORT}`);
@@ -28,16 +33,10 @@ const startServer = async () => {
 
 // Booom and start the server
 (async () => {
-  // await connectRedis();
+  await connectRedis();
   await startServer();
+  await createAdmin();
 })();
-
-
-
-
-
-
-
 
 // SIGTERM signal detected and close the server
 process.on('SIGTERM', () => {
@@ -71,12 +70,12 @@ process.on('SIGINT', (error) => {
   }
 });
 
-// Unhandled rejection eror
+// Unhandled rejection error
 process.on('unhandledRejection', (error) => {
   console.log('Unhandled rejection detected and server shutting down...', error);
 });
 
-// Unhandled rejection eror
+// Unhandled rejection error
 process.on('uncaughtException', (error) => {
   console.log('Uncaught exception detected and server shutting down...', error);
 });

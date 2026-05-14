@@ -10,9 +10,21 @@ import env from './app/config/env';
 import expressSession from 'express-session';
 import passport from 'passport';
 import './app/config/passport.config'
+import http from 'http';
+
 
 
 const app = express();
+const server = http.createServer(app);
+
+app.set('trust proxy', 1);
+
+app.use(cors({
+  origin: env.FRONTEND_URL,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH']
+}));
+
 
 app.use(expressSession({
   secret: env.EXPRESS_SESSION_SECRET,
@@ -20,10 +32,12 @@ app.use(expressSession({
   saveUninitialized: false
 }));
 
-app.use(passport.initialize()); // Initilazed Passport
+app.use(passport.initialize()); // Initialized Passport
 app.use(passport.session()); // Create a session
 app.use(express.json());
-app.use(cors());
+
+
+
 app.use(cookieParser());
 app.use(express.urlencoded({ extended: true }));
 app.use(safeSanitizeMiddleware);
@@ -37,8 +51,8 @@ const limiter = rateLimit({
 
 app.use(limiter);
 
-app.get('/', (req: Request, res: Response) => {
-  res.send('Welcome to the RistaPro server');
+app.get('/', async (req: Request, res: Response) => {
+  res.send('Welcome to the RishtaPro server');
 });
 
 // GLOBAL ROUTES
@@ -50,4 +64,4 @@ app.use(globalErrorHandler);
 // NO ROUTE MATCH
 app.use(NotFound);
 
-export default app;
+export default server;

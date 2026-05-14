@@ -30,7 +30,7 @@ export const globalErrorHandler = (
   else if (err.name === 'ZodError') {
     const simplifiedError = zodErrorHandler(err);
     statusCode = simplifiedError.statusCode;
-    message = simplifiedError.message;
+    message = simplifiedError.errorSources?.[0]?.message as string; // Always send first error message
     errorSources = simplifiedError.errorSources as TErrorSources[];
   }
   // Cast Error
