@@ -7,6 +7,8 @@ import env from '../config/env';
 
 export let io: Server;
 
+
+// SOCKET DYNAMIC EVENT HANDLING
 export const getConversationRoom = (conversationId: string) =>
   `conversation:${conversationId}`;
 
@@ -30,6 +32,8 @@ export const emitChatEvent = (params: {
   target.emit(params.event, params.payload);
 };
 
+
+// SOCKET INITIALIZATION
 export const initSocket = async (server: any) => {
   // MULTIPLE INSTANCE HANDLING
   const pubClient = redisClient.duplicate();
