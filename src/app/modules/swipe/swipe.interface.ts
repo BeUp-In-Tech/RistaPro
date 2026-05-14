@@ -16,7 +16,8 @@ import {
 import { Gender, IVerificationStatus } from '../candidate/candidate.interface';
 import { LikeSource, LikeType } from '../like/like.interface';
 import { MatchStatus } from '../match/match.interface';
-import { ActiveStatus, IUser } from '../user/user.interface';
+import { ActiveStatus } from '../user/user.interface';
+import { PlanKey } from '../plan/plan.interface';
 
 export interface ISwipeFeedQuery {
   candidateId: string;
@@ -161,11 +162,17 @@ export interface TSwipeMatchLean {
   updatedAt?: Date;
 }
 
-export interface TSwipeQuotaUser extends Pick<
-  IUser,
-  '_id' | 'isActive' | 'isDeleted' | 'plan'
-> {
+export interface TSwipeQuotaCandidate {
   _id: Types.ObjectId;
+  plan?: PlanKey;
+  user:
+    | Types.ObjectId
+    | {
+        _id: Types.ObjectId;
+        isActive?: ActiveStatus;
+        isDeleted?: boolean;
+      }
+    | null;
 }
 
 export interface TSwipePlanQuota {

@@ -26,7 +26,6 @@ import { IPlan, PLAN_KEYS, PlanKey } from '../plan/plan.interface';
 import PlanModel from '../plan/plan.model';
 import Report from '../report/report.model';
 import { ActiveStatus } from '../user/user.interface';
-import User from '../user/user.model';
 import {
   ISwipeActionResponse,
   ISwipeFeedCandidateLean,
@@ -38,8 +37,8 @@ import {
   TSwipeActionLean,
   TSwipeActionLock,
   TSwipeMatchLean,
+  TSwipeQuotaCandidate,
   TSwipePlanQuota,
-  TSwipeQuotaUser,
 } from './swipe.interface';
 
 const MS_PER_YEAR = 365.2425 * 24 * 60 * 60 * 1000;
@@ -53,7 +52,7 @@ export const SWIPE_ACTION_LOCK_TTL_SECONDS = 10;
 export const FEED_CANDIDATE_SELECT =
   '_id name dateOfBirth gender height religion sect caste relationship_status have_children move_abroad occupation highest_education smoke_status drink_status interests personality bio images address coordinates verification_status isActive user createdAt updatedAt';
 
-const USER_QUOTA_SELECT = '_id plan isActive isDeleted';
+const QUOTA_CANDIDATE_SELECT = '_id plan user';
 
 // Reads Mongo duplicate-key errors without depending on a driver-specific type.
 const getDuplicateKeyCode = (error: unknown) =>
@@ -1007,21 +1006,30 @@ export const clearSwipeFeedSessionsForCandidate = async (
   }
 };
 
-// Loads the primary profile owner because plan limits belong to the candidate profile.
-export const getSwipeQuotaOwnerOrThrow = async (ownerUserId: string) => {
-  const owner = await User.findById(ownerUserId)
-    .select(USER_QUOTA_SELECT)
-    .lean<TSwipeQuotaUser | null>();
+// Loads the candidate plan source while preserving the existing owner-account safety checks.
+export const getSwipeQuotaCandidateOrThrow = async (candidateId: string) => {
+  const candidate = await Candidate.findById(candidateId)
+    .select(QUOTA_CANDIDATE_SELECT)
+    .populate({
+      path: 'user',
+      select: '_id isActive isDeleted',
+    })
+    .lean<TSwipeQuotaCandidate | null>();
 
-  if (!owner) {
-    throw new AppError(StatusCodes.NOT_FOUND, 'Candidate owner not found');
+  if (!candidate) {
+    throw new AppError(StatusCodes.NOT_FOUND, 'Candidate profile not found');
   }
 
-  if (owner.isDeleted || owner.isActive !== ActiveStatus.ACTIVE) {
+  const owner =
+    candidate.user && typeof candidate.user === 'object' && 'isActive' in candidate.user
+      ? candidate.user
+      : null;
+
+  if (!owner || owner.isDeleted || owner.isActive !== ActiveStatus.ACTIVE) {
     throw new AppError(StatusCodes.FORBIDDEN, 'Candidate owner is not active');
   }
 
-  return owner;
+  return candidate;
 };
 
 // Prefer the admin-created plan document, but fall back to static plan defaults for local/dev data.

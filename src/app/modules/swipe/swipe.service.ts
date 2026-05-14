@@ -31,7 +31,7 @@ import {
   getFeedPoolSize,
   getFeedPreferenceOrCreateDefault,
   getSwipePlanOrDefault,
-  getSwipeQuotaOwnerOrThrow,
+  getSwipeQuotaCandidateOrThrow,
   getSwipeTargetCandidateOrThrow,
   getViewerCandidateOrThrow,
   isPositiveSwipeAction,
@@ -151,7 +151,7 @@ const performSwipeAction = async (
     payload.targetCandidateId
   );
 
-  const { access, candidate } = await getActiveLinkedUserAccessOrThrow({
+  const { access } = await getActiveLinkedUserAccessOrThrow({
     candidateId: payload.candidateId,
     userId,
   });
@@ -173,8 +173,10 @@ const performSwipeAction = async (
       }),
     ]);
 
-    const owner = await getSwipeQuotaOwnerOrThrow(candidate.user.toString());
-    const plan = await getSwipePlanOrDefault(owner.plan);
+    const quotaCandidate = await getSwipeQuotaCandidateOrThrow(
+      payload.candidateId
+    );
+    const plan = await getSwipePlanOrDefault(quotaCandidate.plan);
     const currentQuota = () =>
       buildSwipeQuotaResponse({ candidateId: payload.candidateId, plan });
 
@@ -191,7 +193,7 @@ const performSwipeAction = async (
 
     // An existing active match makes new actions invalid, but idempotent retries stay safe.
     if (existingMatch) {
-      return returnExistingMatchedActionOrThrow({
+      return await returnExistingMatchedActionOrThrow({
         action: existingAction,
         candidateId: payload.candidateId,
         match: existingMatch,
@@ -202,7 +204,7 @@ const performSwipeAction = async (
     }
 
     if (existingAction) {
-      return returnExistingSwipeAction({
+      return await returnExistingSwipeAction({
         action: existingAction,
         candidateId: payload.candidateId,
         quota: await currentQuota(),
@@ -226,7 +228,7 @@ const performSwipeAction = async (
     });
 
     if (!created) {
-      return returnExistingSwipeAction({
+      return await returnExistingSwipeAction({
         action,
         candidateId: payload.candidateId,
         quota: await currentQuota(),
