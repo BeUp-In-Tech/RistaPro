@@ -11,15 +11,11 @@ import expressSession from 'express-session';
 import passport from 'passport';
 import './app/config/passport.config'
 import http from 'http';
-import { initSocket } from './app/socket/socket';
 
 
 
 const app = express();
 const server = http.createServer(app);
-
-// Socket
-initSocket(server);
 
 app.set('trust proxy', 1);
 
@@ -36,7 +32,7 @@ app.use(expressSession({
   saveUninitialized: false
 }));
 
-app.use(passport.initialize()); // Initilazed Passport
+app.use(passport.initialize()); // Initialized Passport
 app.use(passport.session()); // Create a session
 app.use(express.json());
 
@@ -56,7 +52,7 @@ const limiter = rateLimit({
 app.use(limiter);
 
 app.get('/', async (req: Request, res: Response) => {
-  res.send('Welcome to the RistaPro server');
+  res.send('Welcome to the RishtaPro server');
 });
 
 // GLOBAL ROUTES
