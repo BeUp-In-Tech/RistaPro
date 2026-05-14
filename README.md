@@ -11,6 +11,8 @@ Active modules today:
 - `candidate-preferences`
 - `swipes`
 - `matches`
+- `conversations`
+- `messages`
 
 Other route files may exist in the codebase, but they are not publicly available until they are mounted in the main router.
 
@@ -91,13 +93,18 @@ These are the currently mounted APIs for the swipe-match flow:
 - `GET /api/v1/matches`
 - `GET /api/v1/matches/:matchId`
 - `PATCH /api/v1/matches/:matchId/unmatch`
+- `GET /api/v1/conversations`
+- `POST /api/v1/conversations/matches/:matchId/start`
+- `POST /api/v1/conversations/message-requests`
+- `POST /api/v1/messages`
 
 Notes:
 
 - mutual positive swipes automatically create one `Match`
 - a match also creates or returns one `Conversation`
 - the conversation id is returned as `match.conversation`
-- conversation message routes are not mounted yet in the main router
+- chat message, message-request, and guardian-request routes are mounted
+- realtime chat events are emitted through Socket.IO
 
 ### 1. User login with Google
 
@@ -122,7 +129,9 @@ Notes:
 6. Like, super-like, or pass cards with `POST /swipes/action`
 7. If `POST /swipes/action` returns `matched: true`, use `match.conversation` for the chat thread
 8. Load active matches with `GET /matches?candidateId=<candidateId>`
-9. If needed, add family members with linked-user APIs
+9. Open/list chat with `GET /conversations?candidateId=<candidateId>`
+10. Send chat messages with `POST /messages`
+11. If needed, add family members with linked-user APIs, then request chat inclusion with guardian request APIs
 
 ### 4. Guardian-managed candidate profile
 
@@ -1347,6 +1356,8 @@ Dedicated module documentation:
 
 - `src/app/modules/swipe/API.md`
 - `src/app/modules/match/API.md`
+- `src/app/modules/conversation/API.md`
+- `src/app/modules/message/API.md`
 
 ---
 
@@ -1459,6 +1470,73 @@ Behavior:
 - sets match status to `UNMATCHED`
 - archives the linked open conversation
 - `VIEWER` linked users cannot unmatch
+
+---
+
+## Conversation Module
+
+Base path: `/api/v1/conversations`
+
+This module starts/loads chat threads, manages message requests, and controls guardian/parent inclusion.
+
+Security rules:
+
+- all endpoints require `Authorization: Bearer <accessToken>`
+- requester must be an active linked user of the relevant `candidateId`
+- `OWNER` and `EDITOR` can start/respond/request
+- `VIEWER` can read allowed conversations but cannot send/respond
+- father, mother, and guardian linked users can read/send only after the opponent accepts a guardian include request, unless that linked user is the candidate's primary manager
+
+Core endpoints:
+
+- `POST /matches/:matchId/start` starts or returns a match conversation
+- `GET /?candidateId=<candidateId>` lists open conversations
+- `GET /:conversationId/messages?candidateId=<candidateId>` loads message history
+- `PATCH /:conversationId/read` marks messages as seen
+- `POST /message-requests` sends a request to chat without a match
+- `GET /message-requests` lists incoming/outgoing message requests
+- `PATCH /message-requests/:requestId/accept` accepts and opens chat
+- `PATCH /message-requests/:requestId/reject` rejects the request
+- `POST /:conversationId/guardian-requests` requests one parent/guardian include
+- `GET /guardian-requests` lists guardian include requests
+- `PATCH /guardian-requests/:requestId/accept` includes that guardian
+- `PATCH /guardian-requests/:requestId/reject` rejects that guardian
+
+Socket.IO events:
+
+- client emits `join-user` with the logged-in user id
+- client emits `join-conversation` with a conversation id while viewing a chat
+- server emits `message-request:new`, `message-request:accepted`, `conversation:started`, `message:new`, `conversation:read`, `guardian-request:new`, `guardian-request:accepted`, `guardian-request:rejected`, and `guardian:included`
+- typing indicators use `typing:start` and `typing:stop`
+
+Detailed docs: `src/app/modules/conversation/API.md`
+
+---
+
+## Message Module
+
+Base path: `/api/v1/messages`
+
+### `POST /`
+
+Purpose:
+
+- Send one text message into an open conversation
+- Update last message and unread counts
+- Emit `message:new` through Socket.IO
+
+Body:
+
+```json
+{
+  "conversationId": "conversation id",
+  "candidateId": "sender candidate id",
+  "message": "Assalamu alaikum",
+  "replyTo": "optional message id"
+}
+```
+
+Detailed docs: `src/app/modules/message/API.md`
 
 ---
 
@@ -1629,6 +1707,155 @@ Expected:
 - the open match conversation is archived
 - the match no longer appears in `GET /matches?candidateId={{candidateA}}`
 
+## Postman Testing Guide: Chat
+
+Reuse these variables from the swipe/match guide:
+
+```text
+baseUrl=http://localhost:3000/api/v1
+tokenA=
+tokenB=
+candidateA=
+candidateB=
+matchId=
+conversationId=
+messageRequestId=
+guardianRequestId=
+guardianLinkedUserId=
+```
+
+### Start chat from a match
+
+```http
+POST {{baseUrl}}/conversations/matches/{{matchId}}/start?candidateId={{candidateA}}
+Authorization: Bearer {{tokenA}}
+```
+
+Expected:
+
+- `data._id` is the conversation id
+- save it as `conversationId` if it was not already returned by swipe matching
+
+### Send a message
+
+```http
+POST {{baseUrl}}/messages
+Authorization: Bearer {{tokenA}}
+Content-Type: application/json
+```
+
+Body:
+
+```json
+{
+  "conversationId": "{{conversationId}}",
+  "candidateId": "{{candidateA}}",
+  "message": "Assalamu alaikum"
+}
+```
+
+### Load messages
+
+```http
+GET {{baseUrl}}/conversations/{{conversationId}}/messages?candidateId={{candidateB}}&limit=50
+Authorization: Bearer {{tokenB}}
+```
+
+### Mark read
+
+```http
+PATCH {{baseUrl}}/conversations/{{conversationId}}/read
+Authorization: Bearer {{tokenB}}
+Content-Type: application/json
+```
+
+Body:
+
+```json
+{
+  "candidateId": "{{candidateB}}"
+}
+```
+
+### Start chat by message request
+
+A sends:
+
+```http
+POST {{baseUrl}}/conversations/message-requests
+Authorization: Bearer {{tokenA}}
+Content-Type: application/json
+```
+
+Body:
+
+```json
+{
+  "requesterCandidateId": "{{candidateA}}",
+  "targetCandidateId": "{{candidateB}}",
+  "firstMessage": "Can we start a conversation?"
+}
+```
+
+B lists and accepts:
+
+```http
+GET {{baseUrl}}/conversations/message-requests?candidateId={{candidateB}}&type=incoming&status=PENDING
+Authorization: Bearer {{tokenB}}
+```
+
+```http
+PATCH {{baseUrl}}/conversations/message-requests/{{messageRequestId}}/accept
+Authorization: Bearer {{tokenB}}
+Content-Type: application/json
+```
+
+Body:
+
+```json
+{
+  "candidateId": "{{candidateB}}"
+}
+```
+
+### Include a guardian or parent
+
+Use `GET /candidates/{{candidateA}}/linked_users` to find a father, mother, or guardian linked user id, then A sends:
+
+```http
+POST {{baseUrl}}/conversations/{{conversationId}}/guardian-requests
+Authorization: Bearer {{tokenA}}
+Content-Type: application/json
+```
+
+Body:
+
+```json
+{
+  "candidateId": "{{candidateA}}",
+  "linkedUserId": "{{guardianLinkedUserId}}",
+  "message": "I want to include my parent in this chat."
+}
+```
+
+B accepts:
+
+```http
+PATCH {{baseUrl}}/conversations/guardian-requests/{{guardianRequestId}}/accept
+Authorization: Bearer {{tokenB}}
+Content-Type: application/json
+```
+
+Body:
+
+```json
+{
+  "candidateId": "{{candidateB}}"
+}
+```
+
+After acceptance, the guardian account can call the conversation/message APIs using `candidateId={{candidateA}}`.
+
 ## Example Headers
 
 Bearer token request:
@@ -1662,8 +1889,12 @@ Content-Type: application/json
 7. Send `/swipes/action` when the user likes, super-likes, or passes a card
 8. If a swipe response has `matched: true`, store `match._id` and `match.conversation`
 9. Load `/matches?candidateId=<candidateId>` for the user's active match list
-10. Load `/candidates/my_linked_profiles` after login to fetch the current account's candidate access
-11. Use linked-user APIs to add father, mother, consultant, or other guardians
+10. Load `/conversations?candidateId=<candidateId>` for the chat inbox
+11. Send `/messages` for text chat
+12. Use `/conversations/message-requests` when users are not matched yet
+13. Use `/conversations/:conversationId/guardian-requests` before allowing a parent or guardian into a chat
+14. Load `/candidates/my_linked_profiles` after login to fetch the current account's candidate access
+15. Use linked-user APIs to add father, mother, consultant, or other guardians
 
 ## Maintenance Note
 
