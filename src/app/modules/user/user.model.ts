@@ -43,7 +43,6 @@ const userSchema = new Schema<IUser>(
     password: { type: String },
     phone: { type: String, trim: true },
     picture: { type: String, trim: true },
-    plan: { type: String, trim: true },
     isVerified: { type: Boolean, default: env.NODE_ENV === 'development' },
     isDeleted: { type: Boolean, default: false },
     isActive: {

@@ -33,17 +33,18 @@ import { buildMyAccessResponse } from '../candidate/linked-user/candidateLinkedU
 import { PLAN_KEYS, PlanKey, IPlan } from '../plan/plan.interface';
 import { PLANS } from '../plan/plan.constant';
 import PlanModel from '../plan/plan.model';
+import { getActiveCandidateAccessesForUser } from '../candidate/linked-user/candidateLinkedUser.access';
 
 
 // REUSABLE KEYS
 const USER_VERIFY_OTP_PREFIX = 'verify_otp:';
 const USER_LIST_SELECT =
-  '_id full_name email picture plan isVerified isActive role createdAt updatedAt';
+  '_id full_name email picture isVerified isActive role createdAt updatedAt';
 const USER_DETAILS_SELECT =
-  '_id full_name email picture plan isVerified isActive role createdAt updatedAt';
+  '_id full_name email picture isVerified isActive role createdAt updatedAt';
 const AUTH_USER_CONTEXT_SELECT =
-  '_id full_name email picture plan isVerified isActive role createdAt updatedAt';
-const BASIC_CANDIDATE_CONTEXT_SELECT = '_id';
+  '_id full_name email picture isVerified isActive role createdAt updatedAt';
+const BASIC_CANDIDATE_CONTEXT_SELECT = '_id plan';
 
 
 // =========================================API LAYER (ADMIN)=========================================
@@ -115,6 +116,10 @@ const getUsers = async (query: Record<string, string>) => {
     .paginate()
     .build();
 
+  const planByUserId = await getPlanByUserIds(
+    users.map((user) => String(user._id))
+  );
+
   // Remove exclude field
   const filter = { ...query };
   for (const value of excludeField) {
@@ -137,7 +142,10 @@ const getUsers = async (query: Record<string, string>) => {
   // DATA
   const final_data =  {
     meta,
-    data: users,
+    data: users.map((user) => ({
+      ...user,
+      plan: planByUserId.get(String(user._id)) ?? 'free',
+    })),
   };
 
 
@@ -160,7 +168,10 @@ const getUserById = async (userId: string) => {
     throw new AppError(StatusCodes.NOT_FOUND, 'User not found');
   }
 
-  return user;
+  return {
+    ...user,
+    plan: await getActiveCandidatePlanForUser(userId),
+  };
 };
 
 // 4. ADMIN UPDATE USER (Check Done)
@@ -191,7 +202,11 @@ const updateUserByAdmin = async (
   }
 
   if (payload.plan !== undefined) {
-    updatePayload.plan = payload.plan.trim();
+    if (!PLAN_KEYS.includes(payload.plan)) {
+      throw new AppError(StatusCodes.BAD_REQUEST, 'Invalid plan type');
+    }
+
+    await setCandidatePlanForUser(userId, payload.plan);
   }
 
   if (payload.isVerified !== undefined) {
@@ -206,7 +221,7 @@ const updateUserByAdmin = async (
     updatePayload.isDeleted = payload.isDeleted;
   }
 
-  if (Object.keys(updatePayload).length === 0) {
+  if (Object.keys(updatePayload).length === 0 && payload.plan === undefined) {
     throw new AppError(
       StatusCodes.BAD_REQUEST,
       'At least one valid field is required to update'
@@ -241,7 +256,10 @@ const updateUserByAdmin = async (
   await redisClient.del(`get_me:${userId}`);
 
   // RETURN RESPONSE
-  return updatedUser;
+  return {
+    ...updatedUser,
+    plan: await getActiveCandidatePlanForUser(userId),
+  };
 };
 
 // 5. ADMIN SOFT DELETE USER (Check Done)
@@ -283,8 +301,9 @@ const deleteUser = async (authUserId: string, targetUserId: string) => {
 
 
 // ============================ USER PART ================================
-const getPlanKeyOrDefault = (plan?: string): PlanKey =>
-  PLAN_KEYS.includes(plan as PlanKey) ? (plan as PlanKey) : 'free';
+const getPlanKeyOrDefault = (plan?: string): PlanKey => {
+  return PLAN_KEYS.includes(plan as PlanKey) ? (plan as PlanKey) : 'free';
+};
 
 const getCurrentPlanOrDefault = async (plan?: string) => {
   const planKey = getPlanKeyOrDefault(plan);
@@ -299,6 +318,119 @@ const getCurrentPlanOrDefault = async (plan?: string) => {
   };
 };
 
+const getPlanByUserIds = async (userIds: string[]) => {
+  if (!userIds.length) {
+    return new Map<string, PlanKey>();
+  }
+
+  const [linkedCandidates, legacyCandidates] = await Promise.all([
+    CandidateLinkedUser.find({
+      status: CandidateLinkedUserStatus.ACTIVE,
+      user: { $in: userIds },
+    })
+      .populate({
+        path: 'candidate',
+        select: '_id plan',
+      })
+      .select('user candidate')
+      .lean<
+        {
+          user: unknown;
+          candidate: { _id: unknown; plan?: PlanKey } | null;
+        }[]
+      >(),
+    Candidate.find({
+      isActive: ActiveStatus.ACTIVE,
+      user: { $in: userIds },
+    })
+      .select('_id user plan')
+      .lean<{ _id: unknown; user: unknown; plan?: PlanKey }[]>(),
+  ]);
+
+  const planByUserId = new Map<string, PlanKey>();
+
+  for (const linkedCandidate of linkedCandidates) {
+    if (!linkedCandidate.candidate) {
+      continue;
+    }
+
+    planByUserId.set(
+      String(linkedCandidate.user),
+      getPlanKeyOrDefault(linkedCandidate.candidate.plan)
+    );
+  }
+
+  for (const legacyCandidate of legacyCandidates) {
+    const candidateUserId = String(legacyCandidate.user);
+
+    if (!planByUserId.has(candidateUserId)) {
+      planByUserId.set(
+        candidateUserId,
+        getPlanKeyOrDefault(legacyCandidate.plan)
+      );
+    }
+  }
+
+  return planByUserId;
+};
+
+const getActiveCandidatePlanForUser = async (userId: string) => {
+  const planByUserId = await getPlanByUserIds([userId]);
+  return planByUserId.get(userId) ?? 'free';
+};
+
+// Delete candidate plan cache.
+const clearCandidatePlanCaches = async (candidateId: string) => {
+  const affectedUserIds = await CandidateLinkedUser.find({
+    candidate: candidateId,
+    status: CandidateLinkedUserStatus.ACTIVE,
+  })
+    .select('user')
+    .lean<{ user: unknown }[]>();
+
+  await Promise.all(
+    affectedUserIds.map((linkedUser) =>
+      redisClient.del(`get_me:${String(linkedUser.user)}`)
+    )
+  );
+};
+
+const setCandidatePlanForUser = async (userId: string, plan: PlanKey) => {
+  const activeCandidateAccesses = await getActiveCandidateAccessesForUser(userId);
+
+  if (!activeCandidateAccesses.length) {
+    throw new AppError(
+      StatusCodes.BAD_REQUEST,
+      'No active candidate profile found for this user to assign a plan'
+    );
+  }
+
+  if (activeCandidateAccesses.length > 1) {
+    throw new AppError(
+      StatusCodes.CONFLICT,
+      'This user is linked to multiple active candidate profiles. Resolve that before updating the plan'
+    );
+  }
+
+  const candidateId = activeCandidateAccesses[0].candidateId;
+  const updatedCandidate = await Candidate.findOneAndUpdate(
+    { _id: candidateId, isActive: ActiveStatus.ACTIVE },
+    { $set: { plan } },
+    {
+      new: true,
+      runValidators: true,
+    }
+  )
+    .select('_id')
+    .lean<{ _id: unknown } | null>();
+
+  if (!updatedCandidate) {
+    throw new AppError(StatusCodes.NOT_FOUND, 'Candidate profile not found');
+  }
+
+  await clearCandidatePlanCaches(candidateId);
+};
+
 const getCandidateLinkContext = async (userId: string) => {
   const linkedCandidate = await CandidateLinkedUser.findOne({
     status: CandidateLinkedUserStatus.ACTIVE,
@@ -309,7 +441,9 @@ const getCandidateLinkContext = async (userId: string) => {
       select: BASIC_CANDIDATE_CONTEXT_SELECT,
     })
     .lean<
-      (TActiveLinkedUserLean & { candidate: { _id: unknown } | null }) | null
+      (TActiveLinkedUserLean & {
+        candidate: { _id: unknown; plan?: PlanKey } | null;
+      }) | null
     >();
 
   if (linkedCandidate?.candidate) {
@@ -317,6 +451,7 @@ const getCandidateLinkContext = async (userId: string) => {
       isLinked: true,
       source: 'LINKED_USER',
       candidateId: linkedCandidate.candidate._id,
+      plan: getPlanKeyOrDefault(linkedCandidate.candidate.plan),
       myAccess: buildMyAccessResponse(linkedCandidate),
     };
   }
@@ -328,6 +463,7 @@ const getCandidateLinkContext = async (userId: string) => {
     .select(BASIC_CANDIDATE_CONTEXT_SELECT)
     .lean<{
       _id: unknown;
+      plan?: PlanKey;
     } | null>();
 
   if (!legacyCandidate) {
@@ -335,6 +471,7 @@ const getCandidateLinkContext = async (userId: string) => {
       isLinked: false,
       source: null,
       candidateId: null,
+      plan: 'free' as PlanKey,
       myAccess: null,
     };
   }
@@ -343,6 +480,7 @@ const getCandidateLinkContext = async (userId: string) => {
     isLinked: true,
     source: 'LEGACY_OWNER',
     candidateId: legacyCandidate._id,
+    plan: getPlanKeyOrDefault(legacyCandidate.plan),
     myAccess: {
       accessRole: CandidateLinkedUserAccessRole.OWNER,
       relationshipToCandidate: 'SELF',
@@ -359,14 +497,12 @@ const getMe = async (userId: string) => {
     .select(AUTH_USER_CONTEXT_SELECT)
     .lean();
 
-  if (!user) {
-    throw new AppError(StatusCodes.NOT_FOUND, 'User not found');
-  }
-
-  const [currentPlan, candidateLink] = await Promise.all([
-    getCurrentPlanOrDefault(user.plan),
-    getCandidateLinkContext(userId),
-  ]);
+    if (!user) {
+      throw new AppError(StatusCodes.NOT_FOUND, 'User not found');
+    }
+    
+  const candidateLink = await getCandidateLinkContext(userId);
+  const currentPlan = await getCurrentPlanOrDefault(candidateLink.plan);
 
   const isEditorOrOwner =
     candidateLink.myAccess?.accessRole === CandidateLinkedUserAccessRole.OWNER ||
@@ -377,7 +513,7 @@ const getMe = async (userId: string) => {
     full_name: user.full_name,
     email: user.email,
     picture: user.picture,
-    plan: getPlanKeyOrDefault(user.plan),
+    plan: candidateLink.plan,
     isVerified: user.isVerified,
     isActive: user.isActive,
     role: user.role,
@@ -463,7 +599,10 @@ const updateMyProfile = async (
   await redisClient.del(`get_me:${userId}`);
 
   // RETURN UPDATE USER
-  return updatedUser;
+  return {
+    ...updatedUser,
+    plan: await getActiveCandidatePlanForUser(userId),
+  };
 };
 
 // 8. AUTH USER SEND VERIFICATION OTP
@@ -508,7 +647,7 @@ const templateData = {
  // SEND GREETINGS MAIL
   await sendMailByBullMQ({
     to: user.email,
-    subject: "Welcome to RistaPro",
+    subject: "Welcome to RishtaPro",
     templateName: "otp_test_email",
     templateData: templateData
   }, `greetings_${userId}`);
@@ -559,7 +698,7 @@ const verifyMyProfile = async (userId: string, otp: string) => {
   // SEND GREETINGS MAIL
   await sendMailByBullMQ({
     to: user.email,
-    subject: "Welcome to RistaPro",
+    subject: "Welcome to RishtaPro",
     templateName: "greetings",
     templateData: {
       name: user.full_name,

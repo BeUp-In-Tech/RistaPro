@@ -1,5 +1,6 @@
 import z from 'zod';
 import { ActiveStatus, IPlatform } from './user.interface';
+import { PLAN_KEYS } from '../plan/plan.interface';
 
 const passwordSchema = z
   .string({ error: 'Password should be string type!' })
@@ -35,7 +36,7 @@ export const updateUserByAdminZodSchema = z
   .object({
     full_name: fullNameSchema.optional(),
     picture: z.string({ error: 'Picture must be string type!' }).optional(),
-    plan: z.string({ error: 'Plan must be string type!' }).optional(),
+    plan: z.enum(PLAN_KEYS, { error: 'Plan must be a valid plan type!' }).optional(),
     isVerified: z.boolean({ error: 'isVerified must be boolean type!' }).optional(),
     isActive: z.nativeEnum(ActiveStatus).optional(),
   });

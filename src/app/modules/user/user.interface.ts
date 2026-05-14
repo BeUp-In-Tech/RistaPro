@@ -1,5 +1,6 @@
 
 import { Types } from 'mongoose';
+import { PlanKey } from '../plan/plan.interface';
 
 export enum Role {
   USER = 'USER',
@@ -41,7 +42,6 @@ export interface IUser {
   password?: string;
   phone?: string;
   picture?: string;
-  plan?: string;
   isVerified?: boolean;
   isDeleted?: boolean;
   isActive?: ActiveStatus;
@@ -58,7 +58,7 @@ export interface ICreateConsultantPayload {
   password: string;
   phone?: string;
   picture?: string;
-  plan?: string;
+  plan?: PlanKey;
   isVerified?: boolean;
   isActive?: ActiveStatus;
 }
@@ -71,7 +71,7 @@ export interface IUpdateProfilePayload {
 export interface IAdminUpdateUserPayload {
   full_name?: string;
   picture?: string;
-  plan?: string;
+  plan?: PlanKey;
   isVerified?: boolean;
   isActive?: ActiveStatus;
   isDeleted?: boolean;
