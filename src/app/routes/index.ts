@@ -8,6 +8,7 @@ import { messageRoutes } from '../modules/message/message.routes';
 import { planRoutes } from '../modules/plan/plan.routes';
 import { swipeRoutes } from '../modules/swipe/swipe.routes';
 import { userRoutes } from '../modules/user/user.routes';
+import { documentRoutes } from '../modules/document/document.routes';
 export const router = Router();
 
 const moduleRoutes = [
@@ -46,6 +47,10 @@ const moduleRoutes = [
   {
     path: '/users',
     route: userRoutes,
+  },
+  {
+    path: '/documents',
+    route: documentRoutes,
   },
 ];
 
