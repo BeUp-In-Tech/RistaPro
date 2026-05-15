@@ -45,8 +45,7 @@ const verificationStatusSchema = new Schema<IVerificationStatus>(
     face_verified: { type: verificationDetailSchema, default: () => ({}) },
     id_verified: { type: verificationDetailSchema, default: () => ({}) },
     parent_verified: { type: verificationDetailSchema, default: () => ({}) },
-    education_verified: { type: verificationDetailSchema, default: () => ({}) },
-    admin_verified: { type: verificationDetailSchema, default: () => ({}) },
+    education_verified: { type: verificationDetailSchema, default: () => ({}) }
   },
   { _id: false, versionKey: false }
 );

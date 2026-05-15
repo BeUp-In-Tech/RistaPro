@@ -13,6 +13,7 @@ Active modules today:
 - `matches`
 - `conversations`
 - `messages`
+- `documents`
 
 Other route files may exist in the codebase, but they are not publicly available until they are mounted in the main router.
 
@@ -1537,6 +1538,348 @@ Body:
 ```
 
 Detailed docs: `src/app/modules/message/API.md`
+
+---
+
+## Document Module
+
+Base path: `/api/v1/documents`
+
+This module stores candidate verification documents and updates the candidate verification status fields.
+
+Security rules:
+
+- all endpoints require `Authorization: Bearer <accessToken>`
+- allowed roles: `USER` and `ADMIN`
+- upload routes use `multipart/form-data`
+- file field name is `documents`
+- accepted document files are `image/*` and `application/pdf`
+- ID/education upload accepts up to 10 files
+- parent ID upload accepts up to 2 files
+- backend uploads the file to Cloudinary and saves the Cloudinary secure URL in DB
+- ID and education documents can be re-uploaded until that document type is approved
+- parent verification uses separate parent endpoints inside this same module
+
+Allowed document types:
+
+- `ID`
+- `EDUCATION`
+- `PARENT`
+- `PARENT_PHOTO`
+- `PARENT_ID`
+- `FACE`
+
+Document verification statuses:
+
+- `NONE`
+- `PENDING`
+- `APPROVED`
+- `REJECTED`
+
+### `POST /face-verification`
+
+Purpose:
+
+- Save the frontend face-match result for a candidate
+- Mark `candidate.verification_status.face_verified` as `APPROVED` when `isFaceVerified` is `true`
+- Mark `candidate.verification_status.face_verified` as `REJECTED` when `isFaceVerified` is `false`
+
+Auth:
+
+- Bearer token
+- `USER` or `ADMIN`
+
+Body:
+
+```json
+{
+  "candidateId": "665f1a2b3c4d5e6f78901234",
+  "isFaceVerified": true
+}
+```
+
+Behavior:
+
+- rejects the request if the candidate does not exist
+- rejects the request if face verification is already approved
+- updates the current face verification status
+- appends the result to `candidate.face_verify_logs`
+- this endpoint does not upload a file or create a document row
+
+Response data shape:
+
+```json
+{
+  "candidate": "665f1a2b3c4d5e6f78901234",
+  "face_verified": {
+    "status": "APPROVED",
+    "date": "2026-05-14T00:00:00.000Z",
+    "success": true
+  }
+}
+```
+
+### `POST /parent/photo`
+
+Purpose:
+
+- Upload the parent/guardian photo used for parent face verification
+- Mark `candidate.verification_status.parent_verified` as `PENDING`
+
+Auth:
+
+- Bearer token
+- `USER` or `ADMIN`
+
+Form data:
+
+```text
+candidateId: 665f1a2b3c4d5e6f78901234
+photo: <parent image file>
+```
+
+Behavior:
+
+- accepts image files only
+- creates a `PARENT_PHOTO` document row
+- rejects if parent verification is already approved
+- rejects if a parent photo is already face verified
+- replaces older pending parent photo uploads as rejected history
+
+### `POST /parent/face-verification`
+
+Purpose:
+
+- Save the frontend parent/guardian face-match result
+- Approve the latest pending parent photo when `isFaceVerified` is `true`
+- Reject the latest pending parent photo when `isFaceVerified` is `false`
+
+Auth:
+
+- Bearer token
+- `USER` or `ADMIN`
+
+Body:
+
+```json
+{
+  "candidateId": "665f1a2b3c4d5e6f78901234",
+  "isFaceVerified": true
+}
+```
+
+Behavior:
+
+- requires a pending parent photo upload first
+- if parent ID is already approved, successful face verification marks `parent_verified` as `APPROVED`
+- if parent ID is not approved yet, successful face verification keeps `parent_verified` as `PENDING`
+- failed face verification marks `parent_verified` as `REJECTED`
+
+### `POST /parent/id-card`
+
+Purpose:
+
+- Upload the parent/guardian government ID card for admin review
+- Mark `candidate.verification_status.parent_verified` as `PENDING`
+
+Auth:
+
+- Bearer token
+- `USER` or `ADMIN`
+
+Form data:
+
+```text
+candidateId: 665f1a2b3c4d5e6f78901234
+documents: <parent ID front image or pdf>
+documents: <parent ID back image or pdf>
+titles: ["Front side", "Back side"] optional
+```
+
+Behavior:
+
+- accepts PDF or image files
+- creates a `PARENT_ID` document row
+- rejects if parent verification is already approved
+- rejects if parent ID is already approved
+- replaces older pending parent ID uploads as rejected history
+- admin reviews this document with the same approve/reject endpoints below
+
+### `POST /upload`
+
+Purpose:
+
+- Save an ID or education verification document for review
+- Mark the document as `PENDING`
+- Update the matching candidate verification status field to `PENDING`
+
+Auth:
+
+- Bearer token
+- `USER` or `ADMIN`
+
+Form data:
+
+```text
+candidateId: 665f1a2b3c4d5e6f78901234
+type: ID
+documents: <front side pdf or image file>
+documents: <back side pdf or image file>
+titles: ["Front side", "Back side"] optional for ID
+```
+
+Education upload example:
+
+```text
+candidateId: 665f1a2b3c4d5e6f78901234
+type: EDUCATION
+documents: <bachelors certificate pdf or image file>
+documents: <masters certificate pdf or image file>
+titles: ["Bachelors degree certificate", "Masters degree certificate"]
+```
+
+Behavior by type:
+
+- `ID` updates `candidate.verification_status.id_verified`
+- `EDUCATION` updates `candidate.verification_status.education_verified`
+- `ID` can include multiple files, such as front and back side
+- `EDUCATION` can include multiple certificate files
+- every education file must have a matching title so admin can understand the certificate
+- `FACE` does not use this route
+- parent verification uses `/parent/photo`, `/parent/face-verification`, and `/parent/id-card`
+- rejects upload if the same document type is already approved
+- if the same document type already has a pending upload, the old pending row is marked `REJECTED` with `rejected_reason: "Replaced by a new upload"`
+- rejects the request if `documents` files are missing or not PDF/image
+
+Response data shape:
+
+```json
+{
+  "_id": "document id",
+  "candidate": "665f1a2b3c4d5e6f78901234",
+  "type": "ID",
+  "document": "https://res.cloudinary.com/demo/image/upload/v1/RistaPro/nid-front.jpg",
+  "documents": [
+    {
+      "file": "https://res.cloudinary.com/demo/image/upload/v1/RistaPro/nid-front.jpg",
+      "title": "Front side"
+    },
+    {
+      "file": "https://res.cloudinary.com/demo/image/upload/v1/RistaPro/nid-back.jpg",
+      "title": "Back side"
+    }
+  ],
+  "verification_status": "PENDING",
+  "createdAt": "2026-05-14T00:00:00.000Z",
+  "updatedAt": "2026-05-14T00:00:00.000Z"
+}
+```
+
+### `PATCH /:documentId/approve`
+
+Purpose:
+
+- Admin approves a pending ID, education, or parent ID document
+- Update the matching candidate verification field to `APPROVED`
+- Lock that document type from further user uploads
+
+Auth:
+
+- Bearer token
+- `ADMIN`
+
+Example:
+
+```http
+PATCH /api/v1/documents/665f1a2b3c4d5e6f78909999/approve
+Authorization: Bearer <adminAccessToken>
+```
+
+Behavior:
+
+- only works for `ID`, `EDUCATION`, and `PARENT_ID` documents
+- only pending documents can be approved
+- rejects if another document of the same type is already approved
+- clears `rejected_reason` on the approved document
+- marks other pending documents of the same type as rejected
+- for `PARENT_ID`, `parent_verified` becomes `APPROVED` only if the parent photo face check is also approved
+
+### `PATCH /:documentId/reject`
+
+Purpose:
+
+- Admin rejects an ID, education, or parent ID document with a reason
+- Update the matching candidate verification field to `REJECTED`
+- Keep the rejected document row as visible history
+
+Auth:
+
+- Bearer token
+- `ADMIN`
+
+Body:
+
+```json
+{
+  "rejected_reason": "Document is blurry. Please upload a clearer image."
+}
+```
+
+Behavior:
+
+- only works for `ID`, `EDUCATION`, and `PARENT_ID` documents
+- only pending documents can be rejected
+- after rejection, user can upload a new document of the same type
+
+### `GET /:candidateId`
+
+Purpose:
+
+- List all verification documents for one candidate, including rejected history
+
+Auth:
+
+- Bearer token
+- `USER` or `ADMIN`
+
+Example:
+
+```http
+GET /api/v1/documents/665f1a2b3c4d5e6f78901234
+Authorization: Bearer <accessToken>
+```
+
+Response:
+
+- returns documents sorted by newest first
+- rejected rows include `rejected_reason`, so the user can see why a previous upload failed
+
+Response data shape:
+
+```json
+[
+  {
+    "_id": "document id",
+    "candidate": "665f1a2b3c4d5e6f78901234",
+    "type": "ID",
+    "document": "https://res.cloudinary.com/demo/image/upload/v1/RistaPro/nid-front.jpg",
+    "documents": [
+      {
+        "file": "https://res.cloudinary.com/demo/image/upload/v1/RistaPro/nid-front.jpg",
+        "title": "Front side"
+      },
+      {
+        "file": "https://res.cloudinary.com/demo/image/upload/v1/RistaPro/nid-back.jpg",
+        "title": "Back side"
+      }
+    ],
+    "verification_status": "PENDING",
+    "rejected_reason": "optional rejection reason",
+    "createdAt": "2026-05-14T00:00:00.000Z",
+    "updatedAt": "2026-05-14T00:00:00.000Z"
+  }
+]
+```
 
 ---
 
