@@ -34,6 +34,8 @@ import {
   ISwipeFeedResponse,
   ISwipeFeedScore,
   ISwipeFeedSession,
+  INearbyMatchesResponse,
+  NearbyLocationOrigin,
   TSwipeActionLean,
   TSwipeActionLock,
   TSwipeMatchLean,
@@ -47,7 +49,9 @@ const DHAKA_UTC_OFFSET_MS = 6 * 60 * 60 * 1000;
 export const SWIPE_FEED_SESSION_TTL_SECONDS = 15 * 60;
 export const MIN_FEED_POOL_SIZE = 80;
 export const MAX_FEED_POOL_SIZE = 250;
+export const NEARBY_MATCH_POOL_SIZE = 1000;
 export const SWIPE_ACTION_LOCK_TTL_SECONDS = 10;
+export const DEFAULT_NEARBY_RADIUS_KM = 25;
 
 export const FEED_CANDIDATE_SELECT =
   '_id name dateOfBirth gender height religion sect caste relationship_status have_children move_abroad occupation highest_education smoke_status drink_status interests personality bio images address coordinates verification_status isActive user createdAt updatedAt';
@@ -188,6 +192,37 @@ export const getDistanceKm = (
 
   return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 };
+
+export const hasValidCoordinates = (coordinates?: number[]) =>
+  Boolean(
+    coordinates &&
+      coordinates.length >= 2 &&
+      Number.isFinite(coordinates[0]) &&
+      Number.isFinite(coordinates[1])
+  );
+
+// Live coordinates are request-only; saved profile coordinates are the safe fallback.
+export const getNearbySearchLocation = (params: {
+  viewerCandidate: ISwipeFeedCandidateLean;
+}) => {
+  if (!hasValidCoordinates(params.viewerCandidate.coordinates)) {
+    throw new AppError(
+      StatusCodes.BAD_REQUEST,
+      'Saved candidate coordinates are required'
+    );
+  }
+
+  return {
+    coordinates: params.viewerCandidate.coordinates as number[],
+    origin: NearbyLocationOrigin.SAVED_PROFILE_LOCATION,
+  };
+};
+
+// Request radius wins; otherwise keep the user's saved distance preference.
+export const getNearbyRadiusKm = (
+  requestRadiusKm?: number,
+  preferenceRadiusKm?: number
+) => requestRadiusKm ?? preferenceRadiusKm ?? DEFAULT_NEARBY_RADIUS_KM;
 
 const isValueIncluded = <T extends string>(
   values: T[] | undefined,
@@ -709,6 +744,81 @@ export const rankCandidates = (params: {
         new Date(firstCandidate.candidate.createdAt ?? 0).getTime()
       );
     });
+};
+
+// Nearby lists are sorted by physical closeness before compatibility tie-breakers.
+export const buildNearbyMatchCards = (params: {
+  candidates: ISwipeFeedCandidateLean[];
+  preference: TCandidatePreferenceLean;
+  radiusKm: number;
+  viewerCandidate: ISwipeFeedCandidateLean;
+}) =>
+  rankCandidates({
+    candidates: params.candidates,
+    preference: params.preference,
+    viewerCandidate: params.viewerCandidate,
+  })
+    .map(({ candidate, score }) => {
+      const distanceKm = getDistanceKm(
+        params.viewerCandidate.coordinates,
+        candidate.coordinates
+      );
+
+      return {
+        candidate,
+        distanceKm,
+        score,
+      };
+    })
+    .filter(
+      (item): item is {
+        candidate: ISwipeFeedCandidateLean;
+        distanceKm: number;
+        score: ISwipeFeedScore;
+      } => item.distanceKm !== null && item.distanceKm <= params.radiusKm
+    )
+    .sort((first, second) => {
+      if (first.distanceKm !== second.distanceKm) {
+        return first.distanceKm - second.distanceKm;
+      }
+
+      if (second.score.matchScore !== first.score.matchScore) {
+        return second.score.matchScore - first.score.matchScore;
+      }
+
+      return (
+        new Date(second.candidate.createdAt ?? 0).getTime() -
+        new Date(first.candidate.createdAt ?? 0).getTime()
+      );
+    })
+    .map(({ candidate, distanceKm, score }) => ({
+      ...buildFeedCard(candidate, score, params.viewerCandidate),
+      distanceKm: Number(distanceKm.toFixed(1)),
+    }));
+
+export const buildNearbyMatchesResponse = (params: {
+  cards: ISwipeFeedCard[];
+  currentLocation: string | null;
+  limit: number;
+  origin: NearbyLocationOrigin;
+  page: number;
+  radiusKm: number;
+}): INearbyMatchesResponse => {
+  const total = params.cards.length;
+  const skip = (params.page - 1) * params.limit;
+
+  return {
+    data: params.cards.slice(skip, skip + params.limit),
+    meta: {
+      currentLocation: params.currentLocation,
+      limit: params.limit,
+      origin: params.origin,
+      page: params.page,
+      radiusKm: params.radiusKm,
+      total,
+      totalPage: total === 0 ? 0 : Math.ceil(total / params.limit),
+    },
+  };
 };
 
 // Converts a ranked candidate pool into response cards and writes cursor state.

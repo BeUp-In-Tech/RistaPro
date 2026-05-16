@@ -10,6 +10,7 @@ Active modules today:
 - `candidates`
 - `candidate-preferences`
 - `swipes`
+- `likes`
 - `matches`
 - `conversations`
 - `messages`
@@ -91,6 +92,8 @@ These are the currently mounted APIs for the swipe-match flow:
 
 - `GET /api/v1/swipes/feed`
 - `POST /api/v1/swipes/action`
+- `GET /api/v1/likes/received`
+- `GET /api/v1/likes/sent`
 - `GET /api/v1/matches`
 - `GET /api/v1/matches/:matchId`
 - `PATCH /api/v1/matches/:matchId/unmatch`
@@ -128,11 +131,13 @@ Notes:
 4. Review or update partner preferences with `GET /candidate-preferences/:candidateId`
 5. Load recommended profiles with `GET /swipes/feed?candidateId=<candidateId>`
 6. Like, super-like, or pass cards with `POST /swipes/action`
-7. If `POST /swipes/action` returns `matched: true`, use `match.conversation` for the chat thread
-8. Load active matches with `GET /matches?candidateId=<candidateId>`
-9. Open/list chat with `GET /conversations?candidateId=<candidateId>`
-10. Send chat messages with `POST /messages`
-11. If needed, add family members with linked-user APIs, then request chat inclusion with guardian request APIs
+7. Review sent likes with `GET /likes/sent?candidateId=<candidateId>`
+8. Gold/platinum candidates can review received likes with `GET /likes/received?candidateId=<candidateId>`
+9. If `POST /swipes/action` returns `matched: true`, use `match.conversation` for the chat thread
+10. Load active matches with `GET /matches?candidateId=<candidateId>`
+11. Open/list chat with `GET /conversations?candidateId=<candidateId>`
+12. Send chat messages with `POST /messages`
+13. If needed, add family members with linked-user APIs, then request chat inclusion with guardian request APIs
 
 ### 4. Guardian-managed candidate profile
 
@@ -1299,6 +1304,64 @@ Recommendation behavior:
 - if strict filters return too few candidates, the API relaxes optional filters and returns `relaxed: true`
 - first page builds a short Redis feed session so later cursor pages are fast
 
+### `GET /nearby-matches`
+
+Purpose:
+
+- Return preference-matching candidates near the requester location
+- Uses saved candidate coordinates
+- Return the requester location string in `meta.currentLocation`
+
+Query params:
+
+- `radiusKm`: optional; defaults to preference `maxDistanceKm`, otherwise `25`
+- `page`: optional, default `1`
+- `limit`: optional, default `20`, max `50`
+
+Example:
+
+```http
+GET /api/v1/swipes/nearby-matches?radiusKm=25
+Authorization: Bearer <accessToken>
+```
+
+Response:
+
+```json
+{
+  "meta": {
+    "page": 1,
+    "limit": 20,
+    "total": 12,
+    "totalPage": 1,
+    "radiusKm": 25,
+    "origin": "SAVED_PROFILE_LOCATION",
+    "currentLocation": "Dhaka, Bangladesh"
+  },
+  "data": [
+    {
+      "_id": "candidate id",
+      "name": "Amina",
+      "age": 24,
+      "gender": "FEMALE",
+      "images": [],
+      "labels": {},
+      "livesIn": "Dhaka",
+      "distanceKm": 8.4,
+      "matchScore": 72,
+      "personality": [],
+      "religion": "ISLAM"
+    }
+  ]
+}
+```
+
+Geocoding behavior:
+
+- backend reverse-geocodes requester coordinates with OpenStreetMap Nominatim
+- geocoding failure does not fail the API; `currentLocation` becomes `null`
+- current coordinates are never saved to the candidate profile from this API
+
 ### `POST /action`
 
 Purpose:
@@ -1374,6 +1437,107 @@ Dedicated module documentation:
 - `src/app/modules/match/API.md`
 - `src/app/modules/conversation/API.md`
 - `src/app/modules/message/API.md`
+
+---
+
+## Like Module
+
+Base path: `/api/v1/likes`
+
+This module exposes read-only like history for candidate profiles.
+
+Security rules:
+
+- all endpoints require `Authorization: Bearer <accessToken>`
+- requester must be an active linked user of the `candidateId`
+- `GET /received` requires the candidate plan to allow `canSeeWhoLiked`
+- current default plans unlock received likes for `gold` and `platinum`
+- only `LIKE` and `SUPER_LIKE` records are returned
+- `PASS` is never returned by these APIs
+- unavailable candidate profiles are hidden from results
+
+Shared query params:
+
+- `candidateId`: required candidate profile id
+- `type`: optional, `LIKE` or `SUPER_LIKE`
+- `page`: optional, default `1`
+- `limit`: optional, default `20`, max `50`
+- `sort`: optional, default puts super-likes first and newest first
+
+### `GET /received`
+
+Purpose:
+
+- List candidates who liked or super-liked this candidate
+- Support filtering by normal likes or super-likes
+- Keep this API paid through the plan `canSeeWhoLiked` flag
+
+Example:
+
+```http
+GET /api/v1/likes/received?candidateId=665f1a2b3c4d5e6f78901234&type=SUPER_LIKE&page=1&limit=20
+Authorization: Bearer <accessToken>
+```
+
+Behavior:
+
+- queries positive likes where `likedProfile` is the candidate
+- returns `403` if the candidate plan cannot see who liked them
+- omitting `type` returns both `LIKE` and `SUPER_LIKE`
+- `type=PASS` fails validation
+
+### `GET /sent`
+
+Purpose:
+
+- List candidates this candidate liked or super-liked
+- Support filtering by normal likes or super-likes
+
+Example:
+
+```http
+GET /api/v1/likes/sent?candidateId=665f1a2b3c4d5e6f78901234&type=LIKE&page=1&limit=20
+Authorization: Bearer <accessToken>
+```
+
+Behavior:
+
+- queries positive likes where `likedBy` is the candidate
+- omitting `type` returns both `LIKE` and `SUPER_LIKE`
+- `type=PASS` fails validation
+
+Response shape:
+
+```json
+{
+  "statusCode": 200,
+  "success": true,
+  "message": "Received likes retrieved successfully",
+  "data": [
+    {
+      "_id": "like id",
+      "type": "SUPER_LIKE",
+      "source": "FEED",
+      "createdAt": "2026-05-16T00:00:00.000Z",
+      "candidate": {
+        "_id": "candidate id",
+        "name": "Amina",
+        "age": 24,
+        "gender": "FEMALE",
+        "images": ["https://image-url.jpg"],
+        "religion": "ISLAM",
+        "livesIn": "Dhaka"
+      }
+    }
+  ],
+  "meta": {
+    "page": 1,
+    "limit": 20,
+    "total": 12,
+    "totalPage": 1
+  }
+}
+```
 
 ---
 
@@ -2257,3 +2421,74 @@ Content-Type: application/json
 ## Maintenance Note
 
 If you add a new mounted module or change a route, update this README in the same PR so frontend and backend stay in sync.
+
+---
+
+## Document Module
+
+Base path: `/api/v1/documents`
+
+This module manages face verification and document uploads (e.g., ID or education certificates).
+
+Security rules:
+
+- all endpoints require `Authorization: Bearer <accessToken>`
+- endpoints require the `candidateId` provided in the body or URL parameters.
+
+### `POST /face-verification`
+
+Purpose:
+
+- Submit face verification status for a candidate
+
+Auth:
+
+- Bearer token (`USER` or `ADMIN`)
+
+Body:
+
+```json
+{
+  "candidateId": "candidate id",
+  "isFaceVerified": true
+}
+```
+
+### `POST /upload`
+
+Purpose:
+
+- Upload candidate documents (ID or EDUCATION)
+- Can upload one or multiple titles simultaneously based on the files attached.
+
+Auth:
+
+- Bearer token (`USER` or `ADMIN`)
+
+Content type:
+
+- `multipart/form-data`
+
+Fields:
+
+- `candidateId`: "candidate id"
+- `type`: "ID" or "EDUCATION"
+- `title` or `titles`: document titles (string or JSON array of strings)
+- `file` or `files`: binary file uploads
+
+### `GET /:candidateId`
+
+Purpose:
+
+- Get all uploaded documents for a specific candidate profile
+
+Auth:
+
+- Bearer token (`USER` or `ADMIN`)
+
+Example:
+
+```http
+GET /api/v1/documents/665f1a2b3c4d5e6f78901234
+Authorization: Bearer <accessToken>
+```
