@@ -7,6 +7,7 @@ import { conversationRoutes } from '../modules/conversation/conversation.routes'
 import { messageRoutes } from '../modules/message/message.routes';
 import { planRoutes } from '../modules/plan/plan.routes';
 import { swipeRoutes } from '../modules/swipe/swipe.routes';
+import { likeRoutes } from '../modules/like/like.routes';
 import { userRoutes } from '../modules/user/user.routes';
 import { documentRoutes } from '../modules/document/document.routes';
 export const router = Router();
@@ -31,6 +32,10 @@ const moduleRoutes = [
   {
     path: '/swipes',
     route: swipeRoutes,
+  },
+  {
+    path: '/likes',
+    route: likeRoutes,
   },
   {
     path: '/matches',

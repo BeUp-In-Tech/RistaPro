@@ -1,7 +1,7 @@
 import { Schema, model } from 'mongoose';
 import { IRishtaProgress } from './rishta_progress.interface';
 
-const ristProgressSchema = new Schema<IRishtaProgress>(
+const rishtaProgressSchema = new Schema<IRishtaProgress>(
   {
     candidates: {
       type: [{ type: Schema.Types.ObjectId, ref: 'candidate' }],
@@ -15,6 +15,6 @@ const ristProgressSchema = new Schema<IRishtaProgress>(
   { timestamps: true, versionKey: false }
 );
 
-const RistProgress = model<IRishtaProgress>('ristProgress', ristProgressSchema);
+const RishtaProgress = model<IRishtaProgress>('rishtaProgress', rishtaProgressSchema);
 
-export default RistProgress;
+export default RishtaProgress;
