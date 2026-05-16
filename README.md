@@ -1289,6 +1289,64 @@ Recommendation behavior:
 - if strict filters return too few candidates, the API relaxes optional filters and returns `relaxed: true`
 - first page builds a short Redis feed session so later cursor pages are fast
 
+### `GET /nearby-matches`
+
+Purpose:
+
+- Return preference-matching candidates near the requester location
+- Uses saved candidate coordinates
+- Return the requester location string in `meta.currentLocation`
+
+Query params:
+
+- `radiusKm`: optional; defaults to preference `maxDistanceKm`, otherwise `25`
+- `page`: optional, default `1`
+- `limit`: optional, default `20`, max `50`
+
+Example:
+
+```http
+GET /api/v1/swipes/nearby-matches?radiusKm=25
+Authorization: Bearer <accessToken>
+```
+
+Response:
+
+```json
+{
+  "meta": {
+    "page": 1,
+    "limit": 20,
+    "total": 12,
+    "totalPage": 1,
+    "radiusKm": 25,
+    "origin": "SAVED_PROFILE_LOCATION",
+    "currentLocation": "Dhaka, Bangladesh"
+  },
+  "data": [
+    {
+      "_id": "candidate id",
+      "name": "Amina",
+      "age": 24,
+      "gender": "FEMALE",
+      "images": [],
+      "labels": {},
+      "livesIn": "Dhaka",
+      "distanceKm": 8.4,
+      "matchScore": 72,
+      "personality": [],
+      "religion": "ISLAM"
+    }
+  ]
+}
+```
+
+Geocoding behavior:
+
+- backend reverse-geocodes requester coordinates with OpenStreetMap Nominatim
+- geocoding failure does not fail the API; `currentLocation` becomes `null`
+- current coordinates are never saved to the candidate profile from this API
+
 ### `POST /action`
 
 Purpose:
@@ -2348,3 +2406,74 @@ Content-Type: application/json
 ## Maintenance Note
 
 If you add a new mounted module or change a route, update this README in the same PR so frontend and backend stay in sync.
+
+---
+
+## Document Module
+
+Base path: `/api/v1/documents`
+
+This module manages face verification and document uploads (e.g., ID or education certificates).
+
+Security rules:
+
+- all endpoints require `Authorization: Bearer <accessToken>`
+- endpoints require the `candidateId` provided in the body or URL parameters.
+
+### `POST /face-verification`
+
+Purpose:
+
+- Submit face verification status for a candidate
+
+Auth:
+
+- Bearer token (`USER` or `ADMIN`)
+
+Body:
+
+```json
+{
+  "candidateId": "candidate id",
+  "isFaceVerified": true
+}
+```
+
+### `POST /upload`
+
+Purpose:
+
+- Upload candidate documents (ID or EDUCATION)
+- Can upload one or multiple titles simultaneously based on the files attached.
+
+Auth:
+
+- Bearer token (`USER` or `ADMIN`)
+
+Content type:
+
+- `multipart/form-data`
+
+Fields:
+
+- `candidateId`: "candidate id"
+- `type`: "ID" or "EDUCATION"
+- `title` or `titles`: document titles (string or JSON array of strings)
+- `file` or `files`: binary file uploads
+
+### `GET /:candidateId`
+
+Purpose:
+
+- Get all uploaded documents for a specific candidate profile
+
+Auth:
+
+- Bearer token (`USER` or `ADMIN`)
+
+Example:
+
+```http
+GET /api/v1/documents/665f1a2b3c4d5e6f78901234
+Authorization: Bearer <accessToken>
+```

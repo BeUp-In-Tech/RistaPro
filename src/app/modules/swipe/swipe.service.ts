@@ -1,6 +1,9 @@
 import { Types } from 'mongoose';
+import { reverseGeocodeCoordinates } from '../../utils/reverseGeocode';
 import { getActiveLinkedUserAccessOrThrow } from '../candidate/linked-user/candidateLinkedUser.helper';
 import {
+  INearbyMatchesQuery,
+  INearbyMatchesResponse,
   ISwipeActionPayload,
   ISwipeActionResponse,
   ISwipeFeedQuery,
@@ -14,6 +17,8 @@ import {
   assertNoSwipeReportBetweenCandidates,
   assertSwipeQuotaAvailable,
   assertValidFeedCandidateId,
+  buildNearbyMatchCards,
+  buildNearbyMatchesResponse,
   buildCandidateFeedQuery,
   buildFeedResponseFromRankedCandidates,
   buildSwipeActionResponse,
@@ -30,6 +35,9 @@ import {
   getFeedFromCachedSession,
   getFeedPoolSize,
   getFeedPreferenceOrCreateDefault,
+  getNearbyRadiusKm,
+  getNearbySearchLocation,
+  NEARBY_MATCH_POOL_SIZE,
   getSwipePlanOrDefault,
   getSwipeQuotaCandidateOrThrow,
   getSwipeTargetCandidateOrThrow,
@@ -41,10 +49,92 @@ import {
   returnExistingSwipeAction,
   toObjectIdList,
 } from './swipe.helper';
+import AppError from '../../errorHelpers/AppError';
+import { StatusCodes } from 'http-status-codes';
 
 
 
-// GET /swipes/feed - Builds the Tinder-style discovery stack for one candidate profile.
+// Returns preference-matching profiles near the requester location.
+const getNearbyMatches = async (
+  userId: string,
+  query: INearbyMatchesQuery
+): Promise<INearbyMatchesResponse> => {
+  const { ensureSingleActiveCandidateAccessOrThrow } = await import(
+    '../candidate/linked-user/candidateLinkedUser.access'
+  );
+  
+  const accesses = await ensureSingleActiveCandidateAccessOrThrow({ userId });
+  if (!accesses.length) {
+    throw new AppError(StatusCodes.NOT_FOUND, 'No active candidate profile found for this user');
+  }
+  const candidateId = accesses[0].candidateId;
+
+  assertValidFeedCandidateId(candidateId);
+
+  // Only linked users can discover from a private candidate profile.
+  await getActiveLinkedUserAccessOrThrow({
+    candidateId,
+    userId,
+  });
+
+  const viewerCandidate = await getViewerCandidateOrThrow(candidateId);
+  const searchLocation = getNearbySearchLocation({
+    viewerCandidate,
+  });
+  const viewerCandidateFromSearchLocation = {
+    ...viewerCandidate,
+    coordinates: searchLocation.coordinates,
+  };
+
+  const [preference, excludedCandidateIds, currentLocation] =
+    await Promise.all([
+      getFeedPreferenceOrCreateDefault({
+        candidateGender: viewerCandidate.gender,
+        candidateId,
+        createdBy: viewerCandidate.user as Types.ObjectId,
+      }),
+      getExcludedCandidateIds(candidateId),
+      reverseGeocodeCoordinates(
+        searchLocation.coordinates[1],
+        searchLocation.coordinates[0]
+      ),
+    ]);
+  const radiusKm = getNearbyRadiusKm(query.radiusKm, preference.maxDistanceKm);
+  const nearbyPreference = {
+    ...preference,
+    maxDistanceKm: radiusKm,
+  };
+  const strictQuery = buildCandidateFeedQuery({
+    candidateId,
+    excludedCandidateIds,
+    preference: nearbyPreference,
+  });
+  const strictCandidates = filterStrictCandidates({
+    candidates: await findVisibleFeedCandidates({
+      limit: NEARBY_MATCH_POOL_SIZE,
+      query: strictQuery,
+    }),
+    preference: nearbyPreference,
+    viewerCandidate: viewerCandidateFromSearchLocation,
+  });
+  const cards = buildNearbyMatchCards({
+    candidates: strictCandidates,
+    preference: nearbyPreference,
+    radiusKm,
+    viewerCandidate: viewerCandidateFromSearchLocation,
+  });
+
+  return buildNearbyMatchesResponse({
+    currentLocation,
+    limit: query.limit,
+    origin: searchLocation.origin,
+    page: query.page,
+    radiusKm,
+    cards,
+  });
+};
+
+// Builds the Tinder-style discovery stack for one candidate profile.
 const getSwipeFeed = async (
   userId: string,
   query: ISwipeFeedQuery
@@ -139,7 +229,7 @@ const getSwipeFeed = async (
   });
 };
 
-// POST /swipes/action - Saves LIKE/SUPER_LIKE/PASS and creates a match on mutual positive swipes.
+// Saves LIKE/SUPER_LIKE/PASS and creates a match on mutual positive swipes.
 const performSwipeAction = async (
   userId: string,
   payload: ISwipeActionPayload
@@ -270,6 +360,7 @@ const performSwipeAction = async (
 };
 
 export const SwipeService = {
+  getNearbyMatches,
   getSwipeFeed,
   performSwipeAction,
 };

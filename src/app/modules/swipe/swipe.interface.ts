@@ -25,6 +25,17 @@ export interface ISwipeFeedQuery {
   limit: number;
 }
 
+export enum NearbyLocationOrigin {
+  CURRENT_LOCATION = 'CURRENT_LOCATION',
+  SAVED_PROFILE_LOCATION = 'SAVED_PROFILE_LOCATION',
+}
+
+export interface INearbyMatchesQuery {
+  limit: number;
+  page: number;
+  radiusKm?: number;
+}
+
 export interface ISwipeFeedCursor {
   offset: number;
   sessionId: string;
@@ -100,6 +111,19 @@ export interface ISwipeFeedResponse {
   nextCursor: string | null;
   relaxed: boolean;
   relaxedReason?: string;
+}
+
+export interface INearbyMatchesResponse {
+  data: ISwipeFeedCard[];
+  meta: {
+    currentLocation: string | null;
+    limit: number;
+    origin: NearbyLocationOrigin;
+    page: number;
+    radiusKm: number;
+    total: number;
+    totalPage: number;
+  };
 }
 
 export interface ISwipeActionPayload {
