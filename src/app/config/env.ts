@@ -19,6 +19,7 @@ interface EnvInterfaces {
   REDIS_HOST: string;
   REDIS_PORT: string;
 
+  BACKEND_URL: string;
   FRONTEND_URL: string;
   DEEP_LINK: string;
 
@@ -43,8 +44,12 @@ interface EnvInterfaces {
   EMAIL_HOST: string;
   EMAIL_PORT: number;
   EMAIL_USER: string;
+  EMAIL_FROM_NAME: string;
+  EMAIL_FROM: string;
   EMAIL_PASSWORD: string;
   EMAIL_SECURITY: boolean;
+
+  UNSUBSCRIBE_MAIL: string;
 
   TYPE: string;
   PROJECT_ID: string;
@@ -77,6 +82,7 @@ const loadEnvVariables = (): EnvInterfaces => {
 
     'BCRYPT_SALT_ROUND',
 
+    'BACKEND_URL',
     'FRONTEND_URL',
     'DEEP_LINK',
 
@@ -101,8 +107,12 @@ const loadEnvVariables = (): EnvInterfaces => {
     'EMAIL_HOST',
     'EMAIL_PORT',
     'EMAIL_USER',
+    'EMAIL_FROM_NAME',
+    'EMAIL_FROM',
     'EMAIL_PASSWORD',
     'EMAIL_SECURITY',
+
+    'UNSUBSCRIBE_MAIL',
 
     'TYPE',
     'PROJECT_ID',
@@ -142,6 +152,7 @@ const loadEnvVariables = (): EnvInterfaces => {
     REDIS_HOST: process.env.REDIS_HOST as string,
     REDIS_PORT: process.env.REDIS_PORT as string,
 
+    BACKEND_URL: process.env.BACKEND_URL as string,
     FRONTEND_URL: process.env.FRONTEND_URL as string,
     DEEP_LINK: process.env.DEEP_LINK as string,
 
@@ -168,8 +179,12 @@ const loadEnvVariables = (): EnvInterfaces => {
     EMAIL_HOST: process.env.EMAIL_HOST as string,
     EMAIL_PORT: Number(process.env.EMAIL_PORT) as number,
     EMAIL_USER: process.env.EMAIL_USER as string,
+    EMAIL_FROM_NAME: process.env.EMAIL_FROM_NAME as string,
+    EMAIL_FROM: process.env.EMAIL_FROM as string,
     EMAIL_PASSWORD: process.env.EMAIL_PASSWORD as string,
     EMAIL_SECURITY: process.env.EMAIL_SECURITY === 'true',
+    
+    UNSUBSCRIBE_MAIL: process.env.UNSUBSCRIBE_MAIL as string,
 
     TYPE: process.env.TYPE as string,
     PROJECT_ID: process.env.PROJECT_ID as string,
