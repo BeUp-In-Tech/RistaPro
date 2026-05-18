@@ -34,6 +34,8 @@ import { PLAN_KEYS, PlanKey, IPlan } from '../plan/plan.interface';
 import { PLANS } from '../plan/plan.constant';
 import PlanModel from '../plan/plan.model';
 import { getActiveCandidateAccessesForUser } from '../candidate/linked-user/candidateLinkedUser.access';
+import { buildSwipeQuotaResponse } from '../swipe/swipe.helper';
+import { ISwipeActionResponse } from '../swipe/swipe.interface';
 
 
 // REUSABLE KEYS
@@ -508,6 +510,17 @@ const getMe = async (userId: string) => {
     candidateLink.myAccess?.accessRole === CandidateLinkedUserAccessRole.OWNER ||
     candidateLink.myAccess?.accessRole === CandidateLinkedUserAccessRole.EDITOR;
 
+  let quota: ISwipeActionResponse['quota'] | null = null;
+  if (candidateLink.isLinked && candidateLink.candidateId) {
+    quota = await buildSwipeQuotaResponse({
+      candidateId: String(candidateLink.candidateId),
+      plan: {
+        dailyLikes: currentPlan.dailyLikes,
+        superLikes: currentPlan.superLikes,
+      },
+    });
+  }
+
   return {
     _id: user._id,
     full_name: user.full_name,
@@ -520,6 +533,7 @@ const getMe = async (userId: string) => {
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
     candidateLink,
+    quota,
     permissions: {
       canViewSwipeFeed: candidateLink.isLinked,
       canPerformSwipeAction: candidateLink.isLinked && isEditorOrOwner,

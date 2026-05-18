@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { StatusCodes } from 'http-status-codes';
 import { FilterQuery, Types } from 'mongoose';
+import env from '../../config/env';
 import { redisClient } from '../../config/redis.config';
 import AppError from '../../errorHelpers/AppError';
 import {
@@ -44,7 +45,9 @@ import {
 } from './swipe.interface';
 
 const MS_PER_YEAR = 365.2425 * 24 * 60 * 60 * 1000;
-const DHAKA_UTC_OFFSET_MS = 6 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const PRODUCTION_QUOTA_TIMEZONE = 'Asia/Karachi';
+const DEVELOPMENT_QUOTA_TIMEZONE = 'Asia/Dhaka';
 
 export const SWIPE_FEED_SESSION_TTL_SECONDS = 15 * 60;
 export const MIN_FEED_POOL_SIZE = 80;
@@ -89,22 +92,75 @@ export const getSwipeActionLockKey = (
   targetCandidateId: string
 ) => `swipe_action:${candidateId}:${targetCandidateId}`;
 
-// The product resets normal likes at 00:00 Asia/Dhaka, independent of server timezone.
-export const getCurrentLikeQuotaWindowStart = (now = new Date()) => {
-  const dhakaDate = new Date(now.getTime() + DHAKA_UTC_OFFSET_MS);
+// Production resets at Pakistan midnight; development can use Dhaka midnight.
+export const getQuotaResetTimezone = () =>
+  env.NODE_ENV === 'development'
+    ? DEVELOPMENT_QUOTA_TIMEZONE
+    : PRODUCTION_QUOTA_TIMEZONE;
 
-  return new Date(
-    Date.UTC(
-      dhakaDate.getUTCFullYear(),
-      dhakaDate.getUTCMonth(),
-      dhakaDate.getUTCDate()
-    ) - DHAKA_UTC_OFFSET_MS
+const getDatePartsInTimezone = (date: Date, timezone: string) => {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+
+  const parts = formatter.formatToParts(date);
+  const read = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((part) => part.type === type)?.value ?? '0');
+
+  return {
+    day: read('day'),
+    hour: read('hour'),
+    minute: read('minute'),
+    month: read('month'),
+    second: read('second'),
+    year: read('year'),
+  };
+};
+
+const getTimeZoneOffsetMs = (date: Date, timezone: string) => {
+  const parts = getDatePartsInTimezone(date, timezone);
+  const utcLike = Date.UTC(
+    parts.year,
+    parts.month - 1,
+    parts.day,
+    parts.hour,
+    parts.minute,
+    parts.second
   );
+
+  return utcLike - date.getTime();
+};
+
+// Calculates local-day start in the configured quota timezone.
+export const getCurrentLikeQuotaWindowStart = (now = new Date()) => {
+  const timezone = getQuotaResetTimezone();
+  const localNow = getDatePartsInTimezone(now, timezone);
+  const localMidnightUtc = Date.UTC(
+    localNow.year,
+    localNow.month - 1,
+    localNow.day,
+    0,
+    0,
+    0
+  );
+  const midnightOffsetMs = getTimeZoneOffsetMs(
+    new Date(localMidnightUtc),
+    timezone
+  );
+
+  return new Date(localMidnightUtc - midnightOffsetMs);
 };
 
 // Frontend can show this value as the next time normal likes refill.
 export const getNextLikeQuotaResetAt = (now = new Date()) =>
-  new Date(getCurrentLikeQuotaWindowStart(now).getTime() + 24 * 60 * 60 * 1000);
+  new Date(getCurrentLikeQuotaWindowStart(now).getTime() + DAY_MS);
 
 // Creates a compact cursor token that points to a cached ranked feed session.
 export const encodeFeedCursor = (cursor: ISwipeFeedCursor) =>
