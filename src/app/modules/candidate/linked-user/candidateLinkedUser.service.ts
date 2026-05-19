@@ -236,10 +236,10 @@ const addCandidateLinkedUser = async (
   await sendMailByBullMQ(
     {
       to: targetUser.email,
-      subject: 'You have been added to RistaPro',
+      subject: 'You have been added to RishtaPro',
       templateName: 'linkedUserGreet',
       templateData: {
-        ownerName: ownerUser?.full_name ?? 'A RistaPro member',
+        ownerName: ownerUser?.full_name ?? 'A RishtaPro member',
         candidateName: candidate?.name ?? 'the candidate',
         linkedUserName,
         linkedUserEmail: targetUser.email,
@@ -509,6 +509,14 @@ const removeCandidateLinkedUser = async (
 
 // 5. GET MY LINKED CANDIDATES
 const getMyLinkedCandidates = async (userId: string) => {
+  const authUser = await User.findById(userId)
+    .select('isVerified')
+    .lean<{ isVerified?: boolean } | null>();
+
+  if (!authUser) {
+    throw new AppError(StatusCodes.NOT_FOUND, 'User not found');
+  }
+
   const activeCandidateAccesses = await ensureSingleActiveCandidateAccessOrThrow({
     userId,
     message:
@@ -540,7 +548,9 @@ const getMyLinkedCandidates = async (userId: string) => {
   const candidate = linkedCandidate.candidate as TCandidateProfileLean;
   return [
     {
-      candidate: buildCandidateResponse(candidate),
+      candidate: buildCandidateResponse(candidate, {
+        userIsVerified: Boolean(authUser.isVerified),
+      }),
       management: await getCandidateManagementSummary(candidate._id.toString()),
       myAccess: buildMyAccessResponse(linkedCandidate),
     },

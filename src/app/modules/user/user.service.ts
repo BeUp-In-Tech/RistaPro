@@ -36,6 +36,8 @@ import PlanModel from '../plan/plan.model';
 import { getActiveCandidateAccessesForUser } from '../candidate/linked-user/candidateLinkedUser.access';
 import { buildSwipeQuotaResponse } from '../swipe/swipe.helper';
 import { ISwipeActionResponse } from '../swipe/swipe.interface';
+import { hasVerificationBadge } from '../candidate/candidate.utility';
+import { IVerificationStatus } from '../candidate/candidate.interface';
 
 
 // REUSABLE KEYS
@@ -46,7 +48,7 @@ const USER_DETAILS_SELECT =
   '_id full_name email picture isVerified isActive role createdAt updatedAt';
 const AUTH_USER_CONTEXT_SELECT =
   '_id full_name email picture isVerified isActive role createdAt updatedAt';
-const BASIC_CANDIDATE_CONTEXT_SELECT = '_id plan';
+const BASIC_CANDIDATE_CONTEXT_SELECT = '_id plan verification_status';
 
 
 // =========================================API LAYER (ADMIN)=========================================
@@ -444,7 +446,11 @@ const getCandidateLinkContext = async (userId: string) => {
     })
     .lean<
       (TActiveLinkedUserLean & {
-        candidate: { _id: unknown; plan?: PlanKey } | null;
+        candidate: {
+          _id: unknown;
+          plan?: PlanKey;
+          verification_status?: IVerificationStatus;
+        } | null;
       }) | null
     >();
 
@@ -454,6 +460,7 @@ const getCandidateLinkContext = async (userId: string) => {
       source: 'LINKED_USER',
       candidateId: linkedCandidate.candidate._id,
       plan: getPlanKeyOrDefault(linkedCandidate.candidate.plan),
+      verification_status: linkedCandidate.candidate.verification_status,
       myAccess: buildMyAccessResponse(linkedCandidate),
     };
   }
@@ -466,6 +473,7 @@ const getCandidateLinkContext = async (userId: string) => {
     .lean<{
       _id: unknown;
       plan?: PlanKey;
+      verification_status?: IVerificationStatus;
     } | null>();
 
   if (!legacyCandidate) {
@@ -474,6 +482,7 @@ const getCandidateLinkContext = async (userId: string) => {
       source: null,
       candidateId: null,
       plan: 'free' as PlanKey,
+      verification_status: undefined,
       myAccess: null,
     };
   }
@@ -483,6 +492,7 @@ const getCandidateLinkContext = async (userId: string) => {
     source: 'LEGACY_OWNER',
     candidateId: legacyCandidate._id,
     plan: getPlanKeyOrDefault(legacyCandidate.plan),
+    verification_status: legacyCandidate.verification_status,
     myAccess: {
       accessRole: CandidateLinkedUserAccessRole.OWNER,
       relationshipToCandidate: 'SELF',
@@ -520,6 +530,10 @@ const getMe = async (userId: string) => {
       },
     });
   }
+  const badge = hasVerificationBadge({
+    userIsVerified: Boolean(user.isVerified),
+    verificationStatus: candidateLink.verification_status,
+  });
 
   return {
     _id: user._id,
@@ -533,6 +547,7 @@ const getMe = async (userId: string) => {
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
     candidateLink,
+    badge,
     quota,
     permissions: {
       canViewSwipeFeed: candidateLink.isLinked,

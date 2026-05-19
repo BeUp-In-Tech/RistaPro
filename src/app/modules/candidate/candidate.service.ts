@@ -111,7 +111,9 @@ const createCandidate = async (
       createdBy: userId,
     });
 
-    const candidateResponse = buildCandidateResponse(createdCandidate.toObject());
+    const candidateResponse = buildCandidateResponse(createdCandidate.toObject(), {
+      userIsVerified: Boolean(user.isVerified),
+    });
 
     return {
       ...candidateResponse,
@@ -167,9 +169,10 @@ const updateCandidate = async (
   }
 
   const existingCandidate = await Candidate.findById(candidateId)
-    .select('_id images interests personality')
+    .select('_id user images interests personality')
     .lean<{
       _id: Types.ObjectId;
+      user: Types.ObjectId;
       images?: string[];
       interests?: InterestKey[];
       personality?: PersonalityKey[];
@@ -177,6 +180,14 @@ const updateCandidate = async (
 
   if (!existingCandidate) {
     throw new AppError(StatusCodes.NOT_FOUND, 'Candidate profile not found');
+  }
+
+  const candidateOwner = await User.findById(existingCandidate.user)
+    .select('isVerified')
+    .lean<{ isVerified?: boolean } | null>();
+
+  if (!candidateOwner) {
+    throw new AppError(StatusCodes.NOT_FOUND, 'Candidate owner not found');
   }
 
   const {
@@ -276,7 +287,9 @@ const updateCandidate = async (
     await deleteImageByBullMQ(deletedImagesFromProfile, deleteJobId);
   }
 
-  return buildCandidateResponse(updatedCandidate);
+  return buildCandidateResponse(updatedCandidate, {
+    userIsVerified: Boolean(candidateOwner.isVerified),
+  });
 };
 
 export const CandidateService = {

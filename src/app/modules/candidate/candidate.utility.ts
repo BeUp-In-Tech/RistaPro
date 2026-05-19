@@ -1,5 +1,11 @@
 import { CASTS, CHILDREN, DRINK_STATUSES, HIGHEST_EDUCATION, INTERESTS, MOVE_ABROAD, OCCUPATIONS, PERSONALITY_TRAITS, RELATIONSHIP_STATUSES, RELIGIONS, SECTS, SMOKE_STATUSES } from '../../constant/constant';
-import { ICandidateProfileFields, ICreateCandidatePayload, IUpdateCandidatePayload } from './candidate.interface';
+import {
+  ICandidateProfileFields,
+  ICreateCandidatePayload,
+  IUpdateCandidatePayload,
+  IVerificationStatus,
+  VerificationState,
+} from './candidate.interface';
 
 export const MAX_CANDIDATE_IMAGES = 6;
 
@@ -38,11 +44,43 @@ export const buildCandidateLabels = (candidate: Partial<ICandidateProfileFields>
   personality: candidate.personality?.map((v) => PERSONALITY_TRAITS[v as keyof typeof PERSONALITY_TRAITS]).filter(Boolean),
 });
 
+const isApproved = (status?: { status?: VerificationState }) =>
+  status?.status === VerificationState.APPROVED;
+
+// Badge is true only when profile is verified and all required verification steps are approved.
+export const hasVerificationBadge = (params: {
+  userIsVerified: boolean;
+  verificationStatus?: IVerificationStatus;
+}) => {
+  const { userIsVerified, verificationStatus } = params;
+  if (!userIsVerified || !verificationStatus) {
+    return false;
+  }
+
+  return (
+    isApproved(verificationStatus.face_verified) &&
+    isApproved(verificationStatus.id_verified) &&
+    isApproved(verificationStatus.education_verified) &&
+    isApproved(verificationStatus.parent_verified)
+  );
+};
+
 /**
  * Add labels to candidate response
  */
-export const buildCandidateResponse = <T extends Partial<ICandidateProfileFields>>(candidate: T) => ({
+export const buildCandidateResponse = <
+  T extends Partial<ICandidateProfileFields> & {
+    verification_status?: IVerificationStatus;
+  },
+>(
+  candidate: T,
+  options: { userIsVerified: boolean }
+) => ({
   ...candidate,
+  badge: hasVerificationBadge({
+    userIsVerified: options.userIsVerified,
+    verificationStatus: candidate.verification_status,
+  }),
   labels: buildCandidateLabels(candidate),
 });
 
