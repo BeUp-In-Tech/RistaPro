@@ -12,6 +12,7 @@ import { userRoutes } from '../modules/user/user.routes';
 import { documentRoutes } from '../modules/document/document.routes';
 import { rishtaProgressRoutes } from '../modules/rishta_progress/rishta_progress.routes';
 import { notificationRoutes } from '../modules/notification/notification.routes';
+import { visitorRoutes } from '../modules/visitor/visitor.routes';
 export const router = Router();
 
 const moduleRoutes = [
@@ -66,6 +67,10 @@ const moduleRoutes = [
   {
     path: '/rishta-progress',
     route: rishtaProgressRoutes,
+  },
+  {
+    path: '/visitors',
+    route: visitorRoutes,
   },
 ];
 

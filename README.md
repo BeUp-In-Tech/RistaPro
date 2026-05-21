@@ -11,6 +11,7 @@ Active modules today:
 - `candidate-preferences`
 - `swipes`
 - `likes`
+- `visitors`
 - `matches`
 - `conversations`
 - `messages`
@@ -96,6 +97,8 @@ These are the currently mounted APIs for the swipe-match flow:
 - `POST /api/v1/swipes/action`
 - `GET /api/v1/likes/received`
 - `GET /api/v1/likes/sent`
+- `POST /api/v1/visitors/track`
+- `GET /api/v1/visitors`
 - `GET /api/v1/matches`
 - `GET /api/v1/matches/:matchId`
 - `PATCH /api/v1/matches/:matchId/unmatch`
@@ -139,13 +142,15 @@ Notes:
 4. Review or update partner preferences with `GET /candidate-preferences/:candidateId`
 5. Load recommended profiles with `GET /swipes/feed?candidateId=<candidateId>`
 6. Like, super-like, or pass cards with `POST /swipes/action`
-7. Review sent likes with `GET /likes/sent?candidateId=<candidateId>`
-8. Gold/platinum candidates can review received likes with `GET /likes/received?candidateId=<candidateId>`
-9. If `POST /swipes/action` returns `matched: true`, use `match.conversation` for the chat thread
-10. Load active matches with `GET /matches?candidateId=<candidateId>`
-11. Open/list chat with `GET /conversations?candidateId=<candidateId>`
-12. Send chat messages with `POST /messages`
-13. If needed, add family members with linked-user APIs, then request chat inclusion with guardian request APIs
+7. Track profile detail opens with `POST /visitors/track`
+8. Review profile visitors with `GET /visitors?candidateId=<candidateId>`
+9. Review sent likes with `GET /likes/sent?candidateId=<candidateId>`
+10. Gold/platinum candidates can review received likes with `GET /likes/received?candidateId=<candidateId>`
+11. If `POST /swipes/action` returns `matched: true`, use `match.conversation` for the chat thread
+12. Load active matches with `GET /matches?candidateId=<candidateId>`
+13. Open/list chat with `GET /conversations?candidateId=<candidateId>`
+14. Send chat messages with `POST /messages`
+15. If needed, add family members with linked-user APIs, then request chat inclusion with guardian request APIs
 
 ### 4. Guardian-managed candidate profile
 
@@ -1551,6 +1556,136 @@ Response shape:
 
 ---
 
+## Profile Visitor Module
+
+Base path: `/api/v1/visitors`
+
+This module records profile detail visits and lists who visited a candidate profile.
+
+Security rules:
+
+- all endpoints require `Authorization: Bearer <accessToken>`
+- requester must be an active linked user of the acting/listed `candidateId`
+- visitor rows are unique per `visitedBy -> visitedProfile` pair
+- repeat visits update `lastVisitedAt` and increment `visitCount`
+
+### `POST /track`
+
+Purpose:
+
+- Track that one candidate opened another candidate's profile detail
+
+Auth:
+
+- `USER`
+
+Body:
+
+```json
+{
+  "candidateId": "viewer candidate id",
+  "visitedProfileId": "visited candidate id"
+}
+```
+
+Example:
+
+```http
+POST /api/v1/visitors/track
+Authorization: Bearer <accessToken>
+Content-Type: application/json
+```
+
+Behavior:
+
+- self-visits are ignored and return `tracked: false`
+- response is non-blocking; successful requests return after access validation and queue the Mongo upsert in-process
+- frontend should call this only after opening a real profile detail page from a valid feed/profile source
+- successful repeat visits update the same row, not a duplicate row
+
+Response data shape:
+
+```json
+{
+  "tracked": true,
+  "queued": true
+}
+```
+
+Self-visit response data:
+
+```json
+{
+  "tracked": false,
+  "reason": "SELF_VISIT"
+}
+```
+
+### `GET /`
+
+Purpose:
+
+- List candidates who visited this candidate profile
+
+Auth:
+
+- `USER`
+
+Query:
+
+- `candidateId`: required candidate profile id
+- `page`: optional, default `1`
+- `limit`: optional, default `20`, max `50`
+
+Example:
+
+```http
+GET /api/v1/visitors?candidateId=665f1a2b3c4d5e6f78901234&page=1&limit=20
+Authorization: Bearer <accessToken>
+```
+
+Response shape:
+
+```json
+{
+  "statusCode": 200,
+  "success": true,
+  "message": "Profile visitors retrieved successfully",
+  "data": [
+    {
+      "_id": "visitor candidate id",
+      "name": "Amna Khalid",
+      "age": 21,
+      "gender": "FEMALE",
+      "badge": true,
+      "images": ["https://image-url.jpg"],
+      "occupation": "STUDENT",
+      "religion": "ISLAM",
+      "livesIn": "Lahore",
+      "labels": {
+        "occupation": "Student",
+        "religion": "Islam"
+      },
+      "lastVisitedAt": "2026-05-21T10:00:00.000Z",
+      "visitCount": 3
+    }
+  ],
+  "meta": {
+    "page": 1,
+    "limit": 20,
+    "total": 12,
+    "totalPage": 1
+  }
+}
+```
+
+Notes:
+
+- `images` contains at most 1 image for the compact visitor card.
+- list sorting is fixed to newest `lastVisitedAt` first.
+
+---
+
 ## Match Module
 
 Base path: `/api/v1/matches`
@@ -2933,18 +3068,20 @@ Content-Type: application/json
 5. Load or update `/candidate-preferences/:candidateId`
 6. Load `/swipes/feed?candidateId=<candidateId>` for the discovery stack
 7. Send `/swipes/action` when the user likes, super-likes, or passes a card
-8. If a swipe response has `matched: true`, store `match._id` and `match.conversation`
-9. Load `/matches?candidateId=<candidateId>` for the user's active match list
-10. Load `/conversations?candidateId=<candidateId>` for the chat inbox
-11. Send `/messages` for text chat
-12. Use `/conversations/message-requests` when users are not matched yet
-13. Use `/conversations/:conversationId/guardian-requests` before allowing a parent or guardian into a chat
-14. Load `/rishta-progress?candidateId=<candidateId>&otherCandidateId=<otherCandidateId>` to render the progress widget
-15. Use `/rishta-progress/marriage-requests` when a candidate owner or consultant wants to start marriage confirmation
-16. Use `GET /rishta-progress/marriage-requests?candidateId=<candidateId>` to show all marriage requests for the current candidate
-17. Poll or socket-sync `/notifications` for marriage request alerts and mark opened alerts with `/notifications/:id/seen`
-18. Load `/candidates/my_linked_profiles` after login to fetch the current account's candidate access
-19. Use linked-user APIs to add father, mother, consultant, or other guardians
+8. Send `/visitors/track` when the user opens a profile detail page
+9. Load `/visitors?candidateId=<candidateId>` to show who visited the current profile
+10. If a swipe response has `matched: true`, store `match._id` and `match.conversation`
+11. Load `/matches?candidateId=<candidateId>` for the user's active match list
+12. Load `/conversations?candidateId=<candidateId>` for the chat inbox
+13. Send `/messages` for text chat
+14. Use `/conversations/message-requests` when users are not matched yet
+15. Use `/conversations/:conversationId/guardian-requests` before allowing a parent or guardian into a chat
+16. Load `/rishta-progress?candidateId=<candidateId>&otherCandidateId=<otherCandidateId>` to render the progress widget
+17. Use `/rishta-progress/marriage-requests` when a candidate owner or consultant wants to start marriage confirmation
+18. Use `GET /rishta-progress/marriage-requests?candidateId=<candidateId>` to show all marriage requests for the current candidate
+19. Poll or socket-sync `/notifications` for marriage request alerts and mark opened alerts with `/notifications/:id/seen`
+20. Load `/candidates/my_linked_profiles` after login to fetch the current account's candidate access
+21. Use linked-user APIs to add father, mother, consultant, or other guardians
 
 ## Maintenance Note
 
