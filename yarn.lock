@@ -832,6 +832,14 @@ agent-base@^7.1.2:
   resolved "https://registry.yarnpkg.com/agent-base/-/agent-base-7.1.4.tgz#e3cd76d4c548ee895d3c3fd8dc1f6c5b9032e7a8"
   integrity sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ==
 
+agora-access-token@^2.0.4:
+  version "2.0.4"
+  resolved "https://registry.yarnpkg.com/agora-access-token/-/agora-access-token-2.0.4.tgz#6a6d5996011f6000035d923342296c2594d94f82"
+  integrity sha512-RtOIvi4PqV1ok3rdnopMZeVwiUqZgG9Pp56kqxJc5cU/+ljRBzs1Al+IThD5ahm528dGsdY1TyP1bJdqmgBCbQ==
+  dependencies:
+    crc-32 "1.2.0"
+    cuint "0.2.2"
+
 ajv@^6.14.0:
   version "6.14.0"
   resolved "https://registry.yarnpkg.com/ajv/-/ajv-6.14.0.tgz#fd067713e228210636ebb08c60bd3765d6dbe73a"
@@ -1193,6 +1201,14 @@ cors@^2.8.5, cors@~2.8.5:
     object-assign "^4"
     vary "^1"
 
+crc-32@1.2.0:
+  version "1.2.0"
+  resolved "https://registry.yarnpkg.com/crc-32/-/crc-32-1.2.0.tgz#cb2db6e29b88508e32d9dd0ec1693e7b41a18208"
+  integrity sha512-1uBwHxF+Y/4yF5G48fwnKq6QsIXheor3ZLPT80yGBV1oEUwpPojlEhQbWKVw1VwcTQyMGHK1/XMmTjmlsmTTGA==
+  dependencies:
+    exit-on-epipe "~1.0.1"
+    printj "~1.1.0"
+
 create-require@^1.1.0:
   version "1.1.1"
   resolved "https://registry.yarnpkg.com/create-require/-/create-require-1.1.1.tgz#c1d7e8f1e5f6cfc9ff65f9cd352d37348756c333"
@@ -1213,6 +1229,11 @@ cross-spawn@^7.0.6:
     path-key "^3.1.0"
     shebang-command "^2.0.0"
     which "^2.0.1"
+
+cuint@0.2.2:
+  version "0.2.2"
+  resolved "https://registry.yarnpkg.com/cuint/-/cuint-0.2.2.tgz#408086d409550c2631155619e9fa7bcadc3b991b"
+  integrity sha512-d4ZVpCW31eWwCMe1YT3ur7mUDnTXbgwyzaL320DrcRT45rfjYxkt5QWLrmOJ+/UEAI2+fQgKe/fCjR8l4TpRgw==
 
 data-uri-to-buffer@^4.0.0:
   version "4.0.1"
@@ -1505,6 +1526,11 @@ event-target-shim@^5.0.0:
   version "5.0.1"
   resolved "https://registry.yarnpkg.com/event-target-shim/-/event-target-shim-5.0.1.tgz#5d4d3ebdf9583d63a5333ce2deb7480ab2b05789"
   integrity sha512-i/2XbnSz/uxRCU6+NdVJgKWDTM427+MqYbkQzD321DuCQJUqOuJKIA0IM2+W2xtYHdKOmZ4dR6fExsd4SXL+WQ==
+
+exit-on-epipe@~1.0.1:
+  version "1.0.1"
+  resolved "https://registry.yarnpkg.com/exit-on-epipe/-/exit-on-epipe-1.0.1.tgz#0bdd92e87d5285d267daa8171d0eb06159689692"
+  integrity sha512-h2z5mrROTxce56S+pnvAV890uu7ls7f1kEvVGJbw1OlFH3/mlJ5bkXu0KRyW94v37zzHPiUd55iLn3DA7TjWpw==
 
 express-mongo-sanitize@^2.2.0:
   version "2.2.0"
@@ -2798,6 +2824,11 @@ prettier@^3.6.2:
   version "3.8.1"
   resolved "https://registry.yarnpkg.com/prettier/-/prettier-3.8.1.tgz#edf48977cf991558f4fcbd8a3ba6015ba2a3a173"
   integrity sha512-UOnG6LftzbdaHZcKoPFtOcCKztrQ57WkHDeRD9t/PTQtmT0NHSeWWepj6pS0z/N7+08BHFDQVUrfmfMRcZwbMg==
+
+printj@~1.1.0:
+  version "1.1.2"
+  resolved "https://registry.yarnpkg.com/printj/-/printj-1.1.2.tgz#d90deb2975a8b9f600fb3a1c94e3f4c53c78a222"
+  integrity sha512-zA2SmoLaxZyArQTOPj5LXecR+RagfPSU5Kw1qP+jkWeNlrq+eJZyY2oS68SU1Z/7/myXM4lo9716laOFAVStCQ==
 
 proto3-json-serializer@^2.0.2:
   version "2.0.2"

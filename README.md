@@ -15,6 +15,7 @@ Active modules today:
 - `matches`
 - `conversations`
 - `messages`
+- `calls`
 - `notifications`
 - `rishta-progress`
 - `documents`
@@ -106,6 +107,9 @@ These are the currently mounted APIs for the swipe-match flow:
 - `POST /api/v1/conversations/matches/:matchId/start`
 - `POST /api/v1/conversations/message-requests`
 - `POST /api/v1/messages`
+- `POST /api/v1/calls/start`
+- `POST /api/v1/calls/:callId/accept`
+- `POST /api/v1/calls/:callId/participants/invite`
 - `GET /api/v1/rishta-progress`
 - `POST /api/v1/rishta-progress/marriage-requests`
 - `GET /api/v1/rishta-progress/marriage-requests`
@@ -150,7 +154,9 @@ Notes:
 12. Load active matches with `GET /matches?candidateId=<candidateId>`
 13. Open/list chat with `GET /conversations?candidateId=<candidateId>`
 14. Send chat messages with `POST /messages`
-15. If needed, add family members with linked-user APIs, then request chat inclusion with guardian request APIs
+15. Start audio/video calls with `POST /calls/start`
+16. If needed, add family members with linked-user APIs, then request chat inclusion with guardian request APIs
+17. Invite already-involved linked users into an active call with `POST /calls/:callId/participants/invite`
 
 ### 4. Guardian-managed candidate profile
 
@@ -1865,6 +1871,252 @@ Detailed docs: `src/app/modules/message/API.md`
 
 ---
 
+## Call Module
+
+Base path: `/api/v1/calls`
+
+The call module is the backend control plane for Agora RTC. The backend does not carry audio/video media; Agora carries media streams, while this API validates permissions, creates call state, generates RTC tokens, emits Socket.IO events, and sends push notifications.
+
+Required package:
+
+```bash
+yarn add agora-access-token
+```
+
+Environment:
+
+```text
+AGORA_APP_ID=<Agora app id>
+AGORA_APP_CERTIFICATE=<Agora app certificate>
+AGORA_TOKEN_TTL_SECONDS=3600
+CALL_RING_TIMEOUT_SECONDS=60
+CALL_MAX_PARTICIPANTS=6
+```
+
+Security rules:
+
+- all endpoints require `Authorization: Bearer <accessToken>`
+- only the active `SELF` owner linked user can start, accept, reject, or invite for a candidate side
+- audio calls require the caller candidate plan to allow `canAudioCall`
+- video calls require the caller candidate plan to allow `canVideoCall`
+- linked users can join calls only after they are already active in `conversation.guardianParticipants`
+- backend returns Agora `appId`, `channelName`, `token`, and numeric `uid`; clients join Agora with those values
+
+Socket.IO events:
+
+- `call:ringing`
+- `call:accepted`
+- `call:rejected`
+- `call:ended`
+- `call:participant-invited`
+- `call:participant-joined`
+- `call:participant-rejected`
+
+### `POST /start`
+
+Purpose:
+
+- Start a 1-to-1 audio/video call inside an existing open conversation
+- Return the caller's Agora token immediately
+- Ring the receiver candidate's `SELF` owner through Socket.IO and push notification
+
+Body:
+
+```json
+{
+  "conversationId": "conversation id",
+  "candidateId": "caller candidate id",
+  "type": "VIDEO"
+}
+```
+
+Example:
+
+```http
+POST /api/v1/calls/start
+Authorization: Bearer <callerToken>
+Content-Type: application/json
+```
+
+Response data shape:
+
+```json
+{
+  "call": {
+    "_id": "call id",
+    "conversation": "conversation id",
+    "channelName": "call_665f1a2b3c4d5e6f78901234",
+    "type": "VIDEO",
+    "status": "INITIATED",
+    "callerCandidate": "candidate A",
+    "receiverCandidate": "candidate B",
+    "ringExpiresAt": "2026-05-21T10:01:00.000Z",
+    "participants": []
+  },
+  "agora": {
+    "appId": "Agora app id",
+    "channelName": "call_665f1a2b3c4d5e6f78901234",
+    "token": "Agora RTC token",
+    "uid": 123456,
+    "expiresAt": "2026-05-21T11:00:00.000Z"
+  }
+}
+```
+
+### `POST /:callId/accept`
+
+Purpose:
+
+- Receiver candidate's `SELF` owner accepts the ringing call
+- Returns the receiver's Agora token
+
+Body:
+
+```json
+{
+  "candidateId": "receiver candidate id"
+}
+```
+
+Behavior:
+
+- call must still be `INITIATED`
+- request must happen before `ringExpiresAt`
+- call becomes `ACTIVE`
+- emits `call:accepted`
+
+### `POST /:callId/reject`
+
+Purpose:
+
+- Receiver candidate's `SELF` owner rejects the ringing call
+
+Body:
+
+```json
+{
+  "candidateId": "receiver candidate id"
+}
+```
+
+Behavior:
+
+- call becomes `REJECTED`
+- emits `call:rejected`
+
+### `POST /:callId/end`
+
+Purpose:
+
+- End an active or ringing call
+
+Body:
+
+```json
+{
+  "candidateId": "joined candidate id"
+}
+```
+
+Behavior:
+
+- active participant can end the call
+- call becomes `COMPLETED`
+- emits `call:ended`
+
+### `POST /:callId/token`
+
+Purpose:
+
+- Renew an Agora token for a joined active call participant
+
+Body:
+
+```json
+{
+  "candidateId": "candidate id"
+}
+```
+
+Response data shape:
+
+```json
+{
+  "appId": "Agora app id",
+  "channelName": "call_665f1a2b3c4d5e6f78901234",
+  "token": "Agora RTC token",
+  "uid": 123456,
+  "expiresAt": "2026-05-21T11:00:00.000Z"
+}
+```
+
+### `POST /:callId/participants/invite`
+
+Purpose:
+
+- Invite an already-involved linked user to join an active call
+
+Body:
+
+```json
+{
+  "candidateId": "candidate id",
+  "linkedUserId": "linked user id"
+}
+```
+
+Rules:
+
+- inviter must be the active `SELF` owner of `candidateId`
+- inviter must already be joined in the call
+- `linkedUserId` must already be active in the conversation's `guardianParticipants`
+- max participants defaults to `6`
+- emits `call:participant-invited`
+
+### `POST /:callId/participants/respond`
+
+Purpose:
+
+- Invited linked user accepts or rejects a call invitation
+
+Body:
+
+```json
+{
+  "candidateId": "candidate id",
+  "linkedUserId": "linked user id",
+  "action": "ACCEPT"
+}
+```
+
+Behavior:
+
+- `ACCEPT` marks the linked user as joined and returns an Agora token
+- `REJECT` marks the linked user invitation as rejected
+- emits `call:participant-joined` or `call:participant-rejected`
+
+### `GET /:callId`
+
+Purpose:
+
+- Read current call state
+
+Auth:
+
+- any call participant user
+
+Client integration flow:
+
+1. Caller opens chat and calls `POST /calls/start`.
+2. Caller joins Agora using `data.agora.appId`, `channelName`, `token`, and numeric `uid`.
+3. Receiver listens for `call:ringing`, then calls `POST /calls/:callId/accept`.
+4. Receiver joins Agora with the returned token.
+5. Either side calls `POST /calls/:callId/end`.
+6. For long calls, joined participants refresh with `POST /calls/:callId/token` before token expiry.
+7. To include family, first use the existing conversation guardian request flow. After the linked user is active in the chat, the candidate `SELF` owner can invite them into the active call.
+
+---
+
 ## Notification Module
 
 Base path: `/api/v1/notifications`
@@ -3074,14 +3326,17 @@ Content-Type: application/json
 11. Load `/matches?candidateId=<candidateId>` for the user's active match list
 12. Load `/conversations?candidateId=<candidateId>` for the chat inbox
 13. Send `/messages` for text chat
-14. Use `/conversations/message-requests` when users are not matched yet
-15. Use `/conversations/:conversationId/guardian-requests` before allowing a parent or guardian into a chat
-16. Load `/rishta-progress?candidateId=<candidateId>&otherCandidateId=<otherCandidateId>` to render the progress widget
-17. Use `/rishta-progress/marriage-requests` when a candidate owner or consultant wants to start marriage confirmation
-18. Use `GET /rishta-progress/marriage-requests?candidateId=<candidateId>` to show all marriage requests for the current candidate
-19. Poll or socket-sync `/notifications` for marriage request alerts and mark opened alerts with `/notifications/:id/seen`
-20. Load `/candidates/my_linked_profiles` after login to fetch the current account's candidate access
-21. Use linked-user APIs to add father, mother, consultant, or other guardians
+14. Start audio/video calls with `/calls/start` from an open 1-to-1 conversation
+15. Renew long call tokens with `/calls/:callId/token` and end calls with `/calls/:callId/end`
+16. Use `/conversations/message-requests` when users are not matched yet
+17. Use `/conversations/:conversationId/guardian-requests` before allowing a parent or guardian into a chat
+18. Invite already-involved linked users into an active call with `/calls/:callId/participants/invite`
+19. Load `/rishta-progress?candidateId=<candidateId>&otherCandidateId=<otherCandidateId>` to render the progress widget
+20. Use `/rishta-progress/marriage-requests` when a candidate owner or consultant wants to start marriage confirmation
+21. Use `GET /rishta-progress/marriage-requests?candidateId=<candidateId>` to show all marriage requests for the current candidate
+22. Poll or socket-sync `/notifications` for marriage request alerts and mark opened alerts with `/notifications/:id/seen`
+23. Load `/candidates/my_linked_profiles` after login to fetch the current account's candidate access
+24. Use linked-user APIs to add father, mother, consultant, or other guardians
 
 ## Maintenance Note
 

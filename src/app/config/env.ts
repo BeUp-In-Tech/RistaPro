@@ -38,6 +38,12 @@ interface EnvInterfaces {
   GOOGLE_IOS_CLIENT_ID: string;
   GOOGLE_ANDROID_CLIENT_ID: string;
 
+  AGORA_APP_ID: string;
+  AGORA_APP_CERTIFICATE: string;
+  AGORA_TOKEN_TTL_SECONDS: number;
+  CALL_RING_TIMEOUT_SECONDS: number;
+  CALL_MAX_PARTICIPANTS: number;
+
   ADMIN_MAIL: string;
   ADMIN_PASSWORD: string;
 
@@ -172,6 +178,16 @@ const loadEnvVariables = (): EnvInterfaces => {
     GOOGLE_CALLBACK_URL: process.env.GOOGLE_CALLBACK_URL as string,
     GOOGLE_IOS_CLIENT_ID: process.env.GOOGLE_IOS_CLIENT_ID as string,
     GOOGLE_ANDROID_CLIENT_ID: process.env.GOOGLE_ANDROID_CLIENT_ID as string,
+
+    AGORA_APP_ID: process.env.AGORA_APP_ID ?? '',
+    AGORA_APP_CERTIFICATE: process.env.AGORA_APP_CERTIFICATE ?? '',
+    AGORA_TOKEN_TTL_SECONDS: Number(
+      process.env.AGORA_TOKEN_TTL_SECONDS ?? 3600
+    ),
+    CALL_RING_TIMEOUT_SECONDS: Number(
+      process.env.CALL_RING_TIMEOUT_SECONDS ?? 60
+    ),
+    CALL_MAX_PARTICIPANTS: Number(process.env.CALL_MAX_PARTICIPANTS ?? 6),
 
     ADMIN_MAIL: process.env.ADMIN_MAIL as string,
     ADMIN_PASSWORD: process.env.ADMIN_PASSWORD as string,
