@@ -5,20 +5,33 @@ export enum NotificationType {
   MATCH = 'MATCH',
   CALL = 'CALL',
   MESSAGE = 'MESSAGE',
+  MARRIAGE_REQUEST = 'MARRIAGE_REQUEST',
   SYSTEM = 'SYSTEM',
   REMINDER = 'REMINDER',
 }
 
-export interface INotification extends Document {
-  user: Types.ObjectId;
+export interface INotificationPayload {
+  user: Types.ObjectId | string;
   type: NotificationType;
   title: string;
   body: string;
   entityId?: Types.ObjectId;
   webUrl?: string;
   deepLink?: string;
-  isSeen: boolean;
   data?: Record<string, unknown>;
+}
+
+export interface INotification extends Document, INotificationPayload {
+  user: Types.ObjectId;
+  isSeen: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+export interface INotificationListQuery {
+  page: number;
+  limit: number;
+  isSeen?: boolean;
 }
 
 export interface NotificationChannel {

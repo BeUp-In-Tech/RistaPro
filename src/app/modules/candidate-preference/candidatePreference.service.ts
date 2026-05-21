@@ -189,6 +189,7 @@ const updateCandidatePreference = async (
   const updatedPreference = await CandidatePreference.findOneAndUpdate(
     { candidate: candidateId },
     buildPreferencePatchOperation({
+      candidateGender: seed.gender,
       payload,
       userId,
     }),

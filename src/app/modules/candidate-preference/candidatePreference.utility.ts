@@ -60,19 +60,44 @@ export const getDefaultPreferredGenders = (gender: Gender) => {
 const getUniqueValues = <T extends string>(values?: T[]) =>
   values ? Array.from(new Set(values)) : undefined;
 
+export const getNormalizedPreferredGenders = (
+  candidateGender: Gender,
+  preferredGenders?: Gender[]
+) => {
+  if (candidateGender === Gender.MALE) {
+    return [Gender.FEMALE];
+  }
+
+  if (candidateGender === Gender.FEMALE) {
+    return [Gender.MALE];
+  }
+
+  const uniquePreferredGenders = getUniqueValues(preferredGenders);
+  return uniquePreferredGenders?.length
+    ? uniquePreferredGenders
+    : getDefaultPreferredGenders(candidateGender);
+};
+
 // Builds hard-vs-soft filter flags for feed matching, with age becoming strict only when bounded.
 export const buildStrictFilters = (
   payload: ICandidatePreferencePayload = {}
-): ICandidatePreferenceStrictFilters => ({
-  gender: true,
-  // Age becomes strict automatically only when an age boundary exists.
-  age: payload.ageMin !== undefined || payload.ageMax !== undefined,
-  height: false,
-  religion: false,
-  caste: false,
-  location: false,
-  ...(payload.strictFilters ?? {}),
-});
+): ICandidatePreferenceStrictFilters => {
+  const strictFilters = {
+    gender: true,
+    // Age becomes strict automatically only when an age boundary exists.
+    age: payload.ageMin !== undefined || payload.ageMax !== undefined,
+    height: false,
+    religion: false,
+    caste: false,
+    location: false,
+    ...(payload.strictFilters ?? {}),
+  };
+
+  return {
+    ...strictFilters,
+    gender: true,
+  };
+};
 
 // Creates the initial preference document right after candidate profile creation.
 export const buildDefaultPreferencePayload = (params: {
@@ -85,7 +110,7 @@ export const buildDefaultPreferencePayload = (params: {
   return {
     candidate: candidateId,
     createdBy,
-    preferredGenders: getDefaultPreferredGenders(candidateGender),
+    preferredGenders: getNormalizedPreferredGenders(candidateGender),
     strictFilters: buildStrictFilters(),
   };
 };
@@ -100,9 +125,10 @@ export const buildPreferenceReplaceOperation = (params: {
   const { candidateGender, candidateId, payload, userId } = params;
   const $set: Record<string, unknown> = {
     candidate: candidateId,
-    preferredGenders:
-      getUniqueValues(payload.preferredGenders) ??
-      getDefaultPreferredGenders(candidateGender),
+    preferredGenders: getNormalizedPreferredGenders(
+      candidateGender,
+      payload.preferredGenders
+    ),
     strictFilters: buildStrictFilters(payload),
     updatedBy: userId,
   };
@@ -131,15 +157,21 @@ export const buildPreferenceReplaceOperation = (params: {
 
 // Builds a partial update operation where only sent fields are touched.
 export const buildPreferencePatchOperation = (params: {
+  candidateGender: Gender;
   payload: ICandidatePreferencePayload;
   userId: string | Types.ObjectId;
 }) => {
-  const { payload, userId } = params;
+  const { candidateGender, payload, userId } = params;
   const $set: Record<string, unknown> = { updatedBy: userId };
   const $unset: Record<string, ''> = {};
+  const shouldForcePreferredGenders =
+    candidateGender === Gender.MALE || candidateGender === Gender.FEMALE;
 
-  if (payload.preferredGenders !== undefined) {
-    $set.preferredGenders = getUniqueValues(payload.preferredGenders);
+  if (shouldForcePreferredGenders || payload.preferredGenders !== undefined) {
+    $set.preferredGenders = getNormalizedPreferredGenders(
+      candidateGender,
+      payload.preferredGenders
+    );
   }
 
   for (const field of arrayPreferenceFields) {
@@ -165,6 +197,8 @@ export const buildPreferencePatchOperation = (params: {
       }
     }
   }
+
+  $set['strictFilters.gender'] = true;
 
   return {
     $set,

@@ -4,6 +4,7 @@ import AppError from '../../errorHelpers/AppError';
 import { emitChatEvent } from '../../socket/socket';
 import { getActiveLinkedUserAccessOrThrow } from '../candidate/linked-user/candidateLinkedUser.helper';
 import {
+  CandidateLinkedUserRelation,
   CandidateLinkedUserStatus,
   TActiveLinkedUserLean,
 } from '../candidate/linked-user/candidateLinkedUser.interface';
@@ -58,6 +59,11 @@ import {
 } from './conversationGuardianRequest.interface';
 import Message from '../message/message.model';
 import { MessageType } from '../message/message.interface';
+import { RishtaProgressService } from '../rishta_progress/rishta_progress.service';
+import {
+  RishtaProgressStep,
+  RishtaProgressStepSource,
+} from '../rishta_progress/rishta_progress.interface';
 
 // POST /conversations/matches/:matchId/start - opens the chat for an active match.
 const startMatchConversation = async (
@@ -85,6 +91,15 @@ const startMatchConversation = async (
   if (!conversation) {
     throw new AppError(StatusCodes.NOT_FOUND, 'Conversation not found');
   }
+
+  await RishtaProgressService.completeAutomaticStep({
+    candidateIds: match.candidates,
+    completedBy: userId,
+    conversationId: conversation._id,
+    matchId: match._id,
+    source: RishtaProgressStepSource.MATCH_CHAT_STARTED,
+    step: RishtaProgressStep.START_CHAT,
+  });
 
   emitChatEvent({
     conversationId: conversation._id.toString(),
@@ -431,6 +446,14 @@ const acceptMessageRequest = async (
     $set: { lastMessage: firstMessage._id },
   });
 
+  await RishtaProgressService.completeAutomaticStep({
+    candidateIds: participants,
+    completedBy: userId,
+    conversationId: conversation._id,
+    source: RishtaProgressStepSource.MESSAGE_REQUEST_ACCEPTED,
+    step: RishtaProgressStep.START_CHAT,
+  });
+
   const audienceUserIds = await getConversationAudienceUserIds(conversation);
   const responsePayload = {
     conversation: {
@@ -769,6 +792,35 @@ const acceptGuardianRequest = async (
 
   if (!conversation) {
     throw new AppError(StatusCodes.NOT_FOUND, 'Conversation not found');
+  }
+
+  const familyRelations = new Set([
+    CandidateLinkedUserRelation.FATHER,
+    CandidateLinkedUserRelation.MOTHER,
+    CandidateLinkedUserRelation.BROTHER,
+    CandidateLinkedUserRelation.SISTER,
+    CandidateLinkedUserRelation.GUARDIAN,
+    CandidateLinkedUserRelation.RELATIVE,
+  ]);
+  const acceptedLinkedUser = await CandidateLinkedUser.findById(
+    request.requestedGuardianLinkedUser
+  )
+    .select('relationshipToCandidate')
+    .lean<{ relationshipToCandidate: CandidateLinkedUserRelation } | null>();
+
+  if (
+    acceptedLinkedUser &&
+    familyRelations.has(acceptedLinkedUser.relationshipToCandidate)
+  ) {
+    await RishtaProgressService.completeAutomaticStep({
+      candidateIds: conversation.participants,
+      completedBy: userId,
+      conversationId: conversation._id,
+      matchId: conversation.match,
+      referenceId: request._id,
+      source: RishtaProgressStepSource.GUARDIAN_ACCEPTED,
+      step: RishtaProgressStep.PARENT_INVOLVES,
+    });
   }
 
   const audienceUserIds = await getConversationAudienceUserIds(conversation);

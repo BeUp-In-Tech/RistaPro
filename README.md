@@ -14,6 +14,8 @@ Active modules today:
 - `matches`
 - `conversations`
 - `messages`
+- `notifications`
+- `rishta-progress`
 - `documents`
 
 Other route files may exist in the codebase, but they are not publicly available until they are mounted in the main router.
@@ -101,6 +103,10 @@ These are the currently mounted APIs for the swipe-match flow:
 - `POST /api/v1/conversations/matches/:matchId/start`
 - `POST /api/v1/conversations/message-requests`
 - `POST /api/v1/messages`
+- `GET /api/v1/rishta-progress`
+- `POST /api/v1/rishta-progress/marriage-requests`
+- `GET /api/v1/rishta-progress/marriage-requests`
+- `GET /api/v1/notifications`
 
 Notes:
 
@@ -108,6 +114,8 @@ Notes:
 - a match also creates or returns one `Conversation`
 - the conversation id is returned as `match.conversation`
 - chat message, message-request, and guardian-request routes are mounted
+- rishta progress updates automatically from match, chat, parent involvement, and marriage approval events
+- marriage confirmation requests create DB notifications and Firebase push jobs
 - realtime chat events are emitted through Socket.IO
 
 ### 1. User login with Google
@@ -149,22 +157,25 @@ Notes:
 
 ---
 
-## Auth Module
+## Product Feature Overview
 
-<<<<<<< HEAD
-- **Create Account & candidate profile**: User can create their basic profile. And then to showcasing him/her can create a candidate profile. This candidate profile will be visible to everyone.
-- **Swap**: Candidate can explore oponnent profile. Thee is a like, dislike and Swap system available. If both candidate like themselves, a match will create for them.
-- **Chat System**: Candidate can chat by text, audio and video call. There is a versatile Chat system with smooth Audio and Video call.
-- **Rista Progress**: The system will track Rista progress. For example, candidate A and B started chatting, the progress will show they are ahead 25% of the progress. And then they liked each other, the progress will be 50%. If both candidate involves their parent here, the progress will be 75%. After If they done marriage the progress will be 100%. 
-- **Parental controll**: Parent can controll their child profile. The can create their own profile and create a candidate profile for their child. 
+- **Create Account & Candidate Profile**: Users can create their account and then create a candidate profile for matchmaking.
+- **Swipe**: Candidates can explore profiles, like, super-like, or pass. Mutual positive actions create a match.
+- **Chat System**: Candidates can chat by text, with audio/video call support handled by the call module.
+- **Rishta Progress**: The system tracks a pair through `MATCHES`, `START_CHAT`, `PARENT_INVOLVES`, and `SHAADI`.
+- **Marriage Approval**: Candidate owners and consultants create marriage confirmation requests; Shaadi is completed only after the required candidate-side approval, while admin can confirm directly.
+- **Parental Control**: Parents or guardians can manage a candidate profile through linked-user access and can join a chat after the opposite side accepts the guardian request.
 - **Documents verification**:
   - Face verification
   - Educational documents verification
   - Parent verification
   - Id verification
-- **Privacy**: We keep user's data secure. A secure database handle user's data and documents with high quality privacy system. All the documents reviewd by our technical team.
+- **Privacy**: User data and documents are stored securely and reviewed through the verification workflow.
  
-=======
+---
+
+## Auth Module
+
 Base path: `/api/v1/auth`
 
 ### `GET /google`
@@ -337,7 +348,6 @@ Response data shape:
 ---
 
 ## User Module
->>>>>>> working
 
 Base path: `/api/v1/users`
 
@@ -1720,6 +1730,345 @@ Detailed docs: `src/app/modules/message/API.md`
 
 ---
 
+## Notification Module
+
+Base path: `/api/v1/notifications`
+
+This module stores in-app notification rows and supports Firebase push delivery through the BullMQ notification worker. Flutter and React clients should register device tokens through `POST /users/devices`.
+
+Security rules:
+
+- all endpoints require `Authorization: Bearer <accessToken>`
+- users can only read or update their own notifications
+- notification rows are saved even when the user has no active FCM device token
+
+### `GET /`
+
+Purpose:
+
+- List current user's notifications newest first
+
+Auth:
+
+- Bearer token, any role
+
+Query:
+
+- `page`: default `1`
+- `limit`: default `20`, max `100`
+- `isSeen`: optional boolean filter
+
+Example:
+
+```http
+GET /api/v1/notifications?page=1&limit=20&isSeen=false
+Authorization: Bearer <accessToken>
+```
+
+### `PATCH /:id/seen`
+
+Purpose:
+
+- Mark one notification as seen
+
+Auth:
+
+- Bearer token, any role
+
+Example:
+
+```http
+PATCH /api/v1/notifications/665f1a2b3c4d5e6f78901234/seen
+Authorization: Bearer <accessToken>
+```
+
+Marriage notification data includes:
+
+- `type: "MARRIAGE_REQUEST"`
+- `entityId`: marriage request or progress id
+- `deepLink`: Flutter/mobile route target
+- `webUrl`: React/web route target
+- `data.requestId`, `data.progressId`, `data.pairKey`, `data.candidateIds`, and `data.action`
+
+---
+
+## Rishta Progress Module
+
+Base path: `/api/v1/rishta-progress`
+
+This module tracks a candidate pair through the rishta journey and handles marriage confirmation approval.
+
+Progress steps:
+
+- `MATCHES`: completed when mutual swipe creates/returns a match
+- `START_CHAT`: completed when a match chat starts, a message is sent, or a message request is accepted
+- `PARENT_INVOLVES`: completed when an accepted parent/family/guardian request includes a family linked user in chat
+- `SHAADI`: completed only by accepted marriage approval or admin direct confirmation
+
+Security rules:
+
+- candidate progress read requires active linked-user access for the provided `candidateId`
+- candidate marriage request creation requires `OWNER` access for one candidate in the pair
+- candidate marriage request listing requires `OWNER` access for the provided `candidateId`
+- consultant marriage request creation requires the consultant user to be actively linked as `CONSULTANT` to at least one candidate in the pair
+- accepting/rejecting marriage requests requires `OWNER` access for the responding candidate
+- admin direct confirmation requires `ADMIN`
+- married candidates are excluded from swipe feed and cannot perform new swipe actions
+
+### `GET /`
+
+Purpose:
+
+- Get or create the rishta progress row for a pair
+
+Auth:
+
+- `USER`
+
+Query must include `candidateId` plus one locator:
+
+- `otherCandidateId`
+- `matchId`
+- `conversationId`
+- `progressId`
+
+Example:
+
+```http
+GET /api/v1/rishta-progress?candidateId={{candidateA}}&otherCandidateId={{candidateB}}
+Authorization: Bearer {{tokenA}}
+```
+
+Response data shape:
+
+```json
+{
+  "_id": "progress id",
+  "pairKey": "candidateA_candidateB",
+  "candidates": ["candidateA", "candidateB"],
+  "completedSteps": ["MATCHES", "START_CHAT"],
+  "progressValue": 50,
+  "status": "ACTIVE",
+  "match": "match id",
+  "conversation": "conversation id",
+  "marriedAt": null
+}
+```
+
+### `POST /marriage-requests`
+
+Purpose:
+
+- Create a marriage confirmation request
+
+Auth:
+
+- `USER` candidate owner or `CONSULTANT`
+
+Body must include one pair locator:
+
+```json
+{
+  "candidateId": "candidate A id",
+  "otherCandidateId": "candidate B id"
+}
+```
+
+Alternate body examples:
+
+```json
+{ "matchId": "match id" }
+```
+
+```json
+{ "conversationId": "conversation id" }
+```
+
+Behavior:
+
+- candidate owner request auto-approves the requester's candidate side and notifies the opposite candidate owners
+- consultant request notifies both candidate owner sides and requires both sides to accept
+- only one pending marriage request can exist for a pair
+- notification rows and push jobs are created for target owners
+
+### `GET /marriage-requests`
+
+Purpose:
+
+- List marriage confirmation requests involving the current candidate
+
+Auth:
+
+- `USER` owner
+
+Query:
+
+- `candidateId`: required current candidate id
+- `page`: default `1`
+- `limit`: default `20`, max `100`
+- `status`: optional `PENDING`, `ACCEPTED`, `REJECTED`, or `CANCELLED`
+- `sort`: optional, default `-createdAt`
+
+Example:
+
+```http
+GET /api/v1/rishta-progress/marriage-requests?candidateId={{candidateB}}&page=1&limit=20&status=PENDING
+Authorization: Bearer {{tokenB}}
+```
+
+Response:
+
+```json
+{
+  "data": [
+    {
+      "_id": "marriage request id",
+      "pairKey": "candidateA_candidateB",
+      "progress": "progress id",
+      "candidates": ["candidateA", "candidateB"],
+      "status": "PENDING",
+      "requestedByRole": "USER",
+      "requestedByUser": {
+        "_id": "requester user id",
+        "full_name": "Requester Name",
+        "email": "requester@example.com",
+        "phone": "+8801000000000",
+        "picture": "https://example.com/avatar.jpg",
+        "role": "USER"
+      },
+      "requestedByCandidate": {
+        "_id": "candidateA",
+        "name": "Amina",
+        "age": 27,
+        "gender": "FEMALE",
+        "images": ["image-1.jpg", "image-2.jpg"],
+        "livesIn": "Dhaka",
+        "religion": "ISLAM",
+        "occupation": "ENGINEER"
+      },
+      "otherCandidate": {
+        "_id": "candidateA",
+        "name": "Amina",
+        "age": 27,
+        "gender": "FEMALE",
+        "images": ["image-1.jpg", "image-2.jpg"],
+        "livesIn": "Dhaka",
+        "religion": "ISLAM",
+        "occupation": "ENGINEER"
+      },
+      "currentCandidateApproved": false,
+      "canRespond": true,
+      "approvals": [],
+      "createdAt": "2026-05-21T10:00:00.000Z",
+      "updatedAt": "2026-05-21T10:00:00.000Z"
+    }
+  ],
+  "meta": {
+    "page": 1,
+    "limit": 20,
+    "total": 1,
+    "totalPage": 1
+  }
+}
+```
+
+Notes:
+
+- `otherCandidate` is the opposite profile in the request pair and includes at most 2 images.
+- `requestedByCandidate` is `null` for consultant-created requests.
+- `canRespond` is `true` only for pending requests that the current candidate has not approved yet.
+
+### `PATCH /marriage-requests/:requestId/accept`
+
+Purpose:
+
+- Candidate owner accepts a marriage request for their candidate side
+
+Auth:
+
+- `USER` owner
+
+Body:
+
+```json
+{
+  "candidateId": "responding candidate id"
+}
+```
+
+Behavior:
+
+- when both candidate sides have approved, request status becomes `ACCEPTED`
+- progress status becomes `MARRIED`
+- all progress steps are completed and `progressValue` becomes `100`
+- both candidates are removed from future swipe feed results
+
+### `PATCH /marriage-requests/:requestId/reject`
+
+Purpose:
+
+- Candidate owner rejects a marriage request
+
+Auth:
+
+- `USER` owner
+
+Body:
+
+```json
+{
+  "candidateId": "responding candidate id",
+  "rejectReason": "This request is not valid"
+}
+```
+
+### `POST /admin/married`
+
+Purpose:
+
+- Admin directly confirms a couple as married
+
+Auth:
+
+- `ADMIN`
+
+Body:
+
+```json
+{
+  "candidateId": "candidate A id",
+  "otherCandidateId": "candidate B id"
+}
+```
+
+Behavior:
+
+- completes all progress steps immediately
+- cancels any pending marriage request for the pair
+- notifies candidate owner users
+
+### `GET /married`
+
+Purpose:
+
+- List married couples
+
+Auth:
+
+- `ADMIN` or `CONSULTANT`
+
+Query:
+
+- `page`: default `1`
+- `limit`: default `20`, max `100`
+
+Behavior:
+
+- admin sees all married couples
+- consultant sees only couples finalized through that consultant's accepted marriage request
+
+---
+
 ## Document Module
 
 Base path: `/api/v1/documents`
@@ -2378,6 +2727,181 @@ Body:
 
 After acceptance, the guardian account can call the conversation/message APIs using `candidateId={{candidateA}}`.
 
+## Postman Testing Guide: Rishta Progress And Marriage Approval
+
+Reuse these variables:
+
+```text
+baseUrl=http://localhost:3000/api/v1
+tokenA=
+tokenB=
+adminToken=
+consultantToken=
+candidateA=
+candidateB=
+matchId=
+conversationId=
+progressId=
+marriageRequestId=
+```
+
+### Load rishta progress
+
+```http
+GET {{baseUrl}}/rishta-progress?candidateId={{candidateA}}&otherCandidateId={{candidateB}}
+Authorization: Bearer {{tokenA}}
+```
+
+Expected:
+
+- `completedSteps` reflects automatic progress events
+- `progressValue` is `25`, `50`, `75`, or `100`
+- save `data._id` as `progressId`
+
+### Candidate owner creates marriage request
+
+```http
+POST {{baseUrl}}/rishta-progress/marriage-requests
+Authorization: Bearer {{tokenA}}
+Content-Type: application/json
+```
+
+Body:
+
+```json
+{
+  "candidateId": "{{candidateA}}",
+  "otherCandidateId": "{{candidateB}}"
+}
+```
+
+Expected:
+
+- request status is `PENDING`
+- candidate A side is already in `approvals`
+- candidate B owner receives a `MARRIAGE_REQUEST` notification
+
+### Candidate B lists marriage requests
+
+```http
+GET {{baseUrl}}/rishta-progress/marriage-requests?candidateId={{candidateB}}&page=1&limit=20&status=PENDING
+Authorization: Bearer {{tokenB}}
+```
+
+Expected:
+
+- response includes the pending request involving `candidateB`
+- `otherCandidate` contains candidate A basic info with at most 2 images
+- `requestedByUser` contains the requester user's basic information
+- `canRespond` is `true` until candidate B accepts or rejects the request
+
+### Candidate B accepts
+
+```http
+PATCH {{baseUrl}}/rishta-progress/marriage-requests/{{marriageRequestId}}/accept
+Authorization: Bearer {{tokenB}}
+Content-Type: application/json
+```
+
+Body:
+
+```json
+{
+  "candidateId": "{{candidateB}}"
+}
+```
+
+Expected:
+
+- request status becomes `ACCEPTED`
+- progress status becomes `MARRIED`
+- `completedSteps` includes `SHAADI`
+- married candidates no longer appear in swipe feeds
+
+### Candidate B rejects instead
+
+```http
+PATCH {{baseUrl}}/rishta-progress/marriage-requests/{{marriageRequestId}}/reject
+Authorization: Bearer {{tokenB}}
+Content-Type: application/json
+```
+
+Body:
+
+```json
+{
+  "candidateId": "{{candidateB}}",
+  "rejectReason": "Not valid"
+}
+```
+
+### Consultant creates marriage request
+
+```http
+POST {{baseUrl}}/rishta-progress/marriage-requests
+Authorization: Bearer {{consultantToken}}
+Content-Type: application/json
+```
+
+Body:
+
+```json
+{
+  "candidateId": "{{candidateA}}",
+  "otherCandidateId": "{{candidateB}}"
+}
+```
+
+Expected:
+
+- both candidate owners receive notifications
+- both candidate sides must accept before Shaadi is completed
+
+### Admin directly confirms marriage
+
+```http
+POST {{baseUrl}}/rishta-progress/admin/married
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+```
+
+Body:
+
+```json
+{
+  "candidateId": "{{candidateA}}",
+  "otherCandidateId": "{{candidateB}}"
+}
+```
+
+### List married couples
+
+Admin:
+
+```http
+GET {{baseUrl}}/rishta-progress/married?page=1&limit=20
+Authorization: Bearer {{adminToken}}
+```
+
+Consultant:
+
+```http
+GET {{baseUrl}}/rishta-progress/married?page=1&limit=20
+Authorization: Bearer {{consultantToken}}
+```
+
+### Read notifications
+
+```http
+GET {{baseUrl}}/notifications?isSeen=false
+Authorization: Bearer {{tokenB}}
+```
+
+```http
+PATCH {{baseUrl}}/notifications/{{notificationId}}/seen
+Authorization: Bearer {{tokenB}}
+```
+
 ## Example Headers
 
 Bearer token request:
@@ -2415,8 +2939,12 @@ Content-Type: application/json
 11. Send `/messages` for text chat
 12. Use `/conversations/message-requests` when users are not matched yet
 13. Use `/conversations/:conversationId/guardian-requests` before allowing a parent or guardian into a chat
-14. Load `/candidates/my_linked_profiles` after login to fetch the current account's candidate access
-15. Use linked-user APIs to add father, mother, consultant, or other guardians
+14. Load `/rishta-progress?candidateId=<candidateId>&otherCandidateId=<otherCandidateId>` to render the progress widget
+15. Use `/rishta-progress/marriage-requests` when a candidate owner or consultant wants to start marriage confirmation
+16. Use `GET /rishta-progress/marriage-requests?candidateId=<candidateId>` to show all marriage requests for the current candidate
+17. Poll or socket-sync `/notifications` for marriage request alerts and mark opened alerts with `/notifications/:id/seen`
+18. Load `/candidates/my_linked_profiles` after login to fetch the current account's candidate access
+19. Use linked-user APIs to add father, mother, consultant, or other guardians
 
 ## Maintenance Note
 

@@ -12,10 +12,16 @@ import {
 import { getCandidatePreferenceSeedOrThrow } from '../candidate-preference/candidatePreference.helper';
 import CandidatePreference from '../candidate-preference/candidatePreference.model';
 import { ensureDefaultCandidatePreference } from '../candidate-preference/candidatePreference.service';
-import { buildStrictFilters } from '../candidate-preference/candidatePreference.utility';
+import {
+  buildStrictFilters,
+  getNormalizedPreferredGenders,
+} from '../candidate-preference/candidatePreference.utility';
 import { VerificationState } from '../candidate/candidate.interface';
 import Candidate from '../candidate/candidate.model';
-import { buildCandidateLabels } from '../candidate/candidate.utility';
+import {
+  buildCandidateLabels,
+  hasVerificationBadge,
+} from '../candidate/candidate.utility';
 import { CandidateLinkedUserAccessRole } from '../candidate/linked-user/candidateLinkedUser.interface';
 import { LikeSource, LikeType } from '../like/like.interface';
 import Like from '../like/like.model';
@@ -26,6 +32,8 @@ import { PLANS } from '../plan/plan.constant';
 import { IPlan, PLAN_KEYS, PlanKey } from '../plan/plan.interface';
 import PlanModel from '../plan/plan.model';
 import Report from '../report/report.model';
+import RishtaProgress from '../rishta_progress/rishta_progress.model';
+import { RishtaProgressStatus } from '../rishta_progress/rishta_progress.interface';
 import { ActiveStatus } from '../user/user.interface';
 import {
   ISwipeActionResponse,
@@ -332,8 +340,12 @@ export const scoreFeedCandidate = (params: {
     viewerCandidate.coordinates,
     candidate.coordinates
   );
+  const preferredGenders = getNormalizedPreferredGenders(
+    viewerCandidate.gender,
+    preference.preferredGenders
+  );
 
-  if (preference.preferredGenders?.includes(candidate.gender)) {
+  if (preferredGenders.includes(candidate.gender)) {
     matchScore += 30;
     scoreReasons.push('Gender matches your preference');
   }
@@ -510,6 +522,52 @@ export const buildFeedCard = (
   religion: candidate.religion,
 });
 
+export const formatNearbyLivesIn = (address?: string | null) => {
+  const addressParts = address
+    ?.split(',')
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (!addressParts?.length) {
+    return undefined;
+  }
+
+  return addressParts.slice(-3).join(', ');
+};
+
+const getCandidateOwnerIsVerified = (candidate: ISwipeFeedCandidateLean) =>
+  Boolean(
+    candidate.user &&
+      typeof candidate.user === 'object' &&
+      'isVerified' in candidate.user &&
+      candidate.user.isVerified
+  );
+
+export const buildNearbyMatchCard = (params: {
+  candidate: ISwipeFeedCandidateLean;
+  distanceKm: number;
+  score: ISwipeFeedScore;
+  viewerCandidate: ISwipeFeedCandidateLean;
+}): ISwipeFeedCard => {
+  const { candidate, distanceKm, score, viewerCandidate } = params;
+
+  return {
+    ...buildFeedCard(candidate, score, viewerCandidate),
+    badge: hasVerificationBadge({
+      userIsVerified: getCandidateOwnerIsVerified(candidate),
+      verificationStatus: candidate.verification_status,
+    }),
+    distanceKm: Number(distanceKm.toFixed(1)),
+    labels: buildCandidateLabels({
+      occupation: candidate.occupation,
+      personality: candidate.personality,
+      religion: candidate.religion,
+    }),
+    livesIn: formatNearbyLivesIn(candidate.address),
+    occupation: candidate.occupation,
+  };
+};
+
 // Keeps Mongo `$in` results in the exact ranked order stored in the feed session.
 export const sortCandidatesByIdOrder = (
   candidates: ISwipeFeedCandidateLean[],
@@ -559,16 +617,23 @@ export const buildCandidateFeedQuery = (params: {
   excludedCandidateIds: Types.ObjectId[];
   preference: TCandidatePreferenceLean;
   relaxed?: boolean;
+  viewerGender: ISwipeFeedCandidateLean['gender'];
 }) => {
   const {
     candidateId,
     excludedCandidateIds,
     preference,
     relaxed = false,
+    viewerGender,
   } = params;
   const strictFilters = getEffectiveStrictFilters(preference);
+  const preferredGenders = getNormalizedPreferredGenders(
+    viewerGender,
+    preference.preferredGenders
+  );
   const query: FilterQuery<ISwipeFeedCandidateLean> = {
     _id: { $nin: excludedCandidateIds },
+    gender: { $in: preferredGenders },
     isActive: ActiveStatus.ACTIVE,
   };
 
@@ -576,10 +641,6 @@ export const buildCandidateFeedQuery = (params: {
     query._id = {
       $nin: [...excludedCandidateIds, new Types.ObjectId(candidateId)],
     };
-  }
-
-  if (!relaxed && strictFilters.gender && preference.preferredGenders?.length) {
-    query.gender = { $in: preference.preferredGenders };
   }
 
   if (preference.ageMin !== undefined || preference.ageMax !== undefined) {
@@ -643,7 +704,32 @@ export const findVisibleFeedCandidates = async (params: {
     })
     .lean<ISwipeFeedCandidateLean[]>();
 
-  return candidates.filter((candidate) => Boolean(candidate.user));
+  const candidatesWithActiveOwners = candidates.filter((candidate) =>
+    Boolean(candidate.user)
+  );
+
+  if (!candidatesWithActiveOwners.length) {
+    return [];
+  }
+
+  const marriedProgressRows = await RishtaProgress.find({
+    candidates: {
+      $in: candidatesWithActiveOwners.map((candidate) => candidate._id),
+    },
+    status: RishtaProgressStatus.MARRIED,
+  })
+    .select('candidates')
+    .lean<{ candidates: Types.ObjectId[] }[]>();
+
+  const marriedCandidateIds = new Set(
+    marriedProgressRows.flatMap((progress) =>
+      progress.candidates.map((candidateId) => candidateId.toString())
+    )
+  );
+
+  return candidatesWithActiveOwners.filter(
+    (candidate) => !marriedCandidateIds.has(candidate._id.toString())
+  );
 };
 
 // Reads a ranked feed session for fast next-page loading.
@@ -711,8 +797,12 @@ export const getViewerCandidateOrThrow = async (candidateId: string) => {
 
 // Builds the exclusion list so feed cards never repeat acted, matched, or reported profiles.
 export const getExcludedCandidateIds = async (candidateId: string) => {
-  const [existingActions, existingMatches, existingReports] = await Promise.all(
-    [
+  const [
+    existingActions,
+    existingMatches,
+    existingReports,
+    existingMarriedProgressRows,
+  ] = await Promise.all([
       Like.find({ likedBy: candidateId })
         .select('likedProfile')
         .lean<{ likedProfile: Types.ObjectId }[]>(),
@@ -726,8 +816,13 @@ export const getExcludedCandidateIds = async (candidateId: string) => {
         .lean<
           { reportedBy: Types.ObjectId; reportedCandidate: Types.ObjectId }[]
         >(),
-    ]
-  );
+      RishtaProgress.find({
+        candidates: new Types.ObjectId(candidateId),
+        status: RishtaProgressStatus.MARRIED,
+      })
+        .select('candidates')
+        .lean<{ candidates: Types.ObjectId[] }[]>(),
+    ]);
 
   const excludedIds = new Set<string>([candidateId]);
 
@@ -744,6 +839,12 @@ export const getExcludedCandidateIds = async (candidateId: string) => {
   for (const report of existingReports) {
     excludedIds.add(report.reportedBy.toString());
     excludedIds.add(report.reportedCandidate.toString());
+  }
+
+  for (const progress of existingMarriedProgressRows) {
+    for (const marriedCandidateId of progress.candidates) {
+      excludedIds.add(marriedCandidateId.toString());
+    }
   }
 
   return toObjectIdList(Array.from(excludedIds));
@@ -802,6 +903,21 @@ export const rankCandidates = (params: {
     });
 };
 
+// Randomizes fresh feed sessions; cursor pages keep the stored session order.
+export const shuffleFeedCandidates = <T>(items: T[]) => {
+  const shuffledItems = [...items];
+
+  for (let index = shuffledItems.length - 1; index > 0; index -= 1) {
+    const randomIndex = crypto.randomInt(index + 1);
+    [shuffledItems[index], shuffledItems[randomIndex]] = [
+      shuffledItems[randomIndex],
+      shuffledItems[index],
+    ];
+  }
+
+  return shuffledItems;
+};
+
 // Nearby lists are sorted by physical closeness before compatibility tie-breakers.
 export const buildNearbyMatchCards = (params: {
   candidates: ISwipeFeedCandidateLean[];
@@ -848,8 +964,12 @@ export const buildNearbyMatchCards = (params: {
       );
     })
     .map(({ candidate, distanceKm, score }) => ({
-      ...buildFeedCard(candidate, score, params.viewerCandidate),
-      distanceKm: Number(distanceKm.toFixed(1)),
+      ...buildNearbyMatchCard({
+        candidate,
+        distanceKm,
+        score,
+        viewerCandidate: params.viewerCandidate,
+      }),
     }));
 
 export const buildNearbyMatchesResponse = (params: {
@@ -958,17 +1078,23 @@ export const getFeedFromCachedSession = async (params: {
     };
   }
 
-  const [preference, candidates] = await Promise.all([
-    getFeedPreferenceOrCreateDefault({
-      candidateGender: params.viewerCandidate.gender,
-      candidateId: params.candidateId,
-      createdBy: params.viewerCandidate.user as Types.ObjectId,
-    }),
-    findVisibleFeedCandidates({
-      limit: sliceIds.length,
-      query: { _id: { $in: toObjectIdList(sliceIds) } },
-    }),
-  ]);
+  const preference = await getFeedPreferenceOrCreateDefault({
+    candidateGender: params.viewerCandidate.gender,
+    candidateId: params.candidateId,
+    createdBy: params.viewerCandidate.user as Types.ObjectId,
+  });
+  const candidates = await findVisibleFeedCandidates({
+    limit: sliceIds.length,
+    query: {
+      _id: { $in: toObjectIdList(sliceIds) },
+      gender: {
+        $in: getNormalizedPreferredGenders(
+          params.viewerCandidate.gender,
+          preference.preferredGenders
+        ),
+      },
+    },
+  });
 
   const sortedCandidates = sortCandidatesByIdOrder(candidates, sliceIds);
   const rankedCandidates = sortedCandidates.map((candidate) => ({
@@ -1085,6 +1211,29 @@ export const assertNoSwipeReportBetweenCandidates = async (params: {
     throw new AppError(
       StatusCodes.FORBIDDEN,
       'Swipe action is blocked because a report exists between these candidates'
+    );
+  }
+};
+
+// Once a candidate is married, they leave discovery and cannot start new swipes.
+export const assertNoMarriedCandidateInPair = async (params: {
+  candidateId: string;
+  targetCandidateId: string;
+}) => {
+  const marriedProgress = await RishtaProgress.exists({
+    candidates: {
+      $in: [
+        new Types.ObjectId(params.candidateId),
+        new Types.ObjectId(params.targetCandidateId),
+      ],
+    },
+    status: RishtaProgressStatus.MARRIED,
+  });
+
+  if (marriedProgress) {
+    throw new AppError(
+      StatusCodes.CONFLICT,
+      'Married candidates cannot perform swipe actions'
     );
   }
 };

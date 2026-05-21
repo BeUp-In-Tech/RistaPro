@@ -17,6 +17,8 @@ const notificationSchema = new Schema<INotification>(
   { timestamps: true, versionKey: false }
 );
 
+notificationSchema.index({ user: 1, isSeen: 1, createdAt: -1 });
+
 const preferenceSchema = new Schema<INotificationPreference>(
   {
     user: { type: Schema.Types.ObjectId, ref: 'user', required: true },

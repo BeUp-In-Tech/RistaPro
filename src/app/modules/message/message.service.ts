@@ -17,6 +17,11 @@ import { ConversationStatus } from '../conversation/conversation.interface';
 import Conversation from '../conversation/conversation.model';
 import { ISendMessagePayload, MessageType } from './message.interface';
 import Message from './message.model';
+import { RishtaProgressService } from '../rishta_progress/rishta_progress.service';
+import {
+  RishtaProgressStep,
+  RishtaProgressStepSource,
+} from '../rishta_progress/rishta_progress.interface';
 
 // POST /messages - sends one text message into an open conversation.
 const sendMessage = async (userId: string, payload: ISendMessagePayload) => {
@@ -99,6 +104,16 @@ const sendMessage = async (userId: string, payload: ISendMessagePayload) => {
       lastMessage: messageDoc._id,
       [`unreadCounts.${userId}`]: 0,
     },
+  });
+
+  await RishtaProgressService.completeAutomaticStep({
+    candidateIds: conversation.participants,
+    completedBy: userId,
+    conversationId: conversation._id,
+    matchId: conversation.match,
+    referenceId: messageDoc._id,
+    source: RishtaProgressStepSource.MATCH_CHAT_STARTED,
+    step: RishtaProgressStep.START_CHAT,
   });
 
   emitChatEvent({

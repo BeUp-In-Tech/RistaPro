@@ -1,4 +1,4 @@
-import { INotification } from "../modules/notification/notification.interface";
+import { INotificationPayload } from "../modules/notification/notification.interface";
 import { imageDeleteQueue,  mailQueue,  notificationQueue } from "../queue/index.queue";
 import { SendEmailOptions } from "./sendMail";
 
@@ -17,7 +17,7 @@ export const sendMailByBullMQ = async (emailPayload: SendEmailOptions, jobId: st
 
 
 // SEND NOTIFICATION JOB ADD TO QUEUE
-export const sendNotificationByBullMQ = async (notificationPayload: INotification, jobId: string) => {  
+export const sendNotificationByBullMQ = async (notificationPayload: INotificationPayload, jobId: string) => {  
   await notificationQueue.add('sendNotification', notificationPayload, {
     attempts: 3,
     backoff: {

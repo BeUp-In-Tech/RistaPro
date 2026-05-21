@@ -10,6 +10,8 @@ import { swipeRoutes } from '../modules/swipe/swipe.routes';
 import { likeRoutes } from '../modules/like/like.routes';
 import { userRoutes } from '../modules/user/user.routes';
 import { documentRoutes } from '../modules/document/document.routes';
+import { rishtaProgressRoutes } from '../modules/rishta_progress/rishta_progress.routes';
+import { notificationRoutes } from '../modules/notification/notification.routes';
 export const router = Router();
 
 const moduleRoutes = [
@@ -56,6 +58,14 @@ const moduleRoutes = [
   {
     path: '/documents',
     route: documentRoutes,
+  },
+  {
+    path: '/notifications',
+    route: notificationRoutes,
+  },
+  {
+    path: '/rishta-progress',
+    route: rishtaProgressRoutes,
   },
 ];
 

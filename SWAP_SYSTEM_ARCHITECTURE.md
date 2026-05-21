@@ -2,7 +2,7 @@
 
 Status: proposal for review.
 
-This document plans the Tinder-style matrimony discovery system for RistaPro. The product wording can say "swap" if desired, but the backend should use "swipe" because the domain action is like, pass, or super like on a candidate profile.
+This document plans the Tinder-style matrimony discovery system for RishtaPro. The product wording can say "swap" if desired, but the backend should use "swipe" because the domain action is like, pass, or super like on a candidate profile.
 
 No implementation code is included in this document. After this architecture is reviewed and finalized, the code should be added in small phases.
 
@@ -86,6 +86,13 @@ src/app/modules/message/
 
 src/app/modules/call/
   enforce paid access before starting audio/video calls
+
+src/app/modules/rishta_progress/
+  track pair progress across match, chat, parent involvement, and marriage approval
+  add marriage request approval workflow for candidate owners and consultants
+
+src/app/modules/notification/
+  persist notification rows and send Firebase push through BullMQ
 
 src/app/utils/planAccess.ts
   reusable helpers for plan flags and quota reset
@@ -434,7 +441,87 @@ Behavior:
 - Viewer guardians can read the conversation if added, but cannot send messages.
 - Every message must store both the represented candidate in `sender` and the real authenticated user in `sentBy`, so the UI can show who actually wrote each group-chat message.
 
-### 8. CandidateInteractionState
+### 8. RishtaProgress and Marriage Approval
+
+Track one progress row per candidate pair.
+
+Recommended fields:
+
+```ts
+interface IRishtaProgress {
+  candidates: [Types.ObjectId, Types.ObjectId];
+  pairKey: string;
+  match?: Types.ObjectId;
+  conversation?: Types.ObjectId;
+  completedSteps: ('MATCHES' | 'START_CHAT' | 'PARENT_INVOLVES' | 'SHAADI')[];
+  progressValue: number;
+  status: 'ACTIVE' | 'MARRIED';
+  stepDetails: {
+    step: string;
+    completedAt: Date;
+    source: string;
+    referenceId?: Types.ObjectId;
+    completedBy?: Types.ObjectId;
+  }[];
+  marriedAt?: Date;
+  marriageConfirmedBy?: Types.ObjectId;
+  consultantUser?: Types.ObjectId;
+}
+```
+
+Recommended indexes:
+
+```ts
+rishtaProgressSchema.index({ pairKey: 1 }, { unique: true });
+rishtaProgressSchema.index({ candidates: 1, status: 1, updatedAt: -1 });
+rishtaProgressSchema.index({ status: 1, marriedAt: -1 });
+rishtaProgressSchema.index({ consultantUser: 1, status: 1, marriedAt: -1 });
+```
+
+Automatic step rules:
+
+- `MATCHES`: mutual swipe creates or returns an active match.
+- `START_CHAT`: match chat starts, a message is sent, or a message request is accepted.
+- `PARENT_INVOLVES`: accepted guardian request adds a parent/family/guardian linked user to the conversation. Consultant inclusion does not count as parent involvement.
+- `SHAADI`: marriage request is fully accepted, or admin directly confirms the couple.
+
+Create a separate marriage request collection:
+
+```ts
+interface IRishtaMarriageRequest {
+  pairKey: string;
+  candidates: [Types.ObjectId, Types.ObjectId];
+  progress: Types.ObjectId;
+  requestedByUser: Types.ObjectId;
+  requestedByRole: 'USER' | 'CONSULTANT';
+  requestedByCandidate?: Types.ObjectId;
+  requestedByLinkedUser?: Types.ObjectId;
+  consultantUser?: Types.ObjectId;
+  status: 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'CANCELLED';
+  approvals: {
+    candidate: Types.ObjectId;
+    user: Types.ObjectId;
+    linkedUser?: Types.ObjectId;
+    respondedAt: Date;
+  }[];
+  rejectedByCandidate?: Types.ObjectId;
+  rejectedByUser?: Types.ObjectId;
+  rejectedAt?: Date;
+  rejectReason?: string;
+}
+```
+
+Approval behavior:
+
+- Candidate owner request auto-approves the requester candidate side and notifies the opposite candidate owners.
+- Opposite candidate owner must accept before the couple becomes married.
+- Consultant request notifies both candidate owner sides and requires both sides to accept.
+- Consultant can create the request only when actively linked as `CONSULTANT` to at least one candidate in the pair.
+- Admin direct confirmation skips the approval request, completes all steps, and cancels pending marriage requests for the pair.
+- Direct marriage confirmation without an existing match/chat is allowed; the progress row is created and all steps are completed for UI consistency.
+- Once married, both candidate ids are excluded from swipe feed and cannot perform new swipe actions.
+
+### 9. CandidateInteractionState
 
 Do not create this as a collection for MVP.
 
@@ -465,6 +552,11 @@ Recommended rules:
 - The candidate `OWNER` who added guardians can remove those guardians from the conversation at any time.
 - Unlinked users cannot access the candidate feed.
 - A user linked to another active candidate cannot act for this candidate unless access rules allow it.
+- Only candidate `OWNER` users can accept or reject marriage requests for their candidate side.
+- A candidate owner can create a marriage request for their pair; their own side is auto-approved.
+- A `CONSULTANT` user can create a marriage request only when linked as consultant to at least one candidate in the pair.
+- `ADMIN` can directly mark a pair married.
+- Married candidates cannot appear in discovery or perform new swipe actions.
 
 Use the existing helper:
 
@@ -546,6 +638,7 @@ High-level flow:
    - own candidate id
    - candidates already liked, super liked, or passed by this candidate
    - active matches
+   - candidates in `MARRIED` rishta progress rows
    - blocked/reported candidates when those modules exist
 6. Build MongoDB base query:
    - `isActive: ACTIVE`
@@ -667,21 +760,23 @@ High-level flow:
 3. Reject `VIEWER` access.
 4. Reject self action.
 5. Verify target candidate is active.
-6. Reject action if an active match already exists.
-7. Load the candidate owner's plan.
-8. Count current-window `LIKE` and `SUPER_LIKE` actions for the acting candidate.
-9. Validate quota for `LIKE` or `SUPER_LIKE`.
-10. Upsert `Like` record for `(likedBy, likedProfile)`.
-11. If action is `LIKE` or `SUPER_LIKE`, check reverse like:
+6. Reject action if either candidate is already married.
+7. Reject action if an active match already exists.
+8. Load the candidate owner's plan.
+9. Count current-window `LIKE` and `SUPER_LIKE` actions for the acting candidate.
+10. Validate quota for `LIKE` or `SUPER_LIKE`.
+11. Upsert `Like` record for `(likedBy, likedProfile)`.
+12. If action is `LIKE` or `SUPER_LIKE`, check reverse like:
     - reverse likedBy = target
     - reverse likedProfile = actor
     - reverse type in `LIKE`, `SUPER_LIKE`
-12. If reverse like exists:
+13. If reverse like exists:
     - create or return existing `Match`
     - create or return existing `Conversation`; if an accepted message-request conversation already exists for this pair, attach the match to that conversation
+    - complete `RishtaProgress.MATCHES`
     - send match notifications to linked users
     - return `matched: true`
-13. If no reverse like:
+14. If no reverse like:
     - return `matched: false`
 
 Response:
@@ -836,6 +931,46 @@ DELETE /api/v1/conversations/:conversationId/guardians/:linkedUserId
 
 Route count: 6 guardian chat involvement routes.
 
+## Rishta Progress and Marriage Approval
+
+Progress is pair-level, not user-level. It should be updated by existing domain events instead of making the frontend manually advance steps.
+
+Automatic progress updates:
+
+1. Mutual swipe creates a match and completes `MATCHES`.
+2. Match chat start, accepted message request, or first sent message completes `START_CHAT`.
+3. Accepted family/parent/guardian chat involvement completes `PARENT_INVOLVES`.
+4. Accepted marriage approval or admin direct confirmation completes `SHAADI`.
+
+Marriage request flow from a candidate owner:
+
+1. Candidate A owner creates a marriage request for Candidate A and Candidate B.
+2. The request stores Candidate A approval immediately.
+3. Candidate B owner users receive DB notifications and Firebase push jobs.
+4. Candidate B owner accepts or rejects.
+5. If accepted, the request becomes `ACCEPTED`, progress becomes `MARRIED`, and both candidates are removed from discovery.
+6. If rejected, the request becomes `REJECTED`, and progress remains active.
+
+Marriage request flow from a consultant:
+
+1. Consultant must be actively linked as `CONSULTANT` to at least one candidate in the pair.
+2. Consultant creates a pending marriage request.
+3. Both candidate owner sides receive DB notifications and push jobs.
+4. Both candidate sides must accept before the marriage becomes valid.
+5. Consultant married list includes only couples finalized through that consultant.
+
+Admin direct confirmation:
+
+1. Admin identifies the pair by candidate ids, match id, conversation id, or progress id.
+2. Backend creates or loads the progress row.
+3. Backend marks all steps complete, sets `status: MARRIED`, and cancels pending marriage requests for that pair.
+
+Swipe/feed impact:
+
+- Married candidates are excluded from feed candidate lookups.
+- Swipe action is rejected if either side is already in a `MARRIED` progress row.
+- Feed session cache for both candidates should be cleared when marriage is finalized.
+
 ## Audio and Video Calls
 
 Call start flow:
@@ -932,6 +1067,24 @@ POST   /api/v1/conversations/:conversationId/guardians
 DELETE /api/v1/conversations/:conversationId/guardians/:linkedUserId
 ```
 
+### Rishta Progress APIs
+
+```txt
+GET   /api/v1/rishta-progress
+POST  /api/v1/rishta-progress/marriage-requests
+PATCH /api/v1/rishta-progress/marriage-requests/:requestId/accept
+PATCH /api/v1/rishta-progress/marriage-requests/:requestId/reject
+POST  /api/v1/rishta-progress/admin/married
+GET   /api/v1/rishta-progress/married
+```
+
+### Notification APIs
+
+```txt
+GET   /api/v1/notifications
+PATCH /api/v1/notifications/:id/seen
+```
+
 ### Call APIs
 
 ```txt
@@ -943,7 +1096,7 @@ PATCH /api/v1/calls/:callId/end
 
 ### Route Count Summary
 
-Planned MVP route count in this architecture: 26 routes.
+Planned MVP route count in this architecture: 34 routes.
 
 - Preference APIs: 3 routes.
 - Swipe APIs: 3 routes.
@@ -951,6 +1104,8 @@ Planned MVP route count in this architecture: 26 routes.
 - Conversation and message APIs: 3 routes.
 - Message request APIs: 4 routes.
 - Guardian chat involvement APIs: 6 routes.
+- Rishta progress APIs: 6 routes.
+- Notification APIs: 2 routes.
 - Call APIs: 4 routes.
 
 ## Response Card Shape
@@ -1020,13 +1175,27 @@ Events:
 - New message received
 - Guardian involvement request received
 - Guardian involvement request accepted or rejected
+- Marriage confirmation request received
+- Marriage confirmation accepted or rejected
+- Admin marriage confirmation completed
 - Incoming audio/video call
 - Super like received, if product wants this
 
 Notification recipients:
 
 - All active linked users for the target candidate who have active device tokens.
+- Marriage request from candidate owner: opposite candidate owner users.
+- Marriage request from consultant: owner users from both candidate sides.
+- Marriage accepted/rejected: requester, consultant if present, and owner users from both candidate sides.
 - If notification preference module is extended later, respect per-user settings.
+
+Delivery strategy:
+
+- Always create a `Notification` DB row first.
+- Send Firebase push through BullMQ using active `User.deviceTokens`.
+- If no device token exists, keep the DB notification and return/persist push status as not pushed rather than failing the business action.
+- Include both `deepLink` for Flutter and `webUrl` for React.
+- FCM `data` payload should use string-safe values such as `requestId`, `progressId`, `pairKey`, `candidateIds`, and `action`.
 
 ## Cache Strategy
 
@@ -1043,6 +1212,7 @@ Invalidate feed cache when:
 - candidate likes, super likes, or passes someone
 - target candidate becomes inactive
 - match/unmatch happens
+- marriage is finalized
 
 Suggested keys:
 
@@ -1078,6 +1248,13 @@ Use clear errors:
 - Audio calls are locked for your plan
 - Video calls are locked for your plan
 - See who liked you is locked for your plan
+- A pending marriage request already exists for this couple
+- Only candidate owners can request marriage confirmation
+- Consultant must be linked to at least one candidate in this rishta
+- This candidate does not belong to the marriage request
+- This couple is already married
+- Married candidates cannot perform swipe actions
+- Notification not found
 
 ## Implementation Phases
 
@@ -1147,10 +1324,24 @@ Use clear errors:
 - Send message notifications.
 - Send guardian involvement request notifications.
 - Send guardian involvement approval/rejection notifications.
+- Send marriage request created/accepted/rejected notifications.
+- Add notification list and seen endpoints for mobile/web clients.
+- Keep notification DB rows even when push tokens are missing.
 - Send call notifications/socket events.
 - Optionally notify super likes.
 
-### Phase 8: Performance and Polish
+### Phase 8: Rishta Progress and Marriage Approval
+
+- Add `rishta_progress` module with progress and marriage request models.
+- Complete `MATCHES`, `START_CHAT`, and `PARENT_INVOLVES` from existing match/chat/guardian events.
+- Add candidate-owner marriage request flow with opposite-side approval.
+- Add consultant marriage request flow requiring both candidate sides to accept.
+- Add admin direct marriage confirmation.
+- Add admin and consultant married-couple list endpoints.
+- Exclude married candidates from feed and swipe actions.
+- Clear feed sessions when marriage is finalized.
+
+### Phase 9: Performance and Polish
 
 - Add indexes.
 - Add Redis feed cache.
@@ -1171,6 +1362,7 @@ Rules:
 - Use unique `Conversation.pairKey` so a matched chat and an accepted message-request chat cannot split into two windows.
 - Use a uniqueness guard so only one pending message request exists for the same requester/target pair.
 - Use a uniqueness guard so only one pending guardian involvement request exists for the same conversation and candidate pair.
+- Use a uniqueness guard so only one pending marriage request exists for the same candidate pair.
 - On duplicate key error, fetch the existing match, request, or conversation and return it.
 
 This keeps the system idempotent even if both users like each other, send message requests, or accept a request at the same moment.
@@ -1191,6 +1383,8 @@ Please decide these before final implementation:
 10. Which linked-user relations are allowed as chat guardians: only `FATHER`, `MOTHER`, and `GUARDIAN`, or any active linked user?
 11. Should guardian removal create a system message or only update the participant list silently?
 12. Should the first message request require `plan.canMessage`, or should one pending request be free for all verified candidates?
+13. Should admin direct marriage confirmation notify both candidates by default?
+14. Should rejected marriage requests be reopenable immediately or require a cooldown?
 
 ## Recommended Final Defaults
 
@@ -1218,4 +1412,8 @@ If no changes are requested, use these defaults:
 - The candidate owner who added guardians can remove them from the conversation at any time.
 - Guardian messages store the represented candidate and the actual `sentBy` user.
 - Free users can match but cannot send messages/calls unless plan allows.
+- Rishta progress is pair-level and advances automatically from backend events.
+- Marriage confirmation uses request approval: candidate owner request needs the opposite side; consultant request needs both candidate sides; admin can confirm directly.
+- Married candidates are excluded from feed and blocked from new swipe actions.
+- Notification rows are saved before push delivery, and missing FCM tokens do not fail the marriage workflow.
 - Location filter is optional MVP, with full GeoJSON migration later.

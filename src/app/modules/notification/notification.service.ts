@@ -5,7 +5,10 @@ import admin from '../../config/firebase.admin';
 import AppError from '../../errorHelpers/AppError';
 import User from '../user/user.model';
 import { IUser, Role } from '../user/user.interface';
-import { INotification } from './notification.interface';
+import {
+  INotificationListQuery,
+  INotificationPayload,
+} from './notification.interface';
 import Notification, { NotificationPreference } from './notification.model';
 
 export const ensureNotificationPreference = async (
@@ -118,7 +121,7 @@ function serializeNotificationData(
  * - sends FCM (optional)
  * - cleans invalid FCM tokens
  */
-export async function notifyUser(input: INotification) {
+export async function notifyUser(input: INotificationPayload) {
   
   const userId = new mongoose.Types.ObjectId(input.user);
 
@@ -153,7 +156,13 @@ export async function notifyUser(input: INotification) {
       storedDeviceTokenCount: user?.deviceTokens?.length ?? 0,
     });
 
-    throw new AppError(StatusCodes.NOT_FOUND, 'NO_ACTIVE_TOKENS');
+    return {
+      success: true,
+      notificationId,
+      pushed: false,
+      tokensUsed: 0,
+      pushError: 'NO_ACTIVE_TOKENS',
+    };
   }
 
   // Build one multicast message for all active devices.
@@ -216,3 +225,62 @@ export async function notifyUser(input: INotification) {
     cleanedInvalidTokens: invalidTokens.length,
   };
 }
+
+const getMyNotifications = async (
+  userId: string,
+  query: INotificationListQuery
+) => {
+  const filter: Record<string, unknown> = {
+    user: new mongoose.Types.ObjectId(userId),
+  };
+
+  if (query.isSeen !== undefined) {
+    filter.isSeen = query.isSeen;
+  }
+
+  const skip = (query.page - 1) * query.limit;
+  const [data, total] = await Promise.all([
+    Notification.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(query.limit)
+      .lean(),
+    Notification.countDocuments(filter),
+  ]);
+
+  return {
+    data,
+    meta: {
+      limit: query.limit,
+      page: query.page,
+      total,
+      totalPage: total === 0 ? 0 : Math.ceil(total / query.limit),
+    },
+  };
+};
+
+const markNotificationSeen = async (userId: string, notificationId: string) => {
+  if (!mongoose.Types.ObjectId.isValid(notificationId)) {
+    throw new AppError(StatusCodes.BAD_REQUEST, 'Invalid notification id');
+  }
+
+  const notification = await Notification.findOneAndUpdate(
+    {
+      _id: notificationId,
+      user: userId,
+    },
+    { $set: { isSeen: true } },
+    { new: true }
+  ).lean();
+
+  if (!notification) {
+    throw new AppError(StatusCodes.NOT_FOUND, 'Notification not found');
+  }
+
+  return notification;
+};
+
+export const NotificationService = {
+  getMyNotifications,
+  markNotificationSeen,
+};

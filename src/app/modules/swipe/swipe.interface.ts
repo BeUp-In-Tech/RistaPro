@@ -94,6 +94,7 @@ export interface ISwipeFeedScore {
 export interface ISwipeFeedCard {
   _id: Types.ObjectId;
   age: number;
+  badge?: boolean;
   gender: Gender;
   images: string[];
   labels: Record<string, unknown>;
@@ -101,6 +102,7 @@ export interface ISwipeFeedCard {
   distanceKm?: number;
   matchScore: number;
   name: string;
+  occupation?: OccupationKey;
   personality: PersonalityKey[];
   religion?: ReligionKey;
 }

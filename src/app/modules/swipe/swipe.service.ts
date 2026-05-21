@@ -15,6 +15,7 @@ import {
   assertCanPerformSwipeAction,
   assertDifferentSwipeCandidates,
   assertNoSwipeReportBetweenCandidates,
+  assertNoMarriedCandidateInPair,
   assertSwipeQuotaAvailable,
   assertValidFeedCandidateId,
   buildNearbyMatchCards,
@@ -35,6 +36,8 @@ import {
   getFeedFromCachedSession,
   getFeedPoolSize,
   getFeedPreferenceOrCreateDefault,
+  formatNearbyLivesIn,
+  hasValidCoordinates,
   getNearbyRadiusKm,
   getNearbySearchLocation,
   NEARBY_MATCH_POOL_SIZE,
@@ -47,10 +50,16 @@ import {
   releaseSwipeActionLock,
   returnExistingMatchedActionOrThrow,
   returnExistingSwipeAction,
+  shuffleFeedCandidates,
   toObjectIdList,
 } from './swipe.helper';
 import AppError from '../../errorHelpers/AppError';
 import { StatusCodes } from 'http-status-codes';
+import { RishtaProgressService } from '../rishta_progress/rishta_progress.service';
+import {
+  RishtaProgressStep,
+  RishtaProgressStepSource,
+} from '../rishta_progress/rishta_progress.interface';
 
 
 
@@ -108,6 +117,7 @@ const getNearbyMatches = async (
     candidateId,
     excludedCandidateIds,
     preference: nearbyPreference,
+    viewerGender: viewerCandidate.gender,
   });
   const strictCandidates = filterStrictCandidates({
     candidates: await findVisibleFeedCandidates({
@@ -124,7 +134,7 @@ const getNearbyMatches = async (
     viewerCandidate: viewerCandidateFromSearchLocation,
   });
 
-  return buildNearbyMatchesResponse({
+  const response = buildNearbyMatchesResponse({
     currentLocation,
     limit: query.limit,
     origin: searchLocation.origin,
@@ -132,6 +142,34 @@ const getNearbyMatches = async (
     radiusKm,
     cards,
   });
+
+  const candidateById = new Map(
+    strictCandidates.map((candidate) => [candidate._id.toString(), candidate])
+  );
+
+  for (const card of response.data) {
+    if (card.livesIn) {
+      continue;
+    }
+
+    const candidate = candidateById.get(card._id.toString());
+    if (!candidate || !hasValidCoordinates(candidate.coordinates)) {
+      continue;
+    }
+
+    const [longitude, latitude] = candidate.coordinates as number[];
+    const formattedAddress = await reverseGeocodeCoordinates(
+      latitude,
+      longitude
+    );
+    const livesIn = formatNearbyLivesIn(formattedAddress);
+
+    if (livesIn) {
+      card.livesIn = livesIn;
+    }
+  }
+
+  return response;
 };
 
 // Builds the Tinder-style discovery stack for one candidate profile.
@@ -178,6 +216,7 @@ const getSwipeFeed = async (
     candidateId: query.candidateId,
     excludedCandidateIds,
     preference,
+    viewerGender: viewerCandidate.gender,
   });
   const strictCandidates = filterStrictCandidates({
     candidates: await findVisibleFeedCandidates({
@@ -206,6 +245,7 @@ const getSwipeFeed = async (
       excludedCandidateIds: alreadySelectedIds,
       preference,
       relaxed: true,
+      viewerGender: viewerCandidate.gender,
     });
     const relaxedCandidates = await findVisibleFeedCandidates({
       limit: poolSize,
@@ -215,14 +255,18 @@ const getSwipeFeed = async (
     feedCandidates = [...strictCandidates, ...relaxedCandidates];
   }
 
+  const rankedCandidates = rankCandidates({
+    candidates: feedCandidates,
+    preference,
+    viewerCandidate,
+  });
+
   return buildFeedResponseFromRankedCandidates({
     candidateId: query.candidateId,
     limit: query.limit,
-    rankedCandidates: rankCandidates({
-      candidates: feedCandidates,
-      preference,
-      viewerCandidate,
-    }),
+    rankedCandidates: query.cursor
+      ? rankedCandidates
+      : shuffleFeedCandidates(rankedCandidates),
     relaxed,
     relaxedReason,
     viewerCandidate,
@@ -261,6 +305,10 @@ const performSwipeAction = async (
         candidateId: payload.candidateId,
         targetCandidateId: payload.targetCandidateId,
       }),
+      assertNoMarriedCandidateInPair({
+        candidateId: payload.candidateId,
+        targetCandidateId: payload.targetCandidateId,
+      }),
     ]);
 
     const quotaCandidate = await getSwipeQuotaCandidateOrThrow(
@@ -283,7 +331,7 @@ const performSwipeAction = async (
 
     // An existing active match makes new actions invalid, but idempotent retries stay safe.
     if (existingMatch) {
-      return await returnExistingMatchedActionOrThrow({
+      const response = await returnExistingMatchedActionOrThrow({
         action: existingAction,
         candidateId: payload.candidateId,
         match: existingMatch,
@@ -291,16 +339,42 @@ const performSwipeAction = async (
         targetCandidateId: payload.targetCandidateId,
         type: payload.type,
       });
+
+      if (response.match) {
+        await RishtaProgressService.completeAutomaticStep({
+          candidateIds: response.match.candidates,
+          completedBy: userId,
+          conversationId: response.match.conversation,
+          matchId: response.match._id,
+          source: RishtaProgressStepSource.MATCH_CREATED,
+          step: RishtaProgressStep.MATCHES,
+        });
+      }
+
+      return response;
     }
 
     if (existingAction) {
-      return await returnExistingSwipeAction({
+      const response = await returnExistingSwipeAction({
         action: existingAction,
         candidateId: payload.candidateId,
         quota: await currentQuota(),
         targetCandidateId: payload.targetCandidateId,
         type: payload.type,
       });
+
+      if (response.match) {
+        await RishtaProgressService.completeAutomaticStep({
+          candidateIds: response.match.candidates,
+          completedBy: userId,
+          conversationId: response.match.conversation,
+          matchId: response.match._id,
+          source: RishtaProgressStepSource.MATCH_CREATED,
+          step: RishtaProgressStep.MATCHES,
+        });
+      }
+
+      return response;
     }
 
     await assertSwipeQuotaAvailable({
@@ -339,6 +413,15 @@ const performSwipeAction = async (
           candidateId: payload.candidateId,
           matchedBy: payload.candidateId,
           targetCandidateId: payload.targetCandidateId,
+        });
+
+        await RishtaProgressService.completeAutomaticStep({
+          candidateIds: match.candidates,
+          completedBy: userId,
+          conversationId: match.conversation,
+          matchId: match._id,
+          source: RishtaProgressStepSource.MATCH_CREATED,
+          step: RishtaProgressStep.MATCHES,
         });
       }
     }
