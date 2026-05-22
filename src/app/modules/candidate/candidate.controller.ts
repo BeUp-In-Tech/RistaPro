@@ -51,7 +51,27 @@ const updateCandidate = CatchAsync(async (req: Request, res: Response) => {
   });
 });
 
+// AUTH LINKED USER VIEW PLAN-GATED FULL CANDIDATE PROFILE
+const getFullCandidateProfileDetails = CatchAsync(
+  async (req: Request, res: Response) => {
+    const { userId } = req.user as JwtPayload;
+    const result = await CandidateService.getFullCandidateProfileDetails(
+      String(userId),
+      typeof req.query.candidateId === 'string' ? req.query.candidateId : '',
+      String(req.params.targetCandidateId)
+    );
+
+    SendResponse(res, {
+      success: true,
+      statusCode: StatusCodes.OK,
+      message: 'Full candidate profile retrieved successfully',
+      data: result,
+    });
+  }
+);
+
 export const CandidateController = {
   createCandidate,
+  getFullCandidateProfileDetails,
   updateCandidate,
 };
