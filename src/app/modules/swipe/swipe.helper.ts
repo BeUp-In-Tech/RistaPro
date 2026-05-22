@@ -505,6 +505,10 @@ export const buildFeedCard = (
 ): ISwipeFeedCard => ({
   _id: candidate._id,
   age: getAgeFromDateOfBirth(candidate.dateOfBirth),
+  badge: hasVerificationBadge({
+    userIsVerified: getCandidateOwnerIsVerified(candidate),
+    verificationStatus: candidate.verification_status,
+  }),
   gender: candidate.gender,
   images: candidate.images ?? [],
   labels: buildCandidateLabels({
