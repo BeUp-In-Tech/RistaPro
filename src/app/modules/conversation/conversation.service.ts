@@ -304,7 +304,7 @@ const createMessageRequest = async (
 
     throw new AppError(
       StatusCodes.CONFLICT,
-      'A pending message request already exists for these candidates'
+      'Message request already was sent!'
     );
   }
 
