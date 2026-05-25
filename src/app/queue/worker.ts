@@ -4,6 +4,7 @@ import env from "../config/env";
 import { emailSendWorker } from "./workers/emailSend.worker";
 import { notificationSendWorker } from "./workers/notificationSendWorker";
 import { imageDeleteWorker } from "./workers/imageDelete.worker";
+import { meetingReminderWorker } from "./workers/meetingReminder.worker";
 
 // RUN ALL WORKER JOB HERE WITH DATABASE CONNECTION
 const connectQueueDB = async () => {
@@ -19,6 +20,9 @@ const connectQueueDB = async () => {
 
     // IMAGE DELETE WORKER
     imageDeleteWorker();
+
+    // MEETING REMINDER WORKER
+    meetingReminderWorker();
     
 
   } catch (error) {

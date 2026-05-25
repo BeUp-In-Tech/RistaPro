@@ -14,6 +14,7 @@ export interface Plan {
   canAudioCall: boolean;
   canVideoCall: boolean;
   canViewFullProfile: boolean;
+  canUseConsultant: boolean;
   profileBoost: boolean;
   featureList: string[];
 }

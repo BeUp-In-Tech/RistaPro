@@ -12,3 +12,4 @@ export const connection = new IORedis({
 export const mailQueue = new Queue('emailSendQueue', { connection });
 export const notificationQueue = new Queue('notificationQueue', { connection });
 export const imageDeleteQueue = new Queue('imageDeleteQueue', { connection });
+export const meetingReminderQueue = new Queue('meetingReminderQueue', { connection });

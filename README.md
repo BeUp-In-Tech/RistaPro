@@ -1956,19 +1956,68 @@ Authorization: Bearer <accessToken>
 
 Purpose:
 
-- List conversations for a candidate.
+- List conversations for a candidate with pagination and opponent profile info.
 
 Query:
 
 - `candidateId`: required
 - `status`: optional, `OPEN`, `ARCHIVED`, or `BLOCKED` (default `OPEN`)
+- `source`: optional, `MATCH` or `MESSAGE_REQUEST`
+- `page`: optional, default `1`
+- `limit`: optional, default `10`, max `100`
 
 Example:
 
 ```http
-GET /api/v1/conversations?candidateId=665f1a2b3c4d5e6f78901234
+GET /api/v1/conversations?candidateId=665f1a2b3c4d5e6f78901234&status=OPEN&source=MATCH&page=1&limit=10
 Authorization: Bearer <accessToken>
 ```
+
+Response data shape:
+
+```json
+{
+  "meta": {
+    "page": 1,
+    "limit": 10,
+    "total": 5,
+    "totalPage": 1
+  },
+  "data": [
+    {
+      "_id": "conversation id",
+      "pairKey": "candidateA_candidateB",
+      "status": "OPEN",
+      "source": "MATCH",
+      "parentInvolvement": false,
+      "lastMessage": {
+        "_id": "message id",
+        "message": "Assalamu alaikum",
+        "type": "TEXT",
+        "sender": "candidate id",
+        "sentBy": "user id",
+        "seenBy": [],
+        "createdAt": "2026-05-21T10:00:00.000Z"
+      },
+      "unreadCount": 2,
+      "opponent": {
+        "_id": "opponent candidate id",
+        "name": "Amina",
+        "image": "https://image-url.jpg",
+        "images": null
+      },
+      "createdAt": "2026-05-11T00:00:00.000Z",
+      "updatedAt": "2026-05-21T10:00:00.000Z"
+    }
+  ]
+}
+```
+
+Notes:
+
+- `opponent` contains the other candidate's `_id`, `name`, and `image` (first image or `null`).
+- `unreadCount` is the unread message count for the requesting user.
+- `images` is omitted from the opponent object; use `image` for the profile picture.
 
 ### `GET /:conversationId/messages`
 
@@ -3664,7 +3713,6 @@ Important rules:
 - Consultants can access only their own assignments and cases.
 - Guest links are public, token-scoped, expire, and never create real `User` or `Candidate` records.
 - Existing scheduled meeting logic remains in the `meeting-schedules` module; `/consultant/meeting-requests` is an alias layer over that service.
-- `/assignments` remains available for internal/back-office compatibility. Normal apps should use `/available`, `/cases/start`, and `/meeting-schedules`.
 
 Common statuses:
 
@@ -3723,53 +3771,6 @@ Notes:
 - Candidate must be linked as `OWNER` or `EDITOR`.
 - Primary candidate must have `canUseConsultant`.
 - Duplicate starts with the same consultant return the existing open case.
-
-### `POST /assignments`
-
-Purpose:
-
-- Internal/back-office compatibility route for assigning a consultant to a candidate profile.
-
-Auth:
-
-- Bearer token (`CONSULTANT`)
-
-Body:
-
-```json
-{
-  "candidateId": "665f1a2b3c4d5e6f78901234",
-  "note": "Assigned for family consultation"
-}
-```
-
-Notes:
-
-- Creates or returns the active consultant-candidate assignment.
-- Normal candidate-facing apps should not call this route directly.
-- Consultant-created back-office cases still require an active assignment for each candidate.
-
-### `GET /assignments`
-
-Purpose:
-
-- Consultant lists their assigned candidates.
-
-Auth:
-
-- Bearer token (`CONSULTANT`)
-
-Query params:
-
-- `candidateId`: optional candidate filter
-- `status`: optional, `ACTIVE` or `INACTIVE`
-
-Example:
-
-```http
-GET /api/v1/consultant/assignments?status=ACTIVE
-Authorization: Bearer <consultantToken>
-```
 
 ### `POST /cases`
 
@@ -4080,124 +4081,6 @@ Notes:
 - Meeting must be linked to the same case as the guest invite.
 - Join is only allowed inside the meeting join window.
 - Returns Agora `appId`, `channelName`, `token`, and numeric `uid`.
-
-### `POST /calls/start`
-
-Purpose:
-
-- Start or reuse an active consultant case Agora call.
-
-Auth:
-
-- Bearer token (`USER` or `CONSULTANT`)
-
-Body for candidate user:
-
-```json
-{
-  "caseId": "665f1a2b3c4d5e6f78909999",
-  "candidateId": "665f1a2b3c4d5e6f78901234"
-}
-```
-
-Body for consultant:
-
-```json
-{
-  "caseId": "665f1a2b3c4d5e6f78909999"
-}
-```
-
-Returns:
-
-- `call`: consultant call document
-- `agora`: `appId`, `channelName`, `token`, `uid`, `expiresAt`
-
-### `POST /calls/:callId/join`
-
-Purpose:
-
-- Authenticated consultant or candidate user joins an active consultant call.
-
-Auth:
-
-- Bearer token (`USER` or `CONSULTANT`)
-
-Body for candidate user:
-
-```json
-{
-  "candidateId": "665f1a2b3c4d5e6f78901234"
-}
-```
-
-Body for consultant:
-
-```json
-{}
-```
-
-### `POST /calls/:callId/token`
-
-Purpose:
-
-- Renew Agora token for an already joined authenticated participant.
-
-Auth:
-
-- Bearer token (`USER` or `CONSULTANT`)
-
-Body:
-
-```json
-{
-  "candidateId": "665f1a2b3c4d5e6f78901234"
-}
-```
-
-Notes:
-
-- `candidateId` is required for `USER`.
-- Consultant can send `{}`.
-
-### `POST /calls/:callId/end`
-
-Purpose:
-
-- End an active consultant case call.
-
-Auth:
-
-- Bearer token (`USER` or `CONSULTANT`)
-
-Body:
-
-```json
-{
-  "candidateId": "665f1a2b3c4d5e6f78901234"
-}
-```
-
-Notes:
-
-- `candidateId` is required for `USER`.
-- Consultant can send `{}`.
-- Ending the call marks all joined participants as left.
-
-### `POST /guest-invites/:token/calls/:callId/join`
-
-Purpose:
-
-- Public guest joins an active consultant case call.
-
-Auth:
-
-- Public token URL
-
-Returns:
-
-- `call`: consultant call document
-- `agora`: `appId`, `channelName`, `token`, `uid`, `expiresAt`
 
 ### `POST /marriage-records`
 
@@ -4627,6 +4510,7 @@ Body:
     "2026-06-01T10:00:00.000Z",
     "2026-06-02T14:00:00.000Z"
   ],
+  "type": "VIDEO",
   "note": "I prefer morning slots"
 }
 ```
@@ -4636,6 +4520,7 @@ Field rules:
 - `candidateId`: required, valid MongoDB ObjectId
 - `consultantId`: required, valid MongoDB ObjectId
 - `requestedTimeSlots`: optional array of future dates, max 5 items
+- `type`: required, `AUDIO` or `VIDEO`
 - `note`: optional string, max 500 chars
 
 Behavior:
@@ -4828,6 +4713,7 @@ Body:
     "2026-06-01T10:00:00.000Z",
     "2026-06-02T14:00:00.000Z"
   ],
+  "type": "VIDEO",
   "note": "Prefer morning slots"
 }
 ```

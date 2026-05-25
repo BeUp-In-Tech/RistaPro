@@ -559,7 +559,14 @@ const getMe = async (userId: string) => {
       canMessage: currentPlan.canMessage,
       canAudioCall: currentPlan.canAudioCall,
       canVideoCall: currentPlan.canVideoCall,
-      canViewFullProfile: currentPlan.canViewFullProfile,
+      canViewFullProfile: currentPlan?.canViewFullProfile,
+      canUseConsultant: currentPlan?.canUseConsultant,
+      canRequestConsultantMeeting:
+        candidateLink.isLinked && isEditorOrOwner && currentPlan.canUseConsultant,
+      canUseConsultantChat:
+        candidateLink.isLinked && isEditorOrOwner && currentPlan.canUseConsultant,
+      canUseConsultantVideoCall:
+        candidateLink.isLinked && isEditorOrOwner && currentPlan.canUseConsultant,
       profileBoost: currentPlan.profileBoost,
     },
   };

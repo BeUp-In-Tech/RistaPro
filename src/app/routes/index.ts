@@ -14,6 +14,8 @@ import { rishtaProgressRoutes } from '../modules/rishta_progress/rishta_progress
 import { notificationRoutes } from '../modules/notification/notification.routes';
 import { visitorRoutes } from '../modules/visitor/visitor.routes';
 import { callRoutes } from '../modules/call/call.routes';
+import { meetingScheduleRoutes } from '../modules/meeting_schedule/meetingSchedule.routes';
+import { consultantRoutes } from '../modules/consultant/consultant.routes';
 export const router = Router();
 
 const moduleRoutes = [
@@ -56,6 +58,14 @@ const moduleRoutes = [
   {
     path: '/calls',
     route: callRoutes,
+  },
+  {
+    path: '/meeting-schedules',
+    route: meetingScheduleRoutes,
+  },
+  {
+    path: '/consultant',
+    route: consultantRoutes,
   },
   {
     path: '/users',

@@ -12,6 +12,7 @@ const planSchema = new Schema<IPlan>(
     canAudioCall: { type: Boolean, required: true },
     canVideoCall: { type: Boolean, required: true },
     canViewFullProfile: { type: Boolean, required: true },
+    canUseConsultant: { type: Boolean, required: true },
     profileBoost: { type: Boolean, required: true },
     featureList: { type: [String], required: true },
     price: { type: Number, required: true, min: 0 },

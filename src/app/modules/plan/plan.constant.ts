@@ -10,6 +10,7 @@ const BASE_PLAN_DATA = {
     canAudioCall: false,
     canVideoCall: false,
     canViewFullProfile: false,
+    canUseConsultant: false,
     profileBoost: false,
   },
   gold: {
@@ -21,6 +22,7 @@ const BASE_PLAN_DATA = {
     canAudioCall: true,
     canVideoCall: false,
     canViewFullProfile: true,
+    canUseConsultant: false,
     profileBoost: false,
   },
   platinum: {
@@ -32,6 +34,7 @@ const BASE_PLAN_DATA = {
     canAudioCall: true,
     canVideoCall: true,
     canViewFullProfile: true,
+    canUseConsultant: true,
     profileBoost: true,
   },
 } as const;
@@ -46,6 +49,7 @@ const buildFeatures = (key: PlanKey) => {
     p.canAudioCall ? 'Audio calls unlocked' : 'Audio calls locked',
     p.canVideoCall ? 'Video calls unlocked' : 'Video calls locked',
     p.canViewFullProfile ? 'Full profile details unlocked' : 'Full profile details locked',
+    p.canUseConsultant ? 'Consultant video meetings included' : 'Consultant video meetings locked',
     p.profileBoost ? 'Profile boost included' : 'No profile boost',
   ];
 };
