@@ -5,7 +5,6 @@ import { JwtPayload } from 'jsonwebtoken';
 import { CatchAsync } from '../../utils/CatchAsync';
 import { SendResponse } from '../../utils/SendResponse';
 import {
-  conversationListQueryZodSchema,
   conversationMessagesQueryZodSchema,
   guardianRequestListQueryZodSchema,
 } from './conversation.validate';
@@ -38,10 +37,10 @@ const startMatchConversation = CatchAsync(
 // AUTH LINKED USER LISTS CANDIDATE CONVERSATIONS
 const getConversations = CatchAsync(async (req: Request, res: Response) => {
   const { userId } = req.user as JwtPayload;
-  const query = await conversationListQueryZodSchema.parseAsync(req.query);
+  const query = req.query as Record<string, string>;
   const result = await ConversationService.getConversations(
     String(userId),
-    query
+    query 
   );
 
   SendResponse(res, {

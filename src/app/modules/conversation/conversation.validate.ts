@@ -1,16 +1,9 @@
 import z from 'zod';
-import { ConversationStatus } from './conversation.interface';
+import { ConversationSource, ConversationStatus } from './conversation.interface';
 import { ConversationGuardianRequestStatus } from './conversationGuardianRequest.interface';
 
 const objectIdString = (field: string) =>
   z.string({ error: `${field} is required` }).trim().min(1, `${field} is required`);
-
-export const conversationListQueryZodSchema = z
-  .object({
-    candidateId: objectIdString('Candidate id'),
-    status: z.nativeEnum(ConversationStatus).optional(),
-  })
-  .strict();
 
 export const conversationMessagesQueryZodSchema = z
   .object({

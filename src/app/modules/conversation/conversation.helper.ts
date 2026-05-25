@@ -21,7 +21,7 @@ import {
 } from './conversation.interface';
 
 export const CHAT_CANDIDATE_SELECT =
-  '_id name dateOfBirth gender images religion address user';
+  '_id name images';
 
 export const CHAT_MESSAGE_SELECT =
   '_id conversation sender sentBy sentByLinkedUser message type seenBy replyTo metadata createdAt';

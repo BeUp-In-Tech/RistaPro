@@ -46,6 +46,7 @@ export interface TConversationIdLean {
 export interface IConversationListQuery {
   candidateId: string;
   status?: ConversationStatus;
+  source?: ConversationSource;
 }
 
 export interface IConversationMessagesQuery {

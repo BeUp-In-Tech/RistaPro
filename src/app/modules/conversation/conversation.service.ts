@@ -28,6 +28,7 @@ import {
   assertLinkedUserCanReadConversation,
   assertValidObjectId,
   buildConversationPairKey,
+  CHAT_CANDIDATE_SELECT,
   CHAT_MESSAGE_SELECT,
   findActiveGuardianParticipant,
   getActiveTargetCandidateOrThrow,
@@ -42,7 +43,6 @@ import {
 import {
   ConversationSource,
   ConversationStatus,
-  IConversationListQuery,
   IConversationMessagesQuery,
   ICreateGuardianRequestPayload,
   ICreateMessageRequestPayload,
@@ -64,6 +64,7 @@ import {
   RishtaProgressStep,
   RishtaProgressStepSource,
 } from '../rishta_progress/rishta_progress.interface';
+import { QueryBuilder } from '../../utils/QueryBuilder';
 
 // POST /conversations/matches/:matchId/start - opens the chat for an active match.
 const startMatchConversation = async (
@@ -112,7 +113,7 @@ const startMatchConversation = async (
 };
 
 // GET /conversations - lists chats for one candidate profile.
-const getConversations = async (userId: string, query: IConversationListQuery) => {
+const getConversations = async (userId: string, query: Record<string, string>) => {
   assertValidObjectId(query.candidateId, 'candidate id');
 
   const { access } = await getActiveLinkedUserAccessOrThrow({
@@ -123,6 +124,7 @@ const getConversations = async (userId: string, query: IConversationListQuery) =
   const conversationQuery: Record<string, unknown> = {
     participants: new Types.ObjectId(query.candidateId),
     status: query.status ?? ConversationStatus.OPEN,
+    ...(query.source && { source: query.source }),
   };
 
   // Guardians only see conversations after the opponent accepted the include request.
@@ -137,14 +139,45 @@ const getConversations = async (userId: string, query: IConversationListQuery) =
     };
   }
 
-  const conversations = await Conversation.find(conversationQuery)
-    .sort({ updatedAt: -1, createdAt: -1 })
-    .populate({ path: 'lastMessage', select: CHAT_MESSAGE_SELECT })
-    .lean<TConversationLean[]>();
+  const baseQuery = Conversation.find(conversationQuery).sort({
+    updatedAt: -1,
+    createdAt: -1,
+  });
 
-  return conversations.map((conversation) =>
-    buildConversationResponse(conversation, userId)
-  );
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const queryBuilder = new QueryBuilder<TConversationLean>(baseQuery as any, query);
+
+  const [conversations, meta] = await Promise.all([
+    queryBuilder
+      .paginate()
+      .build()
+      .populate({ path: 'lastMessage', select: CHAT_MESSAGE_SELECT })
+      .populate({ path: 'participants', select: CHAT_CANDIDATE_SELECT })
+      .lean<TConversationLean[]>(),
+    queryBuilder.getMeta(),
+  ]);
+
+  type TPopulatedParticipant = {
+    _id: Types.ObjectId;
+    name?: string;
+    image?: string[];
+  };
+
+  const data = conversations.map(({ participants, ...rest }) => {
+    const opponent = (participants as unknown as TPopulatedParticipant[]).find(
+      (p) => p._id.toString() !== query.candidateId,
+    );
+
+    return {
+      ...buildConversationResponse(rest as TConversationLean, userId),
+      opponent: opponent
+        ? { ...opponent, image: opponent.image?.[0] ?? null, images: undefined }
+        : null,
+    };
+  });
+
+
+  return { data, meta };
 };
 
 // GET /conversations/:conversationId/messages - reads message history.
