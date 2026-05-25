@@ -1,4 +1,4 @@
-# RistaPro API Guide
+# RishtaPro API Guide
 
 This README documents the API modules that are currently mounted under `/api/v1`.
 
@@ -19,8 +19,42 @@ Active modules today:
 - `notifications`
 - `rishta-progress`
 - `documents`
+- `meeting-schedules`
+- `consultant`
 
 Other route files may exist in the codebase, but they are not publicly available until they are mounted in the main router.
+
+## Table of Contents
+
+- [Base URL](#base-url)
+- [Auth Rules](#auth-rules)
+- [Common Response Shape](#common-response-shape)
+- [Multipart Request Note](#multipart-request-note)
+- [Quick Start Flows](#quick-start-flows)
+- [Product Feature Overview](#product-feature-overview)
+- [Auth Module](#auth-module)
+- [User Module](#user-module)
+- [Plan Module](#plan-module)
+- [Candidate Module](#candidate-module)
+- [Candidate Preference Module](#candidate-preference-module)
+- [Swipe Module](#swipe-module)
+- [Like Module](#like-module)
+- [Profile Visitor Module](#profile-visitor-module)
+- [Match Module](#match-module)
+- [Conversation Module](#conversation-module)
+- [Message Module](#message-module)
+- [Call Module](#call-module)
+- [Notification Module](#notification-module)
+- [Rishta Progress Module](#rishta-progress-module)
+- [Document Module](#document-module)
+- [Consultant Module](#consultant-module)
+- [Meeting Schedule Module](#meeting-schedule-module)
+- [Postman Testing Guide: Swipe To Match](#postman-testing-guide-swipe-to-match)
+- [Postman Testing Guide: Chat](#postman-testing-guide-chat)
+- [Postman Testing Guide: Rishta Progress And Marriage Approval](#postman-testing-guide-rishta-progress-and-marriage-approval)
+- [Postman Testing Guide: Consultant Module](#postman-testing-guide-consultant-module)
+- [Postman Testing Guide: Meeting Schedule](#postman-testing-guide-meeting-schedule)
+- [Maintenance Note](#maintenance-note)
 
 ## Base URL
 
@@ -102,18 +136,35 @@ These are the currently mounted APIs for the swipe-match flow:
 - `GET /api/v1/visitors`
 - `GET /api/v1/matches`
 - `GET /api/v1/matches/:matchId`
-- `PATCH /api/v1/matches/:matchId/unmatch`
+- `PATCH /api/v1/matches/:matchId/unmatched`
 - `GET /api/v1/conversations`
 - `POST /api/v1/conversations/matches/:matchId/start`
-- `POST /api/v1/conversations/message-requests`
+- `POST /api/v1/conversations/message_requests`
 - `POST /api/v1/messages`
 - `POST /api/v1/calls/start`
 - `POST /api/v1/calls/:callId/accept`
+- `POST /api/v1/calls/:callId/reject`
+- `POST /api/v1/calls/:callId/end`
+- `POST /api/v1/calls/:callId/token`
 - `POST /api/v1/calls/:callId/participants/invite`
+- `POST /api/v1/calls/:callId/participants/respond`
+- `GET /api/v1/calls/:callId`
 - `GET /api/v1/rishta-progress`
 - `POST /api/v1/rishta-progress/marriage-requests`
 - `GET /api/v1/rishta-progress/marriage-requests`
 - `GET /api/v1/notifications`
+- `POST /api/v1/meeting-schedules`
+- `POST /api/v1/meeting-schedules/:meetingId/join`
+- `GET /api/v1/consultant/available`
+- `POST /api/v1/consultant/cases/start`
+- `POST /api/v1/consultant/cases`
+- `GET /api/v1/consultant/cases`
+- `POST /api/v1/consultant/cases/:caseId/messages`
+- `POST /api/v1/consultant/cases/:caseId/candidate-invites`
+- `POST /api/v1/consultant/cases/:caseId/guest-invites`
+- `POST /api/v1/consultant/guest-invites/:token/meetings/:meetingId/join`
+- `POST /api/v1/consultant/calls/start`
+- `POST /api/v1/consultant/marriage-records`
 
 Notes:
 
@@ -123,6 +174,7 @@ Notes:
 - chat message, message-request, and guardian-request routes are mounted
 - rishta progress updates automatically from match, chat, parent involvement, and marriage approval events
 - marriage confirmation requests create DB notifications and Firebase push jobs
+- consultant cases support candidate-selected consultants, case chat, candidate invites, guest links, guest video access, and manual marriage records
 - realtime chat events are emitted through Socket.IO
 
 ### 1. User login with Google
@@ -175,6 +227,7 @@ Notes:
 - **Chat System**: Candidates can chat by text, with audio/video call support handled by the call module.
 - **Rishta Progress**: The system tracks a pair through `MATCHES`, `START_CHAT`, `PARENT_INVOLVES`, and `SHAADI`.
 - **Marriage Approval**: Candidate owners and consultants create marriage confirmation requests; Shaadi is completed only after the required candidate-side approval, while admin can confirm directly.
+- **Consultant Support**: Platinum candidates can work with consultants through scheduled meetings, consultant-managed cases, case chat, Agora calls, guest invite links, and manual marriage records.
 - **Parental Control**: Parents or guardians can manage a candidate profile through linked-user access and can join a chat after the opposite side accepts the guardian request.
 - **Documents verification**:
   - Face verification
@@ -222,6 +275,31 @@ What it does:
 - creates user automatically if not found
 - sets auth cookies
 - redirects to frontend or deep link with token
+
+### `POST /google/auth`
+
+Purpose:
+
+- Authenticate with a Google ID token from Apple/iOS devices that cannot use the browser OAuth redirect flow
+
+Auth:
+
+- Public
+
+Body:
+
+```json
+{
+  "idToken": "google-id-token-from-firebase-or-google-sign-in-sdk"
+}
+```
+
+Notes:
+
+- verifies the Google ID token using Firebase Admin
+- creates the user automatically if not found
+- returns `accessToken` in the response body and sets the refresh token cookie
+- use this route instead of `GET /google` when the client is a native iOS app
 
 ### `POST /login`
 
@@ -409,6 +487,10 @@ Example response data shape:
     "canAudioCall": false,
     "canVideoCall": false,
     "canViewFullProfile": false,
+    "canUseConsultant": false,
+    "canRequestConsultantMeeting": false,
+    "canUseConsultantChat": false,
+    "canUseConsultantVideoCall": false,
     "profileBoost": false
   }
 }
@@ -417,6 +499,7 @@ Example response data shape:
 Frontend notes:
 
 - Use `permissions` for broad UI gating, such as hiding full-profile sections or disabling super-like buttons for free users.
+- Use `canUseConsultant`, `canRequestConsultantMeeting`, `canUseConsultantChat`, and `canUseConsultantVideoCall` to gate Platinum consultant UI.
 - The swipe action API remains the source of truth for quota and returns the latest remaining like counts after each action.
 - `GET /users/me` intentionally does not expose raw quota counters or the full plan document.
 - Plan values come from the active plan document in MongoDB. Changing `plan.constant.ts` updates future create/update payloads, but existing plan documents must be updated through the plan update API or a migration.
@@ -981,6 +1064,30 @@ Notes:
 
 - returns `null` when the logged-in user has no active candidate profile
 - rejects the request if the account is linked to multiple active candidate profiles
+
+### `GET /:targetCandidateId/full_profile`
+
+Purpose:
+
+- Get the full profile details of another candidate
+- Used when a linked user opens a candidate's detail page from the feed, likes, or visitors list
+
+Auth:
+
+- Bearer token (`USER`)
+- requester must be an active linked user of any candidate profile
+
+Example:
+
+```http
+GET /api/v1/candidates/665f1a2b3c4d5e6f78905678/full_profile
+Authorization: Bearer <accessToken>
+```
+
+Notes:
+
+- returns the full candidate profile including all fields, labels, and images
+- only returns profiles whose owner account is active and verified
 
 ### `GET /:candidateId/linked_users`
 
@@ -1779,7 +1886,7 @@ Usage:
 - use this after receiving a `match._id` from `/swipes/action`
 - use `data.conversation` as the conversation id for future chat APIs
 
-### `PATCH /:matchId/unmatch`
+### `PATCH /:matchId/unmatched`
 
 Purpose:
 
@@ -1792,7 +1899,7 @@ Query params:
 Example:
 
 ```http
-PATCH /api/v1/matches/665f1a2b3c4d5e6f78909999/unmatch?candidateId=665f1a2b3c4d5e6f78901234
+PATCH /api/v1/matches/665f1a2b3c4d5e6f78909999/unmatched?candidateId=665f1a2b3c4d5e6f78901234
 Authorization: Bearer <accessToken>
 ```
 
@@ -1824,8 +1931,8 @@ Core endpoints:
 - `GET /?candidateId=<candidateId>` lists open conversations
 - `GET /:conversationId/messages?candidateId=<candidateId>` loads message history
 - `PATCH /:conversationId/read` marks messages as seen
-- `POST /message-requests` sends a request to chat without a match
-- `GET /message-requests` lists incoming/outgoing message requests
+- `POST /message_requests` sends a request to chat without a match
+- `GET /message_requests` lists incoming/outgoing message requests
 - `PATCH /message-requests/:requestId/accept` accepts and opens chat
 - `PATCH /message-requests/:requestId/reject` rejects the request
 - `POST /:conversationId/guardian-requests` requests one parent/guardian include
@@ -2955,7 +3062,7 @@ Expected:
 ### 9. Optional: unmatch
 
 ```http
-PATCH {{baseUrl}}/matches/{{matchId}}/unmatch?candidateId={{candidateA}}
+PATCH {{baseUrl}}/matches/{{matchId}}/unmatched?candidateId={{candidateA}}
 Authorization: Bearer {{tokenA}}
 ```
 
@@ -3040,7 +3147,7 @@ Body:
 A sends:
 
 ```http
-POST {{baseUrl}}/conversations/message-requests
+POST {{baseUrl}}/conversations/message_requests
 Authorization: Bearer {{tokenA}}
 Content-Type: application/json
 ```
@@ -3058,7 +3165,7 @@ Body:
 B lists and accepts:
 
 ```http
-GET {{baseUrl}}/conversations/message-requests?candidateId={{candidateB}}&type=incoming&status=PENDING
+GET {{baseUrl}}/conversations/message_requests?candidateId={{candidateB}}&type=incoming&status=PENDING
 Authorization: Bearer {{tokenB}}
 ```
 
@@ -3328,7 +3435,7 @@ Content-Type: application/json
 13. Send `/messages` for text chat
 14. Start audio/video calls with `/calls/start` from an open 1-to-1 conversation
 15. Renew long call tokens with `/calls/:callId/token` and end calls with `/calls/:callId/end`
-16. Use `/conversations/message-requests` when users are not matched yet
+16. Use `/conversations/message_requests` when users are not matched yet
 17. Use `/conversations/:conversationId/guardian-requests` before allowing a parent or guardian into a chat
 18. Invite already-involved linked users into an active call with `/calls/:callId/participants/invite`
 19. Load `/rishta-progress?candidateId=<candidateId>&otherCandidateId=<otherCandidateId>` to render the progress widget
@@ -3337,78 +3444,1281 @@ Content-Type: application/json
 22. Poll or socket-sync `/notifications` for marriage request alerts and mark opened alerts with `/notifications/:id/seen`
 23. Load `/candidates/my_linked_profiles` after login to fetch the current account's candidate access
 24. Use linked-user APIs to add father, mother, consultant, or other guardians
-
-## Maintenance Note
-
-If you add a new mounted module or change a route, update this README in the same PR so frontend and backend stay in sync.
+25. Platinum candidates load `/consultant/available?candidateId=<candidateId>` and select a consultant
+26. Use `POST /consultant/cases/start` to create or reuse the candidate's consultant case thread
+27. Use `POST /meeting-schedules` to request a consultant meeting; the response includes the linked `case`
+28. Use `/consultant/cases/:caseId/messages` for consultant case chat
+29. Consultants use `/consultant/cases/:caseId/candidate-invites` to invite another registered candidate, and the candidate accepts through `/consultant/candidate-invites/:inviteId/accept`
+30. Use `/consultant/cases/:caseId/guest-invites` to invite non-user participants into scoped guest chat/video
+31. Use `/meeting-schedules/:meetingId/join` for authenticated meeting participants and `/consultant/guest-invites/:token/meetings/:meetingId/join` for public guests
+32. Use `/consultant/marriage-records` when a consultant manually records a marriage
 
 ---
 
-## Document Module
+## Consultant Module
 
-Base path: `/api/v1/documents`
+Base path: `/api/v1/consultant`
 
-This module manages face verification and document uploads (e.g., ID or education certificates).
+This module covers the candidate-chosen consultant workflow: consultant discovery, candidate-started cases, case chat, registered-candidate invites, guest invite links, guest-enabled calls, and manual marriage records.
 
-Security rules:
+Important rules:
 
-- all endpoints require `Authorization: Bearer <accessToken>`
-- endpoints require the `candidateId` provided in the body or URL parameters.
+- Candidate-side consultant discovery and case start are Platinum-only through `canUseConsultant`.
+- The primary candidate must have Platinum consultant access. A second candidate accepted into the case can chat and join the linked meeting after accepting the invite.
+- Candidate `OWNER` and `EDITOR` can write; `VIEWER` can read case/message data only.
+- Consultants use `Role.CONSULTANT`; they do not need a paid plan.
+- Consultants can access only their own assignments and cases.
+- Guest links are public, token-scoped, expire, and never create real `User` or `Candidate` records.
+- Existing scheduled meeting logic remains in the `meeting-schedules` module; `/consultant/meeting-requests` is an alias layer over that service.
+- `/assignments` remains available for internal/back-office compatibility. Normal apps should use `/available`, `/cases/start`, and `/meeting-schedules`.
 
-### `POST /face-verification`
+Common statuses:
+
+- Assignment: `ACTIVE`, `INACTIVE`
+- Case: `OPEN`, `ARCHIVED`, `MARRIED`
+- Candidate invite: `PENDING`, `ACCEPTED`, `DECLINED`
+- Guest invite: `ACTIVE`, `REVOKED`
+- Consultant call: `ACTIVE`, `COMPLETED`
+- Marriage party type: `CANDIDATE`, `GUEST`
+
+### `GET /available`
 
 Purpose:
 
-- Submit face verification status for a candidate
+- Platinum candidate lists active consultants they can choose from.
 
 Auth:
 
-- Bearer token (`USER` or `ADMIN`)
+- Bearer token (`USER`)
+
+Query params:
+
+- `candidateId`: required candidate profile id
+
+Example:
+
+```http
+GET /api/v1/consultant/available?candidateId=665f1a2b3c4d5e6f78901234
+Authorization: Bearer <userToken>
+```
+
+### `POST /cases/start`
+
+Purpose:
+
+- Candidate starts or reuses an open consultation case with a selected consultant.
+- Backend automatically creates/reuses the internal consultant-candidate assignment.
+
+Auth:
+
+- Bearer token (`USER`)
 
 Body:
 
 ```json
 {
-  "candidateId": "candidate id",
-  "isFaceVerified": true
+  "candidateId": "665f1a2b3c4d5e6f78901234",
+  "consultantId": "665f1a2b3c4d5e6f78905678",
+  "title": "Consultant support",
+  "note": "Need help coordinating a meeting"
 }
 ```
 
-### `POST /upload`
+Notes:
+
+- Candidate must be linked as `OWNER` or `EDITOR`.
+- Primary candidate must have `canUseConsultant`.
+- Duplicate starts with the same consultant return the existing open case.
+
+### `POST /assignments`
 
 Purpose:
 
-- Upload candidate documents (ID or EDUCATION)
-- Can upload one or multiple titles simultaneously based on the files attached.
+- Internal/back-office compatibility route for assigning a consultant to a candidate profile.
 
 Auth:
 
-- Bearer token (`USER` or `ADMIN`)
+- Bearer token (`CONSULTANT`)
 
-Content type:
+Body:
 
-- `multipart/form-data`
+```json
+{
+  "candidateId": "665f1a2b3c4d5e6f78901234",
+  "note": "Assigned for family consultation"
+}
+```
 
-Fields:
+Notes:
 
-- `candidateId`: "candidate id"
-- `type`: "ID" or "EDUCATION"
-- `title` or `titles`: document titles (string or JSON array of strings)
-- `file` or `files`: binary file uploads
+- Creates or returns the active consultant-candidate assignment.
+- Normal candidate-facing apps should not call this route directly.
+- Consultant-created back-office cases still require an active assignment for each candidate.
 
-### `GET /:candidateId`
+### `GET /assignments`
 
 Purpose:
 
-- Get all uploaded documents for a specific candidate profile
+- Consultant lists their assigned candidates.
 
 Auth:
 
-- Bearer token (`USER` or `ADMIN`)
+- Bearer token (`CONSULTANT`)
+
+Query params:
+
+- `candidateId`: optional candidate filter
+- `status`: optional, `ACTIVE` or `INACTIVE`
 
 Example:
 
 ```http
-GET /api/v1/documents/665f1a2b3c4d5e6f78901234
+GET /api/v1/consultant/assignments?status=ACTIVE
+Authorization: Bearer <consultantToken>
+```
+
+### `POST /cases`
+
+Purpose:
+
+- Consultant creates a consultation case with one or two real candidates.
+
+Auth:
+
+- Bearer token (`CONSULTANT`)
+
+Body:
+
+```json
+{
+  "candidateIds": [
+    "665f1a2b3c4d5e6f78901234",
+    "665f1a2b3c4d5e6f78905678"
+  ],
+  "title": "Initial rishta discussion",
+  "note": "Family intro and expectations"
+}
+```
+
+Field rules:
+
+- `candidateIds`: required array, one or two unique candidate ids
+- each candidate must have an active assignment for the consultant
+- `title`: optional string, max 120 chars
+- `note`: optional string, max 500 chars
+
+### `GET /cases`
+
+Purpose:
+
+- List consultation cases visible to the current user.
+
+Auth:
+
+- Bearer token (`USER` or `CONSULTANT`)
+
+Query params:
+
+- `candidateId`: required for `USER`, optional for `CONSULTANT`
+- `status`: optional, one of `OPEN`, `ARCHIVED`, `MARRIED`
+
+Examples:
+
+```http
+GET /api/v1/consultant/cases?candidateId=665f1a2b3c4d5e6f78901234
+Authorization: Bearer <userToken>
+```
+
+```http
+GET /api/v1/consultant/cases?status=OPEN
+Authorization: Bearer <consultantToken>
+```
+
+### `GET /cases/:caseId`
+
+Purpose:
+
+- Get one consultation case detail.
+
+Auth:
+
+- Bearer token (`USER` or `CONSULTANT`)
+
+Rules:
+
+- Consultant must own the case.
+- Candidate user must be linked to one of the case candidates.
+- The primary candidate side is checked for Platinum consultant access.
+
+### `POST /cases/:caseId/candidates`
+
+Purpose:
+
+- Consultant adds a second real candidate to an open consultation case.
+
+Auth:
+
+- Bearer token (`CONSULTANT`)
+
+Body:
+
+```json
+{
+  "candidateId": "665f1a2b3c4d5e6f78905678"
+}
+```
+
+Notes:
+
+- Case can have at most two real candidates.
+- Added candidate must have an active assignment for the consultant.
+
+### `POST /cases/:caseId/candidate-invites`
+
+Purpose:
+
+- Consultant invites another registered candidate into an open consultation case.
+
+Auth:
+
+- Bearer token (`CONSULTANT`)
+
+Body:
+
+```json
+{
+  "candidateId": "665f1a2b3c4d5e6f78905678"
+}
+```
+
+Behavior:
+
+- Only the consultant who owns the case can invite.
+- Case can contain at most two real candidates.
+- Candidate owner/editor receives a notification.
+- Candidate is added to the case only after accepting.
+
+### `POST /candidate-invites/:inviteId/accept`
+
+Purpose:
+
+- Invited candidate owner/editor accepts a consultant case invite.
+
+Auth:
+
+- Bearer token (`USER`)
+
+Behavior:
+
+- Adds the invited candidate to the case.
+- Creates/reuses the internal consultant assignment for that candidate.
+- Accepted candidate owner/editor can chat and join the linked meeting.
+
+### `POST /candidate-invites/:inviteId/decline`
+
+Purpose:
+
+- Invited candidate owner/editor declines a consultant case invite.
+
+Auth:
+
+- Bearer token (`USER`)
+
+### `GET /cases/:caseId/messages`
+
+Purpose:
+
+- List authenticated consultant case messages.
+
+Auth:
+
+- Bearer token (`USER` or `CONSULTANT`)
+
+Query params:
+
+- `page`: optional, default `1`
+- `limit`: optional, default `30`, max `100`
+
+Example:
+
+```http
+GET /api/v1/consultant/cases/665f1a2b3c4d5e6f78909999/messages?page=1&limit=30
 Authorization: Bearer <accessToken>
 ```
+
+### `POST /cases/:caseId/messages`
+
+Purpose:
+
+- Send a message in a consultant case.
+
+Auth:
+
+- Bearer token (`USER` or `CONSULTANT`)
+
+Body for candidate user:
+
+```json
+{
+  "candidateId": "665f1a2b3c4d5e6f78901234",
+  "message": "We are available tomorrow evening."
+}
+```
+
+Body for consultant:
+
+```json
+{
+  "message": "I will coordinate with both families."
+}
+```
+
+Rules:
+
+- Candidate `OWNER` or `EDITOR` can send.
+- Candidate `VIEWER` cannot send.
+- Consultant can send only inside their own open case.
+
+### `POST /cases/:caseId/guest-invites`
+
+Purpose:
+
+- Consultant creates a secure invite link for a non-user guest.
+
+Auth:
+
+- Bearer token (`CONSULTANT`)
+
+Body:
+
+```json
+{
+  "displayName": "Guest Candidate",
+  "contact": "+8801700000000",
+  "expiresAt": "2026-06-10T10:00:00.000Z"
+}
+```
+
+Response data shape:
+
+```json
+{
+  "invite": {
+    "_id": "guest invite id",
+    "case": "case id",
+    "displayName": "Guest Candidate",
+    "contact": "+8801700000000",
+    "expiresAt": "2026-06-10T10:00:00.000Z",
+    "status": "ACTIVE"
+  },
+  "token": "public-token-shown-once",
+  "url": "https://frontend.example.com/consultant/guest-invites/public-token-shown-once"
+}
+```
+
+Notes:
+
+- Backend stores only a hash of the token.
+- The raw token is returned once and should be treated like a secret guest session link.
+- If `expiresAt` is omitted, the invite expires after 7 days.
+
+### `GET /guest-invites/:token`
+
+Purpose:
+
+- Public guest reads invite and scoped case summary.
+
+Auth:
+
+- Public token URL
+
+Example:
+
+```http
+GET /api/v1/consultant/guest-invites/<token>
+```
+
+### `GET /guest-invites/:token/messages`
+
+Purpose:
+
+- Public guest lists messages for the invite's scoped consultation case.
+
+Auth:
+
+- Public token URL
+
+Query params:
+
+- `page`: optional, default `1`
+- `limit`: optional, default `30`, max `100`
+
+### `POST /guest-invites/:token/messages`
+
+Purpose:
+
+- Public guest sends a message into the invite's scoped consultation case.
+
+Auth:
+
+- Public token URL
+
+Body:
+
+```json
+{
+  "message": "I can join the discussion today."
+}
+```
+
+### `POST /guest-invites/:token/meetings/:meetingId/join`
+
+Purpose:
+
+- Public guest joins a scheduled meeting linked to the invite's consultation case.
+
+Auth:
+
+- Public token URL
+
+Notes:
+
+- Meeting must be linked to the same case as the guest invite.
+- Join is only allowed inside the meeting join window.
+- Returns Agora `appId`, `channelName`, `token`, and numeric `uid`.
+
+### `POST /calls/start`
+
+Purpose:
+
+- Start or reuse an active consultant case Agora call.
+
+Auth:
+
+- Bearer token (`USER` or `CONSULTANT`)
+
+Body for candidate user:
+
+```json
+{
+  "caseId": "665f1a2b3c4d5e6f78909999",
+  "candidateId": "665f1a2b3c4d5e6f78901234"
+}
+```
+
+Body for consultant:
+
+```json
+{
+  "caseId": "665f1a2b3c4d5e6f78909999"
+}
+```
+
+Returns:
+
+- `call`: consultant call document
+- `agora`: `appId`, `channelName`, `token`, `uid`, `expiresAt`
+
+### `POST /calls/:callId/join`
+
+Purpose:
+
+- Authenticated consultant or candidate user joins an active consultant call.
+
+Auth:
+
+- Bearer token (`USER` or `CONSULTANT`)
+
+Body for candidate user:
+
+```json
+{
+  "candidateId": "665f1a2b3c4d5e6f78901234"
+}
+```
+
+Body for consultant:
+
+```json
+{}
+```
+
+### `POST /calls/:callId/token`
+
+Purpose:
+
+- Renew Agora token for an already joined authenticated participant.
+
+Auth:
+
+- Bearer token (`USER` or `CONSULTANT`)
+
+Body:
+
+```json
+{
+  "candidateId": "665f1a2b3c4d5e6f78901234"
+}
+```
+
+Notes:
+
+- `candidateId` is required for `USER`.
+- Consultant can send `{}`.
+
+### `POST /calls/:callId/end`
+
+Purpose:
+
+- End an active consultant case call.
+
+Auth:
+
+- Bearer token (`USER` or `CONSULTANT`)
+
+Body:
+
+```json
+{
+  "candidateId": "665f1a2b3c4d5e6f78901234"
+}
+```
+
+Notes:
+
+- `candidateId` is required for `USER`.
+- Consultant can send `{}`.
+- Ending the call marks all joined participants as left.
+
+### `POST /guest-invites/:token/calls/:callId/join`
+
+Purpose:
+
+- Public guest joins an active consultant case call.
+
+Auth:
+
+- Public token URL
+
+Returns:
+
+- `call`: consultant call document
+- `agora`: `appId`, `channelName`, `token`, `uid`, `expiresAt`
+
+### `POST /marriage-records`
+
+Purpose:
+
+- Consultant manually records a marriage.
+
+Auth:
+
+- Bearer token (`CONSULTANT`)
+
+Candidate + candidate body:
+
+```json
+{
+  "caseId": "665f1a2b3c4d5e6f78909999",
+  "marriedAt": "2026-06-01T10:00:00.000Z",
+  "note": "Marriage completed by consultant.",
+  "parties": [
+    {
+      "partyType": "CANDIDATE",
+      "candidateId": "665f1a2b3c4d5e6f78901234"
+    },
+    {
+      "partyType": "CANDIDATE",
+      "candidateId": "665f1a2b3c4d5e6f78905678"
+    }
+  ]
+}
+```
+
+Candidate + guest body:
+
+```json
+{
+  "caseId": "665f1a2b3c4d5e6f78909999",
+  "parties": [
+    {
+      "partyType": "CANDIDATE",
+      "candidateId": "665f1a2b3c4d5e6f78901234"
+    },
+    {
+      "partyType": "GUEST",
+      "guestInviteId": "665f1a2b3c4d5e6f78908888"
+    }
+  ]
+}
+```
+
+Guest + guest body:
+
+```json
+{
+  "parties": [
+    {
+      "partyType": "GUEST",
+      "displayName": "Guest One",
+      "contact": "+8801700000001"
+    },
+    {
+      "partyType": "GUEST",
+      "displayName": "Guest Two",
+      "contact": "+8801700000002"
+    }
+  ]
+}
+```
+
+Behavior:
+
+- Stores a `ConsultantMarriageRecord`.
+- If both parties are real candidates, the matching `RishtaProgress` is marked `MARRIED`.
+- Candidate-candidate manual marriage clears swipe feed cache for both candidates.
+- If the record is attached to a case and both parties are real candidates, the case becomes `MARRIED`.
+
+### `GET /marriage-records`
+
+Purpose:
+
+- Consultant lists their manual marriage records.
+
+Auth:
+
+- Bearer token (`CONSULTANT`)
+
+Query params:
+
+- `caseId`: optional case filter
+- `page`: optional, default `1`
+- `limit`: optional, default `20`, max `100`
+
+Example:
+
+```http
+GET /api/v1/consultant/marriage-records?page=1&limit=20
+Authorization: Bearer <consultantToken>
+```
+
+---
+
+## Postman Testing Guide: Consultant Module
+
+Add these variables to your Postman environment:
+
+```text
+baseUrl=http://localhost:3000/api/v1
+tokenA=
+tokenB=
+consultantToken=
+consultantId=
+candidateA=
+candidateB=
+caseId=
+candidateInviteId=
+meetingId=
+guestToken=
+guestInviteId=
+consultantCallId=
+```
+
+### 1. Candidate lists available consultants
+
+```http
+GET {{baseUrl}}/consultant/available?candidateId={{candidateA}}
+Authorization: Bearer {{tokenA}}
+```
+
+### 2. Candidate starts consultant case
+
+```http
+POST {{baseUrl}}/consultant/cases/start
+Authorization: Bearer {{tokenA}}
+Content-Type: application/json
+```
+
+Body:
+
+```json
+{
+  "candidateId": "{{candidateA}}",
+  "consultantId": "{{consultantId}}",
+  "title": "Family discussion",
+  "note": "Need help coordinating the discussion"
+}
+```
+
+Postman Tests script:
+
+```js
+const json = pm.response.json();
+pm.environment.set('caseId', json.data._id);
+```
+
+### 3. Candidate requests linked meeting
+
+```http
+POST {{baseUrl}}/meeting-schedules
+Authorization: Bearer {{tokenA}}
+Content-Type: application/json
+```
+
+Body:
+
+```json
+{
+  "candidateId": "{{candidateA}}",
+  "consultantId": "{{consultantId}}",
+  "requestedTimeSlots": ["2026-06-01T10:00:00.000Z"],
+  "note": "Prefer morning slots"
+}
+```
+
+Expected:
+
+- Response includes `data.case` with the linked consultation case id.
+
+Postman Tests script:
+
+```js
+const json = pm.response.json();
+pm.environment.set('meetingId', json.data._id);
+pm.environment.set('caseId', json.data.case);
+```
+
+### 4. Candidate lists cases
+
+```http
+GET {{baseUrl}}/consultant/cases?candidateId={{candidateA}}
+Authorization: Bearer {{tokenA}}
+```
+
+Expected:
+
+- Platinum candidate owner/editor/viewer can read.
+
+### 5. Send case messages
+
+Candidate message:
+
+```http
+POST {{baseUrl}}/consultant/cases/{{caseId}}/messages
+Authorization: Bearer {{tokenA}}
+Content-Type: application/json
+```
+
+```json
+{
+  "candidateId": "{{candidateA}}",
+  "message": "We are ready to discuss."
+}
+```
+
+Consultant message:
+
+```http
+POST {{baseUrl}}/consultant/cases/{{caseId}}/messages
+Authorization: Bearer {{consultantToken}}
+Content-Type: application/json
+```
+
+```json
+{
+  "message": "I will coordinate the meeting."
+}
+```
+
+### 6. Consultant invites registered candidate
+
+```http
+POST {{baseUrl}}/consultant/cases/{{caseId}}/candidate-invites
+Authorization: Bearer {{consultantToken}}
+Content-Type: application/json
+```
+
+Body:
+
+```json
+{
+  "candidateId": "{{candidateB}}"
+}
+```
+
+Postman Tests script:
+
+```js
+const json = pm.response.json();
+pm.environment.set('candidateInviteId', json.data._id);
+```
+
+Candidate B accepts:
+
+```http
+POST {{baseUrl}}/consultant/candidate-invites/{{candidateInviteId}}/accept
+Authorization: Bearer {{tokenB}}
+```
+
+### 7. Consultant creates guest invite
+
+```http
+POST {{baseUrl}}/consultant/cases/{{caseId}}/guest-invites
+Authorization: Bearer {{consultantToken}}
+Content-Type: application/json
+```
+
+Body:
+
+```json
+{
+  "displayName": "Guest Candidate",
+  "contact": "+8801700000000"
+}
+```
+
+Postman Tests script:
+
+```js
+const json = pm.response.json();
+pm.environment.set('guestToken', json.data.token);
+pm.environment.set('guestInviteId', json.data.invite._id);
+```
+
+### 8. Guest reads and sends messages
+
+```http
+GET {{baseUrl}}/consultant/guest-invites/{{guestToken}}/messages
+```
+
+```http
+POST {{baseUrl}}/consultant/guest-invites/{{guestToken}}/messages
+Content-Type: application/json
+```
+
+Body:
+
+```json
+{
+  "message": "Guest has joined the consultation."
+}
+```
+
+Guest joins linked scheduled meeting:
+
+```http
+POST {{baseUrl}}/consultant/guest-invites/{{guestToken}}/meetings/{{meetingId}}/join
+```
+
+### 9. Start and join consultant call
+
+```http
+POST {{baseUrl}}/consultant/calls/start
+Authorization: Bearer {{consultantToken}}
+Content-Type: application/json
+```
+
+Body:
+
+```json
+{
+  "caseId": "{{caseId}}"
+}
+```
+
+Postman Tests script:
+
+```js
+const json = pm.response.json();
+pm.environment.set('consultantCallId', json.data.call._id);
+```
+
+Guest joins:
+
+```http
+POST {{baseUrl}}/consultant/guest-invites/{{guestToken}}/calls/{{consultantCallId}}/join
+```
+
+Candidate joins:
+
+```http
+POST {{baseUrl}}/consultant/calls/{{consultantCallId}}/join
+Authorization: Bearer {{tokenA}}
+Content-Type: application/json
+```
+
+Body:
+
+```json
+{
+  "candidateId": "{{candidateA}}"
+}
+```
+
+### 10. Consultant creates manual marriage record
+
+```http
+POST {{baseUrl}}/consultant/marriage-records
+Authorization: Bearer {{consultantToken}}
+Content-Type: application/json
+```
+
+Body:
+
+```json
+{
+  "caseId": "{{caseId}}",
+  "parties": [
+    {
+      "partyType": "CANDIDATE",
+      "candidateId": "{{candidateA}}"
+    },
+    {
+      "partyType": "GUEST",
+      "guestInviteId": "{{guestInviteId}}"
+    }
+  ],
+  "note": "Manual record created by consultant."
+}
+```
+
+For candidate-candidate records, send two `CANDIDATE` parties. That also marks the pair's `RishtaProgress` as `MARRIED`.
+
+---
+
+## Meeting Schedule Module
+
+Base path: `/api/v1/meeting-schedules`
+
+This module lets candidates request a video consultation with a consultant, and lets consultants confirm, reschedule, and host those meetings using Agora RTC.
+
+Meeting statuses:
+
+- `PENDING`: candidate has submitted a request, waiting for consultant to confirm
+- `CONFIRMED`: consultant has set a schedule time
+- `RESCHEDULE_REQUESTED`: either side has requested a new time
+- `COMPLETED`: meeting has ended
+- `CANCELLED`: meeting was cancelled
+- `REJECTED`: consultant rejected the request
+
+Security rules:
+
+- `POST /` requires `USER` role
+- `GET /` and `GET /:meetingId` require `USER` or `CONSULTANT`
+- `PATCH /:meetingId/confirm` requires `CONSULTANT`
+- `PATCH /:meetingId/reschedule` requires `USER` or `CONSULTANT`
+- `POST /:meetingId/join` requires `USER` or `CONSULTANT`
+- Primary candidate-side access requires linked candidate access and Platinum `canUseConsultant`
+- Meetings created through this API create/reuse a linked consultant case and return `case`
+- Public guests join linked meetings through `/api/v1/consultant/guest-invites/:token/meetings/:meetingId/join`
+
+### `POST /`
+
+Purpose:
+
+- Candidate requests a consultation meeting with a specific consultant
+- Optionally provides up to 5 preferred time slots
+
+Auth:
+
+- Bearer token (`USER`)
+
+Body:
+
+```json
+{
+  "candidateId": "665f1a2b3c4d5e6f78901234",
+  "consultantId": "665f1a2b3c4d5e6f78905678",
+  "requestedTimeSlots": [
+    "2026-06-01T10:00:00.000Z",
+    "2026-06-02T14:00:00.000Z"
+  ],
+  "note": "I prefer morning slots"
+}
+```
+
+Field rules:
+
+- `candidateId`: required, valid MongoDB ObjectId
+- `consultantId`: required, valid MongoDB ObjectId
+- `requestedTimeSlots`: optional array of future dates, max 5 items
+- `note`: optional string, max 500 chars
+
+Behavior:
+
+- Creates or reuses the candidate's open consultation case with the selected consultant.
+- Creates/reuses the internal assignment needed by older consultant case APIs.
+- Response includes the linked consultant case id as `case`.
+
+### `GET /`
+
+Purpose:
+
+- List meeting schedules for the current user
+
+Auth:
+
+- Bearer token (`USER` or `CONSULTANT`)
+
+Query params:
+
+- `candidateId`: required for `USER`, optional for `CONSULTANT`
+- `status`: optional, one of `PENDING`, `CONFIRMED`, `RESCHEDULE_REQUESTED`, `COMPLETED`, `CANCELLED`, `REJECTED`
+
+Example:
+
+```http
+GET /api/v1/meeting-schedules?candidateId=665f1a2b3c4d5e6f78901234&status=PENDING
+Authorization: Bearer <accessToken>
+```
+
+### `GET /:meetingId`
+
+Purpose:
+
+- Get one meeting schedule detail
+
+Auth:
+
+- Bearer token (`USER` or `CONSULTANT`)
+
+Example:
+
+```http
+GET /api/v1/meeting-schedules/665f1a2b3c4d5e6f78909999
+Authorization: Bearer <accessToken>
+```
+
+### `PATCH /:meetingId/confirm`
+
+Purpose:
+
+- Consultant confirms the meeting and sets the final schedule time
+
+Auth:
+
+- Bearer token (`CONSULTANT`)
+
+Body:
+
+```json
+{
+  "schedule_time": "2026-06-01T10:00:00.000Z",
+  "consultantNote": "See you then"
+}
+```
+
+Field rules:
+
+- `schedule_time`: required, must be a future date
+- `consultantNote`: optional string, max 500 chars
+
+Behavior:
+
+- meeting status becomes `CONFIRMED`
+- a join window is calculated around `schedule_time`
+- a one-hour reminder notification is scheduled
+
+### `PATCH /:meetingId/reschedule`
+
+Purpose:
+
+- Either side requests a new time or the consultant sets a new confirmed time
+
+Auth:
+
+- Bearer token (`USER` or `CONSULTANT`)
+
+Body:
+
+```json
+{
+  "requestedTimeSlots": ["2026-06-03T09:00:00.000Z"],
+  "note": "Can we move to Thursday?",
+  "consultantNote": "Rescheduling due to conflict"
+}
+```
+
+Field rules:
+
+- at least one of `requestedTimeSlots`, `schedule_time`, `note`, or `consultantNote` is required
+- `requestedTimeSlots`: optional array of future dates, max 5 items
+- `schedule_time`: optional future date (consultant sets confirmed time directly)
+- `note`: optional string, max 500 chars
+- `consultantNote`: optional string, max 500 chars
+
+Behavior:
+
+- meeting status becomes `RESCHEDULE_REQUESTED` when a candidate sends new time slots
+- meeting status becomes `CONFIRMED` when a consultant sets `schedule_time` directly
+
+### `POST /:meetingId/join`
+
+Purpose:
+
+- Participant joins the meeting room and receives an Agora RTC token
+
+Auth:
+
+- Bearer token (`USER` or `CONSULTANT`)
+
+Body:
+
+```json
+{
+  "candidateId": "665f1a2b3c4d5e6f78901234"
+}
+```
+
+Notes:
+
+- `candidateId` is accepted for `USER` role and should be sent when the user is joining as a specific case candidate; omit for `CONSULTANT`
+- join is only allowed within the meeting join window
+- accepted second candidates in the linked case can join after accepting the candidate invite
+- returns Agora `appId`, `channelName`, `token`, and numeric `uid`
+- client joins Agora with those values to start the video call
+
+Response data shape:
+
+```json
+{
+  "meeting": {
+    "_id": "meeting id",
+    "case": "consultation case id",
+    "status": "CONFIRMED",
+    "schedule_time": "2026-06-01T10:00:00.000Z",
+    "agoraChannelName": "meeting_665f1a2b3c4d5e6f78909999",
+    "joinWindowStartsAt": "2026-06-01T09:50:00.000Z",
+    "joinWindowEndsAt": "2026-06-01T11:00:00.000Z"
+  },
+  "agora": {
+    "appId": "Agora app id",
+    "channelName": "meeting_665f1a2b3c4d5e6f78909999",
+    "token": "Agora RTC token",
+    "uid": 654321,
+    "expiresAt": "2026-06-01T11:00:00.000Z"
+  }
+}
+```
+
+---
+
+## Postman Testing Guide: Meeting Schedule
+
+Add these variables to your Postman environment:
+
+```text
+baseUrl=http://localhost:3000/api/v1
+tokenA=
+consultantToken=
+candidateA=
+consultantId=
+meetingId=
+```
+
+### 1. Candidate requests a meeting
+
+```http
+POST {{baseUrl}}/meeting-schedules
+Authorization: Bearer {{tokenA}}
+Content-Type: application/json
+```
+
+Body:
+
+```json
+{
+  "candidateId": "{{candidateA}}",
+  "consultantId": "{{consultantId}}",
+  "requestedTimeSlots": [
+    "2026-06-01T10:00:00.000Z",
+    "2026-06-02T14:00:00.000Z"
+  ],
+  "note": "Prefer morning slots"
+}
+```
+
+Postman Tests script:
+
+```js
+const json = pm.response.json();
+pm.environment.set('meetingId', json.data._id);
+```
+
+### 2. Consultant lists pending meetings
+
+```http
+GET {{baseUrl}}/meeting-schedules?status=PENDING
+Authorization: Bearer {{consultantToken}}
+```
+
+### 3. Consultant confirms the meeting
+
+```http
+PATCH {{baseUrl}}/meeting-schedules/{{meetingId}}/confirm
+Authorization: Bearer {{consultantToken}}
+Content-Type: application/json
+```
+
+Body:
+
+```json
+{
+  "schedule_time": "2026-06-01T10:00:00.000Z",
+  "consultantNote": "Looking forward to it"
+}
+```
+
+### 4. Candidate joins the meeting
+
+```http
+POST {{baseUrl}}/meeting-schedules/{{meetingId}}/join
+Authorization: Bearer {{tokenA}}
+Content-Type: application/json
+```
+
+Body:
+
+```json
+{
+  "candidateId": "{{candidateA}}"
+}
+```
+
+Expected:
+
+- `data.agora.token` is the Agora RTC token
+- client joins Agora using `appId`, `channelName`, `token`, and `uid`
+
+### 5. Consultant joins the meeting
+
+```http
+POST {{baseUrl}}/meeting-schedules/{{meetingId}}/join
+Authorization: Bearer {{consultantToken}}
+Content-Type: application/json
+```
+
+Body: empty `{}`
+
+### 6. Reschedule request
+
+```http
+PATCH {{baseUrl}}/meeting-schedules/{{meetingId}}/reschedule
+Authorization: Bearer {{tokenA}}
+Content-Type: application/json
+```
+
+Body:
+
+```json
+{
+  "requestedTimeSlots": ["2026-06-03T09:00:00.000Z"],
+  "note": "Can we move to Thursday?"
+}
+```
+
+---
+
+## Maintenance Note
+
+If you add a new mounted module or change a route, update this README in the same PR so frontend and backend stay in sync.
