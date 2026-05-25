@@ -1915,39 +1915,233 @@ Behavior:
 
 Base path: `/api/v1/conversations`
 
-This module starts/loads chat threads, manages message requests, and controls guardian/parent inclusion.
+This module manages chat threads, message requests, and guardian/parent include requests. Realtime delivery uses Socket.IO events after the database write succeeds.
 
 Security rules:
 
-- all endpoints require `Authorization: Bearer <accessToken>`
-- requester must be an active linked user of the relevant `candidateId`
-- `OWNER` and `EDITOR` can start/respond/request
-- `VIEWER` can read allowed conversations but cannot send/respond
-- father, mother, and guardian linked users can read/send only after the opponent accepts a guardian include request, unless that linked user is the candidate's primary manager
-
-Core endpoints:
-
-- `POST /matches/:matchId/start` starts or returns a match conversation
-- `GET /?candidateId=<candidateId>` lists open conversations
-- `GET /:conversationId/messages?candidateId=<candidateId>` loads message history
-- `PATCH /:conversationId/read` marks messages as seen
-- `POST /message_requests` sends a request to chat without a match
-- `GET /message_requests` lists incoming/outgoing message requests
-- `PATCH /message-requests/:requestId/accept` accepts and opens chat
-- `PATCH /message-requests/:requestId/reject` rejects the request
-- `POST /:conversationId/guardian-requests` requests one parent/guardian include
-- `GET /guardian-requests` lists guardian include requests
-- `PATCH /guardian-requests/:requestId/accept` includes that guardian
-- `PATCH /guardian-requests/:requestId/reject` rejects that guardian
+- All endpoints require `Authorization: Bearer <accessToken>`.
+- The requester must be an active linked user of the provided `candidateId`.
+- `OWNER` and `EDITOR` can start/respond/send request actions.
+- `VIEWER` can read allowed conversations but cannot send messages or respond to requests.
+- Family, relative, guardian, and consultant linked users can read/send only after the opponent accepts an include request for that exact linked user, unless that linked user is the candidate's primary manager. `OTHER` linked users cannot be included.
+- Free plan users cannot create message requests or send chat messages because `canMessage` is false.
 
 Socket.IO events:
 
-- client emits `join-user` with the logged-in user id
-- client emits `join-conversation` with a conversation id while viewing a chat
-- server emits `message-request:new`, `message-request:accepted`, `conversation:started`, `message:new`, `conversation:read`, `guardian-request:new`, `guardian-request:accepted`, `guardian-request:rejected`, and `guardian:included`
+- client connection URL is the same backend host.
+- client emits `join-user` with `userId`
+- client emits `join-conversation` with `conversationId`
+- client emits `leave-conversation` with `conversationId`
+- server emits `online_users`, `conversation:started`, `message-request:new`, `message-request:accepted`, `message-request:rejected`, `message:new`, `conversation:read`, `guardian-request:new`, `guardian-request:accepted`, `guardian-request:rejected`, `guardian:included`.
 - typing indicators use `typing:start` and `typing:stop`
 
-Detailed docs: `src/app/modules/conversation/API.md`
+### `POST /matches/:matchId/start`
+
+Purpose:
+
+- Returns or creates the open conversation for an active match.
+
+Query:
+
+- `candidateId`: optional but recommended
+
+Example:
+
+```http
+POST /api/v1/conversations/matches/665f1a2b3c4d5e6f78909999/start?candidateId=665f1a2b3c4d5e6f78901234
+Authorization: Bearer <accessToken>
+```
+
+### `GET /`
+
+Purpose:
+
+- List conversations for a candidate.
+
+Query:
+
+- `candidateId`: required
+- `status`: optional, `OPEN`, `ARCHIVED`, or `BLOCKED` (default `OPEN`)
+
+Example:
+
+```http
+GET /api/v1/conversations?candidateId=665f1a2b3c4d5e6f78901234
+Authorization: Bearer <accessToken>
+```
+
+### `GET /:conversationId/messages`
+
+Purpose:
+
+- Load message history for a conversation.
+
+Query:
+
+- `candidateId`: required
+- `limit`: optional, default 50
+- `before`: optional ISO date for pagination
+
+Example:
+
+```http
+GET /api/v1/conversations/665f1a2b3c4d5e6f78908888/messages?candidateId=665f1a2b3c4d5e6f78901234&limit=50
+Authorization: Bearer <accessToken>
+```
+
+### `PATCH /:conversationId/read`
+
+Purpose:
+
+- Mark messages as seen in a conversation.
+
+Body:
+
+```json
+{
+  "candidateId": "665f1a2b3c4d5e6f78901234"
+}
+```
+
+### `POST /message_requests`
+
+Purpose:
+
+- Send a request to chat without a match.
+
+Body:
+
+```json
+{
+  "requesterCandidateId": "candidateA",
+  "targetCandidateId": "candidateB",
+  "firstMessage": "Assalamu alaikum, can we start a conversation?"
+}
+```
+
+Behavior:
+
+- saves a pending request
+- emits `message-request:new`
+- rejected requests can be sent again later
+- a second pending request for the same direction is rejected
+
+### `GET /message_requests`
+
+Purpose:
+
+- List message requests.
+
+Query:
+
+- `candidateId`: required
+- `type`: optional, `incoming`, `outgoing`, or `all` (default `incoming`)
+- `status`: optional, `PENDING`, `ACCEPTED`, `REJECTED`, or `CANCELLED`
+
+### `PATCH /message-requests/:requestId/accept`
+
+Purpose:
+
+- Accept a message request.
+
+Body:
+
+```json
+{
+  "candidateId": "targetCandidateId"
+}
+```
+
+Behavior:
+
+- accepts the request
+- creates or opens the conversation
+- saves the request `firstMessage` as the first chat message
+- emits `message-request:accepted`, `conversation:started`, and `message:new`
+
+### `PATCH /message-requests/:requestId/reject`
+
+Purpose:
+
+- Reject a message request.
+
+Body:
+
+```json
+{
+  "candidateId": "targetCandidateId"
+}
+```
+
+### `POST /:conversationId/guardian-requests`
+
+Purpose:
+
+- Request to include a parent/guardian in the chat.
+
+Body:
+
+```json
+{
+  "candidateId": "candidateA",
+  "linkedUserId": "relativeLinkedUserId",
+  "message": "I want to include my family member in this chat."
+}
+```
+
+Behavior:
+
+- the linked user must belong to `candidateId`
+- relationship must be `FATHER`, `MOTHER`, `BROTHER`, `SISTER`, `GUARDIAN`, `RELATIVE`, or `CONSULTANT`
+- saves a pending DB request
+- emits `guardian-request:new` to the opponent side in realtime
+
+### `GET /guardian-requests`
+
+Purpose:
+
+- List guardian include requests.
+
+Query:
+
+- `candidateId`: required
+- `type`: optional, `incoming`, `outgoing`, or `all` (default `incoming`)
+- `status`: optional, `PENDING`, `ACCEPTED`, `REJECTED`, or `CANCELLED`
+
+### `PATCH /guardian-requests/:requestId/accept`
+
+Purpose:
+
+- Accept a guardian include request.
+
+Body:
+
+```json
+{
+  "candidateId": "opponentCandidateId"
+}
+```
+
+Behavior:
+
+- marks the request as accepted
+- adds that exact guardian linked user to `conversation.guardianParticipants`
+- emits `guardian-request:accepted` and `guardian:included`
+- the approved guardian can now list/read/send in that conversation
+
+### `PATCH /guardian-requests/:requestId/reject`
+
+Purpose:
+
+- Reject a guardian include request.
+
+Body:
+
+```json
+{
+  "candidateId": "opponentCandidateId"
+}
+```
 
 ---
 
