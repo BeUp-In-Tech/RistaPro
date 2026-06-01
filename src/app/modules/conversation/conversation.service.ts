@@ -157,7 +157,7 @@ const getConversations = async (userId: string, query: Record<string, string>) =
     queryBuilder.getMeta(),
   ]);
 
-  type TPopulatedParticipant = {
+   interface TPopulatedParticipant {
     _id: Types.ObjectId;
     name?: string;
     image?: string[];
