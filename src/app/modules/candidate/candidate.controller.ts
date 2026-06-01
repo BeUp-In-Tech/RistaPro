@@ -70,8 +70,24 @@ const getFullCandidateProfileDetails = CatchAsync(
   }
 );
 
+// AUTH USER VIEW OWN FULL CANDIDATE PROFILE
+const getMyFullCandidateProfile = CatchAsync(
+  async (req: Request, res: Response) => {
+    const { userId } = req.user as JwtPayload;
+    const result = await CandidateService.getMyFullCandidateProfile(String(userId));
+
+    SendResponse(res, {
+      success: true,
+      statusCode: StatusCodes.OK,
+      message: 'My full candidate profile retrieved successfully',
+      data: result,
+    });
+  }
+);
+
 export const CandidateController = {
   createCandidate,
   getFullCandidateProfileDetails,
+  getMyFullCandidateProfile,
   updateCandidate,
 };

@@ -26,14 +26,23 @@ import {
 import CandidateLinkedUser from './linked-user/candidateLinkedUser.model';
 import {
   CandidateLinkedUserAccessRole,
+  CandidateLinkedUserRelation,
   CandidateLinkedUserStatus,
 } from './linked-user/candidateLinkedUser.interface';
-import { ensureNoOtherActiveCandidateAccess } from './linked-user/candidateLinkedUser.access';
+import {
+  ensureNoOtherActiveCandidateAccess,
+  ensureSingleActiveCandidateAccessOrThrow,
+} from './linked-user/candidateLinkedUser.access';
 import {
   buildCandidateManagementSummary,
   mapLegacyRelationToLinkedRelation,
 } from './linked-user/candidateLinkedUser.utility';
-import { getActiveLinkedUserAccessOrThrow } from './linked-user/candidateLinkedUser.helper';
+import {
+  buildMyAccessResponse,
+  getActiveLinkedUserAccessOrThrow,
+  getCandidateManagementSummary,
+  syncLegacyOwnerLinks,
+} from './linked-user/candidateLinkedUser.helper';
 import {
   deleteCandidatePreferenceByCandidateId,
   ensureDefaultCandidatePreference,
@@ -63,10 +72,64 @@ type TFullProfileCandidateLean = ICandidateProfileFields & {
   updatedAt?: Date;
 };
 
+type TMyFullProfileLinkedCandidateRow = {
+  _id: Types.ObjectId;
+  accessRole: CandidateLinkedUserAccessRole;
+  candidate: TFullProfileCandidateLean | null;
+  relationshipToCandidate: CandidateLinkedUserRelation;
+  status: CandidateLinkedUserStatus;
+  isPrimary: boolean;
+  linkedBy: Types.ObjectId;
+  joinedAt?: Date;
+};
+
 const FULL_PROFILE_CANDIDATE_SELECT =
   '_id name dateOfBirth gender height religion sect caste profile_assist relationship_status have_children move_abroad occupation highest_education smoke_status drink_status interests personality bio images address coordinates verification_status isActive user createdAt updatedAt';
 
 const MS_PER_YEAR = 365.2425 * 24 * 60 * 60 * 1000;
+
+const buildFullCandidateProfileResponse = (
+  candidate: TFullProfileCandidateLean,
+  userIsVerified: boolean
+) => {
+  const age = Math.floor(
+    (Date.now() - candidate.dateOfBirth.getTime()) / MS_PER_YEAR
+  );
+
+  return {
+    _id: candidate._id,
+    name: candidate.name,
+    age,
+    dateOfBirth: candidate.dateOfBirth,
+    gender: candidate.gender,
+    height: candidate.height,
+    religion: candidate.religion,
+    sect: candidate.sect,
+    caste: candidate.caste,
+    profile_assist: candidate.profile_assist,
+    relationship_status: candidate.relationship_status,
+    have_children: candidate.have_children,
+    move_abroad: candidate.move_abroad,
+    occupation: candidate.occupation,
+    highest_education: candidate.highest_education,
+    smoke_status: candidate.smoke_status,
+    drink_status: candidate.drink_status,
+    interests: candidate.interests ?? [],
+    personality: candidate.personality ?? [],
+    bio: candidate.bio,
+    images: candidate.images ?? [],
+    address: candidate.address,
+    coordinates: candidate.coordinates,
+    verification_status: candidate.verification_status,
+    badge: hasVerificationBadge({
+      userIsVerified,
+      verificationStatus: candidate.verification_status,
+    }),
+    labels: buildCandidateLabels(candidate),
+    createdAt: candidate.createdAt,
+    updatedAt: candidate.updatedAt,
+  };
+};
 
 // 1. BUILD AUTHENTICATED USER'S CANDIDATE PROFILE
 const createCandidate = async (
@@ -324,7 +387,57 @@ const updateCandidate = async (
   });
 };
 
-// 3. PLAN-GATED FULL CANDIDATE PROFILE DETAILS
+// 3. AUTHENTICATED USER'S FULL CANDIDATE PROFILE DETAILS
+const getMyFullCandidateProfile = async (userId: string) => {
+  const activeCandidateAccesses = await ensureSingleActiveCandidateAccessOrThrow({
+    userId,
+    message:
+      'This account is linked to multiple active candidate profiles. Please resolve the duplicate assignments first',
+  });
+
+  if (!activeCandidateAccesses.length) {
+    return null;
+  }
+
+  const candidateIds = activeCandidateAccesses.map((access) => access.candidateId);
+  await syncLegacyOwnerLinks({ userId, candidateIds });
+
+  const linkedCandidate = await CandidateLinkedUser.findOne({
+    candidate: { $in: candidateIds },
+    user: userId,
+    status: CandidateLinkedUserStatus.ACTIVE,
+  })
+    .populate({
+      path: 'candidate',
+      select: FULL_PROFILE_CANDIDATE_SELECT,
+      populate: {
+        path: 'user',
+        select: '_id isActive isDeleted isVerified',
+      },
+    })
+    .lean<TMyFullProfileLinkedCandidateRow | null>();
+
+  if (!linkedCandidate?.candidate) {
+    return null;
+  }
+
+  const candidate = linkedCandidate.candidate;
+  const candidateOwner =
+    candidate.user && typeof candidate.user === 'object' && 'isVerified' in candidate.user
+      ? candidate.user
+      : null;
+
+  return {
+    candidate: buildFullCandidateProfileResponse(
+      candidate,
+      Boolean(candidateOwner?.isVerified)
+    ),
+    management: await getCandidateManagementSummary(candidate._id.toString()),
+    myAccess: buildMyAccessResponse(linkedCandidate),
+  };
+};
+
+// 4. PLAN-GATED FULL CANDIDATE PROFILE DETAILS
 const getFullCandidateProfileDetails = async (
   userId: string,
   viewerCandidateId: string,
@@ -478,47 +591,15 @@ const getFullCandidateProfileDetails = async (
     );
   }
 
-  const age = Math.floor(
-    (Date.now() - targetCandidate.dateOfBirth.getTime()) / MS_PER_YEAR
+  return buildFullCandidateProfileResponse(
+    targetCandidate,
+    Boolean(targetOwner.isVerified)
   );
-
-  return {
-    _id: targetCandidate._id,
-    name: targetCandidate.name,
-    age,
-    dateOfBirth: targetCandidate.dateOfBirth,
-    gender: targetCandidate.gender,
-    height: targetCandidate.height,
-    religion: targetCandidate.religion,
-    sect: targetCandidate.sect,
-    caste: targetCandidate.caste,
-    profile_assist: targetCandidate.profile_assist,
-    relationship_status: targetCandidate.relationship_status,
-    have_children: targetCandidate.have_children,
-    move_abroad: targetCandidate.move_abroad,
-    occupation: targetCandidate.occupation,
-    highest_education: targetCandidate.highest_education,
-    smoke_status: targetCandidate.smoke_status,
-    drink_status: targetCandidate.drink_status,
-    interests: targetCandidate.interests ?? [],
-    personality: targetCandidate.personality ?? [],
-    bio: targetCandidate.bio,
-    images: targetCandidate.images ?? [],
-    address: targetCandidate.address,
-    coordinates: targetCandidate.coordinates,
-    verification_status: targetCandidate.verification_status,
-    badge: hasVerificationBadge({
-      userIsVerified: Boolean(targetOwner.isVerified),
-      verificationStatus: targetCandidate.verification_status,
-    }),
-    labels: buildCandidateLabels(targetCandidate),
-    createdAt: targetCandidate.createdAt,
-    updatedAt: targetCandidate.updatedAt,
-  };
 };
 
 export const CandidateService = {
   createCandidate,
   getFullCandidateProfileDetails,
+  getMyFullCandidateProfile,
   updateCandidate,
 };

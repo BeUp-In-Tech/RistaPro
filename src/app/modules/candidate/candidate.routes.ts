@@ -52,6 +52,13 @@ router.get(
   CandidateLinkedUserController.getMyCandidateBasicProfile
 );
 
+// AUTHENTICATED USER OWN FULL CANDIDATE PROFILE
+router.get(
+  '/my_full_profile',
+  checkAuth(Role.USER),
+  CandidateController.getMyFullCandidateProfile
+);
+
 // AUTHENTICATED LINKED USER FULL CANDIDATE PROFILE DETAILS
 router.get(
   '/:targetCandidateId/full_profile',
