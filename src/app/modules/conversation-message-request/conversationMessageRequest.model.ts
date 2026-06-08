@@ -20,7 +20,6 @@ const conversationMessageRequestSchema =
         required: true,
       },
       targetRespondedBy: { type: Schema.Types.ObjectId, ref: 'user' },
-      firstMessage: { type: String, required: true, trim: true },
       conversation: { type: Schema.Types.ObjectId, ref: 'conversation' },
       status: {
         type: String,

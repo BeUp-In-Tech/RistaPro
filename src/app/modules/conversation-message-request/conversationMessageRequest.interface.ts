@@ -13,7 +13,6 @@ export interface IConversationMessageRequest extends Document {
   requesterUser: Types.ObjectId;
   targetCandidate: Types.ObjectId;
   targetRespondedBy?: Types.ObjectId;
-  firstMessage: string;
   conversation?: Types.ObjectId;
   status: ConversationMessageRequestStatus;
   respondedAt?: Date;
