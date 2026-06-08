@@ -58,13 +58,31 @@ import {
   IConversationGuardianRequest,
 } from './conversationGuardianRequest.interface';
 import Message from '../message/message.model';
-import { MessageType } from '../message/message.interface';
+import { buildMessageResponse } from '../message/message.service';
 import { RishtaProgressService } from '../rishta_progress/rishta_progress.service';
 import {
   RishtaProgressStep,
   RishtaProgressStepSource,
 } from '../rishta_progress/rishta_progress.interface';
 import { QueryBuilder } from '../../utils/QueryBuilder';
+
+const buildConversationClientResponse = (
+  conversation: TConversationLean,
+  userId: string
+) => {
+  const response = buildConversationResponse(conversation, userId);
+
+  if (response.lastMessage && typeof response.lastMessage === 'object') {
+    return {
+      ...response,
+      lastMessage: buildMessageResponse(
+        response.lastMessage as unknown as Record<string, unknown>
+      ),
+    };
+  }
+
+  return response;
+};
 
 // POST /conversations/matches/:matchId/start - opens the chat for an active match.
 const startMatchConversation = async (
@@ -105,11 +123,11 @@ const startMatchConversation = async (
   emitChatEvent({
     conversationId: conversation._id.toString(),
     event: 'conversation:started',
-    payload: { conversation },
+    payload: { conversation: buildConversationClientResponse(conversation, userId) },
     userIds: await getConversationAudienceUserIds(conversation),
   });
 
-  return buildConversationResponse(conversation, userId);
+  return buildConversationClientResponse(conversation, userId);
 };
 
 // GET /conversations - lists chats for one candidate profile.
@@ -160,7 +178,7 @@ const getConversations = async (userId: string, query: Record<string, string>) =
    interface TPopulatedParticipant {
     _id: Types.ObjectId;
     name?: string;
-    image?: string[];
+    images?: string[];
   };
 
   const data = conversations.map(({ participants, ...rest }) => {
@@ -169,15 +187,17 @@ const getConversations = async (userId: string, query: Record<string, string>) =
     );
 
     return {
-      ...buildConversationResponse(rest as TConversationLean, userId),
+      ...buildConversationClientResponse(rest as TConversationLean, userId),
       opponent: opponent
-        ? { ...opponent, image: opponent.image?.[0] ?? null, images: undefined }
+        ? { ...opponent, image: opponent.images?.[0] ?? null, images: undefined }
         : null,
     };
   });
 
+  
 
-  return { data, meta };
+
+  return {meta, conversations: data,  };
 };
 
 // GET /conversations/:conversationId/messages - reads message history.
@@ -216,13 +236,35 @@ const getConversationMessages = async (
     messageQuery.createdAt = { $lt: before };
   }
 
-  const messages = await Message.find(messageQuery)
-    .select(CHAT_MESSAGE_SELECT)
-    .sort({ createdAt: -1 })
-    .limit(query.limit)
-    .lean();
+  type TOpponentCandidate = { _id: Types.ObjectId; name?: string; images?: string[] };
 
-  return messages.reverse();
+  const [messages, populatedConversation] = await Promise.all([
+    Message.find(messageQuery)
+      .select(CHAT_MESSAGE_SELECT)
+      .sort({ createdAt: -1 })
+      .limit(query.limit)
+      .lean(),
+    Conversation.findById(conversationId)
+      .populate({ path: 'participants', select: CHAT_CANDIDATE_SELECT })
+      .lean(),
+  ]);
+
+  const opponentRaw = (
+    populatedConversation?.participants as unknown as TOpponentCandidate[]
+  )?.find((p) => p._id.toString() !== query.candidateId);
+
+  const opponent = opponentRaw
+    ? {
+        _id: opponentRaw._id,
+        name: opponentRaw.name,
+        image: opponentRaw.images?.[0] ?? null,
+      }
+    : null;
+
+  return {
+    opponent,
+    messages: messages.reverse().map((message) => buildMessageResponse(message)),
+  };
 };
 
 // PATCH /conversations/:conversationId/read - clears unread count and emits read receipt.
@@ -323,7 +365,6 @@ const createMessageRequest = async (
 
   try {
     request = await ConversationMessageRequest.create({
-      firstMessage: payload.firstMessage.trim(),
       pairKey,
       requesterCandidate: new Types.ObjectId(payload.requesterCandidateId),
       requesterUser: new Types.ObjectId(userId),
@@ -383,9 +424,23 @@ const getMessageRequests = async (
     requestQuery.status = query.status;
   }
 
-  return ConversationMessageRequest.find(requestQuery)
+  const requests = await ConversationMessageRequest.find(requestQuery)
     .sort({ createdAt: -1 })
+    .populate({ path: 'requesterCandidate', select: CHAT_CANDIDATE_SELECT })
     .lean();
+
+  type TPopulatedCandidate = { _id: Types.ObjectId; name?: string; images?: string[] };
+
+  return requests.map(({ requesterCandidate, ...rest }) => ({
+    ...rest,
+    requesterCandidate: requesterCandidate
+      ? {
+          ...(requesterCandidate as TPopulatedCandidate),
+          image: (requesterCandidate as TPopulatedCandidate).images?.[0] ?? null,
+          images: undefined,
+        }
+      : null,
+  }));
 };
 
 // PATCH /conversations/message-requests/:requestId/accept - creates the chat.
@@ -465,20 +520,6 @@ const acceptMessageRequest = async (
     $set: { conversation: conversation._id },
   });
 
-  const firstMessage = await Message.create({
-    conversation: conversation._id,
-    message: request.firstMessage,
-    seenBy: [request.requesterUser],
-    sender: request.requesterCandidate,
-    sentBy: request.requesterUser,
-    type: MessageType.TEXT,
-  });
-
-  await Conversation.findByIdAndUpdate(conversation._id, {
-    $inc: { [`unreadCounts.${userId}`]: 1 },
-    $set: { lastMessage: firstMessage._id },
-  });
-
   await RishtaProgressService.completeAutomaticStep({
     candidateIds: participants,
     completedBy: userId,
@@ -489,10 +530,7 @@ const acceptMessageRequest = async (
 
   const audienceUserIds = await getConversationAudienceUserIds(conversation);
   const responsePayload = {
-    conversation: {
-      ...conversation,
-      lastMessage: firstMessage,
-    },
+    conversation,
     request: {
       ...request,
       conversation: conversation._id,
@@ -510,16 +548,6 @@ const acceptMessageRequest = async (
     conversationId: conversation._id.toString(),
     event: 'conversation:started',
     payload: responsePayload,
-    userIds: audienceUserIds,
-  });
-
-  emitChatEvent({
-    conversationId: conversation._id.toString(),
-    event: 'message:new',
-    payload: {
-      conversationId: conversation._id,
-      message: firstMessage,
-    },
     userIds: audienceUserIds,
   });
 

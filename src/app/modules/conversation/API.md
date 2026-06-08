@@ -2,22 +2,23 @@
 
 Base path: `/api/v1/conversations`
 
-This module manages chat threads, message requests, and guardian/parent include requests. Realtime delivery uses Socket.IO events after the database write succeeds.
+This module manages chat threads, message requests, normal chat media upload, guardian/parent include requests, history, and read receipts. Chat text/captions are backend-encrypted at rest, then decrypted for authorized API/socket responses. This is not E2EE.
 
 ## Security Rules
 
 - All endpoints require `Authorization: Bearer <accessToken>`.
 - The requester must be an active linked user of the provided `candidateId`.
 - `OWNER` and `EDITOR` can start/respond/send request actions.
-- `VIEWER` can read allowed conversations but cannot send messages or respond to requests.
-- Family, relative, guardian, and consultant linked users can read/send only after the opponent accepts an include request for that exact linked user, unless that linked user is the candidate's primary manager. `OTHER` linked users cannot be included.
-- Free plan users cannot create message requests or send chat messages because `canMessage` is false.
+- `VIEWER` can read allowed conversations but cannot send messages or upload chat media.
+- Family, relative, guardian, and consultant linked users can read/send only after the opponent accepts an include request for that exact linked user, unless that linked user is the candidate's primary manager.
+- Free plan users cannot create message requests, send chat messages, or upload chat media because `canMessage` is false.
+- Images are normal readable Cloudinary assets in this simplified phase.
 
 ## Socket.IO
 
-Client connection URL is the same backend host.
+Clients must connect with the access token in `auth.token` or the `Authorization: Bearer <accessToken>` socket header. The server verifies the token and automatically joins the authenticated user room.
 
-Required client events:
+Client events:
 
 ```txt
 join-user             userId
@@ -43,7 +44,11 @@ guardian-request:rejected
 guardian:included
 typing:start
 typing:stop
+conversation:error
+socket:error
 ```
+
+`message:new` contains decrypted `message` or `caption` for authorized users.
 
 ## Match Conversation
 
@@ -57,13 +62,6 @@ Query:
 candidateId=<candidateId>   optional but recommended
 ```
 
-Example:
-
-```http
-POST /api/v1/conversations/matches/665f1a2b3c4d5e6f78909999/start?candidateId=665f1a2b3c4d5e6f78901234
-Authorization: Bearer <accessToken>
-```
-
 ## Conversation List
 
 ### `GET /`
@@ -75,11 +73,18 @@ candidateId=<candidateId>        required
 status=OPEN|ARCHIVED|BLOCKED     optional, default OPEN
 ```
 
-Example:
+Conversation `lastMessage`, if present, returns decrypted text/caption:
 
-```http
-GET /api/v1/conversations?candidateId=665f1a2b3c4d5e6f78901234
-Authorization: Bearer <accessToken>
+```json
+{
+  "_id": "conversation id",
+  "lastMessage": {
+    "_id": "message id",
+    "type": "image_text",
+    "caption": "Family photo",
+    "attachments": []
+  }
+}
 ```
 
 ## Message History
@@ -94,12 +99,40 @@ limit=<1-100>               optional, default 50
 before=<ISO date>           optional
 ```
 
-Example:
+Returns messages sorted oldest to newest for the selected page. Text/captions are decrypted by the backend only after authorization succeeds.
 
-```http
-GET /api/v1/conversations/665f1a2b3c4d5e6f78908888/messages?candidateId=665f1a2b3c4d5e6f78901234&limit=50
-Authorization: Bearer <accessToken>
+## Chat Media Upload
+
+### `POST /:conversationId/media`
+
+Uploads a normal readable chat image to Cloudinary.
+
+Content type: `multipart/form-data`
+
+Fields:
+
+```txt
+file=<image file>
+metadata={"candidateId":"...","width":1080,"height":1350}
 ```
+
+Response data:
+
+```json
+{
+  "provider": "cloudinary",
+  "cloudinaryPublicId": "chat/media/conversationId/asset",
+  "imageUrl": "https://res.cloudinary.com/...",
+  "mimeType": "image/jpeg",
+  "size": 350000,
+  "width": 1080,
+  "height": 1350
+}
+```
+
+Include this response in `attachments` when creating `image` or `image_text` messages with `/api/v1/messages`.
+
+## Read Receipt
 
 ### `PATCH /:conversationId/read`
 
@@ -107,7 +140,7 @@ Body:
 
 ```json
 {
-  "candidateId": "665f1a2b3c4d5e6f78901234"
+  "candidateId": "candidateId"
 }
 ```
 
@@ -120,8 +153,7 @@ Body:
 ```json
 {
   "requesterCandidateId": "candidateA",
-  "targetCandidateId": "candidateB",
-  "firstMessage": "Assalamu alaikum, can we start a conversation?"
+  "targetCandidateId": "candidateB"
 }
 ```
 
@@ -137,8 +169,8 @@ Behavior:
 Query:
 
 ```txt
-candidateId=<candidateId>                required
-type=incoming|outgoing|all               optional, default incoming
+candidateId=<candidateId>                  required
+type=incoming|outgoing|all                 optional, default incoming
 status=PENDING|ACCEPTED|REJECTED|CANCELLED optional
 ```
 
@@ -156,8 +188,7 @@ Behavior:
 
 - accepts the request
 - creates or opens the conversation
-- saves the request `firstMessage` as the first chat message
-- emits `message-request:accepted`, `conversation:started`, and `message:new`
+- emits `message-request:accepted` and `conversation:started`
 
 ### `PATCH /message-requests/:requestId/reject`
 
@@ -179,24 +210,19 @@ Body:
 {
   "candidateId": "candidateA",
   "linkedUserId": "relativeLinkedUserId",
-  "message": "I want to include my family member in this chat."
+  "message": "Optional request note"
 }
 ```
 
-Behavior:
-
-- the linked user must belong to `candidateId`
-- relationship must be `FATHER`, `MOTHER`, `BROTHER`, `SISTER`, `GUARDIAN`, `RELATIVE`, or `CONSULTANT`
-- saves a pending DB request
-- emits `guardian-request:new` to the opponent side in realtime
+Guardian request notes are request metadata, not encrypted chat messages.
 
 ### `GET /guardian-requests`
 
 Query:
 
 ```txt
-candidateId=<candidateId>                 required
-type=incoming|outgoing|all                optional, default incoming
+candidateId=<candidateId>                  required
+type=incoming|outgoing|all                 optional, default incoming
 status=PENDING|ACCEPTED|REJECTED|CANCELLED optional
 ```
 
@@ -210,13 +236,6 @@ Body:
 }
 ```
 
-Behavior:
-
-- marks the request as accepted
-- adds that exact guardian linked user to `conversation.guardianParticipants`
-- emits `guardian-request:accepted` and `guardian:included`
-- the approved guardian can now list/read/send in that conversation
-
 ### `PATCH /guardian-requests/:requestId/reject`
 
 Body:
@@ -226,35 +245,3 @@ Body:
   "candidateId": "opponentCandidateId"
 }
 ```
-
-Rejected guardian requests do not include the guardian. The requester may send a new request later.
-
-## Postman Smoke Test
-
-Environment:
-
-```txt
-baseUrl=http://localhost:3000/api/v1
-tokenA=
-tokenB=
-candidateA=
-candidateB=
-matchId=
-conversationId=
-messageRequestId=
-guardianRequestId=
-guardianLinkedUserId=
-```
-
-Steps:
-
-1. Login users A and B, then load their candidate ids.
-2. Create a mutual swipe match, or send a message request from A to B.
-3. For match flow, call `POST {{baseUrl}}/conversations/matches/{{matchId}}/start?candidateId={{candidateA}}`.
-4. For request flow, A calls `POST {{baseUrl}}/conversations/message-requests`; B lists incoming requests and accepts one.
-5. Send a message with `POST {{baseUrl}}/messages`.
-6. Load messages with `GET {{baseUrl}}/conversations/{{conversationId}}/messages?candidateId={{candidateA}}`.
-7. Mark read with `PATCH {{baseUrl}}/conversations/{{conversationId}}/read`.
-8. A sends `POST {{baseUrl}}/conversations/{{conversationId}}/guardian-requests`.
-9. B accepts the guardian request.
-10. Login as the approved guardian and use the same conversation message APIs with `candidateId={{candidateA}}`.

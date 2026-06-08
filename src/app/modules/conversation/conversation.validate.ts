@@ -53,3 +53,21 @@ export const respondGuardianRequestZodSchema = z
     candidateId: objectIdString('Candidate id'),
   })
   .strict();
+
+export const chatMediaMetadataZodSchema = z
+  .object({
+    candidateId: objectIdString('Candidate id'),
+    width: z.coerce
+      .number({ error: 'Width must be number type' })
+      .int('Width must be an integer')
+      .min(1, 'Width must be at least 1')
+      .nullable()
+      .optional(),
+    height: z.coerce
+      .number({ error: 'Height must be number type' })
+      .int('Height must be an integer')
+      .min(1, 'Height must be at least 1')
+      .nullable()
+      .optional(),
+  })
+  .strict();

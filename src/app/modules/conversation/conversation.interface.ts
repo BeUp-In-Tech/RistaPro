@@ -58,7 +58,6 @@ export interface IConversationMessagesQuery {
 export interface ICreateMessageRequestPayload {
   requesterCandidateId: string;
   targetCandidateId: string;
-  firstMessage: string;
 }
 
 export interface IMessageRequestListQuery {
@@ -69,6 +68,12 @@ export interface IMessageRequestListQuery {
 
 export interface IRespondRequestPayload {
   candidateId: string;
+}
+
+export interface IChatMediaMetadataPayload {
+  candidateId: string;
+  width?: number | null;
+  height?: number | null;
 }
 
 export interface ICreateGuardianRequestPayload {

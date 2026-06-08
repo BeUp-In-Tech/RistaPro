@@ -24,7 +24,7 @@ export const CHAT_CANDIDATE_SELECT =
   '_id name images';
 
 export const CHAT_MESSAGE_SELECT =
-  '_id conversation sender sentBy sentByLinkedUser message type seenBy replyTo metadata createdAt';
+  '_id conversation sender sentBy sentByLinkedUser senderDeviceId type body attachments encryptionVersion seenBy replyTo metadata createdAt';
 
 export const assertValidObjectId = (id: string, fieldLabel: string) => {
   if (!Types.ObjectId.isValid(id)) {
