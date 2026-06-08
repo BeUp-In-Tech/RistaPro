@@ -1,6 +1,7 @@
 import { StatusCodes } from 'http-status-codes';
 import { Types } from 'mongoose';
 import AppError from '../../errorHelpers/AppError';
+import Conversation from '../conversation/conversation.model';
 import Match from './match.model';
 import { MatchStatus, TPopulatedMatchLean } from './match.interface';
 import {
@@ -16,7 +17,11 @@ import {
 } from './match.helper';
 
 // GET /matches - Lists active matches for the candidate profile the user can access.
-const getMatches = async (userId: string, candidateIdParam: string) => {
+const getMatches = async (
+  userId: string,
+  candidateIdParam: string,
+  hasStartedChat?: boolean,
+) => {
   const candidateId = assertValidObjectId(candidateIdParam, 'candidate id');
 
   // Listing is candidate-scoped, so the regular linked-user access check is enough.
@@ -25,10 +30,47 @@ const getMatches = async (userId: string, candidateIdParam: string) => {
     userId,
   });
 
-  const matches = await Match.find({
+  const matchFilter: Record<string, unknown> = {
     candidates: new Types.ObjectId(candidateId),
     status: MatchStatus.ACTIVE,
-  })
+  };
+
+  // When hasStartedChat filter is provided, narrow by whether the linked
+  // conversation already has a lastMessage or not.
+  if (hasStartedChat === true) {
+    // conversation must exist and have a lastMessage set
+    matchFilter.conversation = { $exists: true };
+    const conversationIds = await Conversation.find({
+      participants: new Types.ObjectId(candidateId),
+      lastMessage: { $exists: true, $ne: null },
+    })
+      .select('_id')
+      .lean<{ _id: Types.ObjectId }[]>();
+
+    matchFilter.conversation = {
+      $in: conversationIds.map((c) => c._id),
+    };
+  } else if (hasStartedChat === false) {
+    // conversation either doesn't exist or has no lastMessage
+    const conversationIds = await Conversation.find({
+      participants: new Types.ObjectId(candidateId),
+      lastMessage: { $exists: true, $ne: null },
+    })
+      .select('_id')
+      .lean<{ _id: Types.ObjectId }[]>();
+
+    matchFilter.$or = [
+      { conversation: { $exists: false } },
+      { conversation: null },
+      {
+        conversation: {
+          $nin: conversationIds.map((c) => c._id),
+        },
+      },
+    ];
+  }
+
+  const matches = await Match.find(matchFilter)
     .select(MATCH_SELECT)
     .sort({ updatedAt: -1, createdAt: -1 })
     .populate({

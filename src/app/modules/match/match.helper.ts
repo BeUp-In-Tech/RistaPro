@@ -191,7 +191,7 @@ export const buildMatchCandidateSummary = (candidate: TMatchCandidateLean) => ({
   _id: candidate._id,
   age: getAgeFromDateOfBirth(candidate.dateOfBirth),
   gender: candidate.gender,
-  images: candidate.images ?? [],
+  image: candidate.images?.[0] ?? null,
   livesIn: candidate.address?.split(',')[0]?.trim() || undefined,
   name: candidate.name,
   religion: candidate.religion,

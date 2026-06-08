@@ -10,7 +10,12 @@ import { MatchService } from './match.service';
 const getMatches = CatchAsync(async (req: Request, res: Response) => {
   const { userId } = req.user as JwtPayload;
   const candidateId = req.query.candidateId as string;
-  const result = await MatchService.getMatches( userId as string, candidateId );
+
+  let hasStartedChat: boolean | undefined;
+  if (req.query.hasStartedChat === 'true') hasStartedChat = true;
+  else if (req.query.hasStartedChat === 'false') hasStartedChat = false;
+
+  const result = await MatchService.getMatches(userId as string, candidateId, hasStartedChat);
 
   SendResponse(res, {
     success: true,
