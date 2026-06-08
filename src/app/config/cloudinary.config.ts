@@ -45,6 +45,74 @@ export const uploadBufferToCloudinary = async (
   }
 };
 
+export const uploadEncryptedChatMediaToCloudinary = async (params: {
+  buffer: Buffer;
+  conversationId: string;
+}): Promise<UploadApiResponse> => {
+  try {
+    return await new Promise((resolve, reject) => {
+      cloudinary.uploader
+        .upload_stream(
+          {
+            resource_type: 'raw',
+            folder: `chat/e2ee/${params.conversationId}`,
+            use_filename: false,
+            unique_filename: true,
+            overwrite: false,
+          },
+          (error, result) => {
+            if (error) {
+              return reject(error);
+            }
+
+            if (!result) {
+              return reject(new Error('Cloudinary upload returned no result'));
+            }
+
+            resolve(result);
+          }
+        )
+        .end(params.buffer);
+    });
+  } catch (error: any) {
+    throw new AppError(401, `Error uploading encrypted chat media ${error.message}`);
+  }
+};
+
+export const uploadChatMediaToCloudinary = async (params: {
+  buffer: Buffer;
+  conversationId: string;
+}): Promise<UploadApiResponse> => {
+  try {
+    return await new Promise((resolve, reject) => {
+      cloudinary.uploader
+        .upload_stream(
+          {
+            resource_type: 'image',
+            folder: `chat/media/${params.conversationId}`,
+            use_filename: false,
+            unique_filename: true,
+            overwrite: false,
+          },
+          (error, result) => {
+            if (error) {
+              return reject(error);
+            }
+
+            if (!result) {
+              return reject(new Error('Cloudinary upload returned no result'));
+            }
+
+            resolve(result);
+          }
+        )
+        .end(params.buffer);
+    });
+  } catch (error: any) {
+    throw new AppError(401, `Error uploading chat media ${error.message}`);
+  }
+};
+
 export const deleteImageFromCLoudinary = async (url: string) => {
   try {
     const regex = /\/v\d+\/(.*?)\.(jpg|jpeg|png|gif|webp|avif)$/i;

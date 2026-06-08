@@ -140,6 +140,7 @@ These are the currently mounted APIs for the swipe-match flow:
 - `GET /api/v1/conversations`
 - `POST /api/v1/conversations/matches/:matchId/start`
 - `POST /api/v1/conversations/message_requests`
+- `POST /api/v1/messages/conversations/:conversationId/media`
 - `POST /api/v1/messages`
 - `POST /api/v1/calls/start`
 - `POST /api/v1/calls/:callId/accept`
@@ -171,7 +172,7 @@ Notes:
 - mutual positive swipes automatically create one `Match`
 - a match also creates or returns one `Conversation`
 - the conversation id is returned as `match.conversation`
-- chat message, message-request, and guardian-request routes are mounted
+- backend-encrypted chat message, normal chat media, message-request, and guardian-request routes are mounted
 - rishta progress updates automatically from match, chat, parent involvement, and marriage approval events
 - marriage confirmation requests create DB notifications and Firebase push jobs
 - consultant cases support candidate-selected consultants, case chat, candidate invites, guest links, guest video access, and manual marriage records
@@ -205,7 +206,7 @@ Notes:
 11. If `POST /swipes/action` returns `matched: true`, use `match.conversation` for the chat thread
 12. Load active matches with `GET /matches?candidateId=<candidateId>`
 13. Open/list chat with `GET /conversations?candidateId=<candidateId>`
-14. Send chat messages with `POST /messages`
+14. Send backend-encrypted chat messages with `POST /messages`
 15. Start audio/video calls with `POST /calls/start`
 16. If needed, add family members with linked-user APIs, then request chat inclusion with guardian request APIs
 17. Invite already-involved linked users into an active call with `POST /calls/:callId/participants/invite`
@@ -224,7 +225,7 @@ Notes:
 
 - **Create Account & Candidate Profile**: Users can create their account and then create a candidate profile for matchmaking.
 - **Swipe**: Candidates can explore profiles, like, super-like, or pass. Mutual positive actions create a match.
-- **Chat System**: Candidates can chat by text, with audio/video call support handled by the call module.
+- **Chat System**: Candidates can chat with backend-encrypted text/captions and normal Cloudinary image attachments; audio/video call support is handled by the call module.
 - **Rishta Progress**: The system tracks a pair through `MATCHES`, `START_CHAT`, `PARENT_INVOLVES`, and `SHAADI`.
 - **Marriage Approval**: Candidate owners and consultants create marriage confirmation requests; Shaadi is completed only after the required candidate-side approval, while admin can confirm directly.
 - **Consultant Support**: Platinum candidates can work with consultants through scheduled meetings, consultant-managed cases, case chat, Agora calls, guest invite links, and manual marriage records.
@@ -1064,6 +1065,84 @@ Notes:
 
 - returns `null` when the logged-in user has no active candidate profile
 - rejects the request if the account is linked to multiple active candidate profiles
+
+### `GET /my_full_profile`
+
+Purpose:
+
+- Get the current account's own full candidate profile
+- Useful for profile preview, edit screens, and self profile viewing without using the plan-gated public detail endpoint
+
+Auth:
+
+- Bearer token (`USER`)
+
+Example:
+
+```http
+GET /api/v1/candidates/my_full_profile
+Authorization: Bearer <accessToken>
+```
+
+Response data shape:
+
+```json
+{
+  "candidate": {
+    "_id": "candidate id",
+    "name": "Amina",
+    "age": 28,
+    "dateOfBirth": "1998-05-11T00:00:00.000Z",
+    "gender": "FEMALE",
+    "height": 165,
+    "religion": "ISLAM",
+    "sect": "SUNNI",
+    "caste": "SYED",
+    "profile_assist": "SELF",
+    "relationship_status": "NEVER_MARRIED",
+    "have_children": "NO",
+    "move_abroad": "MAYBE",
+    "occupation": "ENGINEER",
+    "highest_education": "BACHELORS",
+    "smoke_status": "NO",
+    "drink_status": "NO",
+    "interests": [],
+    "personality": [],
+    "bio": "Short profile bio",
+    "images": ["https://image-url.jpg"],
+    "address": "Dhaka, Bangladesh",
+    "coordinates": [90.4125, 23.8103],
+    "verification_status": {},
+    "badge": false,
+    "labels": {},
+    "createdAt": "2026-04-22T00:00:00.000Z",
+    "updatedAt": "2026-04-22T00:00:00.000Z"
+  },
+  "management": {
+    "mode": "SELF_MANAGED",
+    "activeLinkedUserCount": 1,
+    "ownerCount": 1,
+    "hasSelfManager": true,
+    "hasParentManager": false,
+    "hasConsultantManager": false
+  },
+  "myAccess": {
+    "_id": "linked user id",
+    "accessRole": "OWNER",
+    "relationshipToCandidate": "SELF",
+    "status": "ACTIVE",
+    "isPrimary": true,
+    "linkedBy": "user id",
+    "joinedAt": "2026-04-22T00:00:00.000Z"
+  }
+}
+```
+
+Notes:
+
+- returns `null` when the logged-in user has no active candidate profile
+- rejects the request if the account is linked to multiple active candidate profiles
+- does not require Gold/full-profile plan access because it is only for the user's own active candidate profile
 
 ### `GET /:targetCandidateId/full_profile`
 
@@ -1915,25 +1994,29 @@ Behavior:
 
 Base path: `/api/v1/conversations`
 
-This module manages chat threads, message requests, and guardian/parent include requests. Realtime delivery uses Socket.IO events after the database write succeeds.
+This module manages chat threads, message requests, normal chat media upload, guardian/parent include requests, history, and read receipts. Chat text/captions are backend-encrypted at rest and decrypted only for authorized API/socket responses. This is not E2EE.
 
 Security rules:
 
 - All endpoints require `Authorization: Bearer <accessToken>`.
 - The requester must be an active linked user of the provided `candidateId`.
 - `OWNER` and `EDITOR` can start/respond/send request actions.
-- `VIEWER` can read allowed conversations but cannot send messages or respond to requests.
+- `VIEWER` can read allowed conversations but cannot send messages, upload chat media, or respond to requests.
 - Family, relative, guardian, and consultant linked users can read/send only after the opponent accepts an include request for that exact linked user, unless that linked user is the candidate's primary manager. `OTHER` linked users cannot be included.
-- Free plan users cannot create message requests or send chat messages because `canMessage` is false.
+- Free plan users cannot create message requests, send chat messages, or upload chat media because `canMessage` is false.
+- The backend encrypts chat text/captions before saving to MongoDB. Images are normal readable Cloudinary assets in this simplified phase.
 
 Socket.IO events:
 
 - client connection URL is the same backend host.
+- clients must send the access token in `auth.token` or `Authorization: Bearer <accessToken>`.
+- the server authenticates the socket and joins the authenticated user room automatically.
 - client emits `join-user` with `userId`
 - client emits `join-conversation` with `conversationId`
 - client emits `leave-conversation` with `conversationId`
-- server emits `online_users`, `conversation:started`, `message-request:new`, `message-request:accepted`, `message-request:rejected`, `message:new`, `conversation:read`, `guardian-request:new`, `guardian-request:accepted`, `guardian-request:rejected`, `guardian:included`.
+- server emits `online_users`, `conversation:started`, `message-request:new`, `message-request:accepted`, `message-request:rejected`, `message:new`, `conversation:read`, `guardian-request:new`, `guardian-request:accepted`, `guardian-request:rejected`, `guardian:included`, `conversation:error`, `socket:error`.
 - typing indicators use `typing:start` and `typing:stop`
+- `message:new` contains decrypted `message` or `caption` for authorized users.
 
 ### `POST /matches/:matchId/start`
 
@@ -1990,12 +2073,15 @@ Response data shape:
       "status": "OPEN",
       "source": "MATCH",
       "parentInvolvement": false,
+      "currentKeyVersion": 1,
+      "encryptionStatus": "encrypted",
       "lastMessage": {
         "_id": "message id",
-        "message": "Assalamu alaikum",
-        "type": "TEXT",
+        "type": "text",
         "sender": "candidate id",
         "sentBy": "user id",
+        "message": "Assalamu Alaikum",
+        "attachments": [],
         "seenBy": [],
         "createdAt": "2026-05-21T10:00:00.000Z"
       },
@@ -2024,6 +2110,7 @@ Notes:
 Purpose:
 
 - Load message history for a conversation.
+- Returns messages with decrypted `message` or `caption` after authorization.
 
 Query:
 
@@ -2063,8 +2150,7 @@ Body:
 ```json
 {
   "requesterCandidateId": "candidateA",
-  "targetCandidateId": "candidateB",
-  "firstMessage": "Assalamu alaikum, can we start a conversation?"
+  "targetCandidateId": "candidateB"
 }
 ```
 
@@ -2105,8 +2191,8 @@ Behavior:
 
 - accepts the request
 - creates or opens the conversation
-- saves the request `firstMessage` as the first chat message
-- emits `message-request:accepted`, `conversation:started`, and `message:new`
+- emits `message-request:accepted` and `conversation:started`
+- does not create a first message; clients can send a backend-encrypted message with `/api/v1/messages`
 
 ### `PATCH /message-requests/:requestId/reject`
 
@@ -2198,24 +2284,151 @@ Body:
 
 Base path: `/api/v1/messages`
 
+This module handles sending chat messages (text, image, image+caption) and uploading chat images. Text and captions are encrypted at rest by the backend. This is not E2EE — clients send plaintext, backend encrypts on write, and authorized API/socket responses return decrypted text.
+
+Security rules:
+
+- all endpoints require `Authorization: Bearer <accessToken>`
+- sender must be an active linked `OWNER` or `EDITOR` of `candidateId`
+- `VIEWER` cannot send messages or upload media
+- guardian/family linked users can send only after the opponent accepts their include request
+- candidate plan must have `canMessage: true`
+
+### Image Upload Flow (2 steps)
+
+Sending an image requires two API calls:
+
+```
+Step 1 — Upload the image file:
+  POST /api/v1/messages/conversations/:conversationId/media
+  → returns attachment object
+
+Step 2 — Send the message with the attachment:
+  POST /api/v1/messages
+  → type: "image" or "image_text"
+  → attachments: [ ...object from step 1 ]
+```
+
+This allows the image to upload in the background while the user types a caption. The message send itself is instant.
+
+### `POST /conversations/:conversationId/media`
+
+Purpose:
+
+- Upload a chat image to Cloudinary before sending the message.
+- Returns the attachment object to use in the `POST /` call.
+
+Content type: `multipart/form-data`
+
+Postman form-data fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `file` | File | Image file, max 15MB |
+| `metadata` | Text | JSON string: `{"candidateId":"...","width":1080,"height":1350}` |
+
+Example metadata value (plain text field, not JSON content-type):
+
+```txt
+{"candidateId":"665f1a2b3c4d5e6f78901234","width":1080,"height":1350}
+```
+
+`width` and `height` are the actual pixel dimensions of the image. Read them from the image picker result on the client:
+
+- React Native: `result.assets[0].width` / `result.assets[0].height`
+- Flutter: `decodedImage.width` / `decodedImage.height`
+
+Both fields are optional. Omit or send `null` if not available. They are stored and returned so the receiving client can render a correctly sized placeholder before the image loads.
+
+Response data shape:
+
+```json
+{
+  "provider": "cloudinary",
+  "cloudinaryPublicId": "RistaPro/chat/665f1a2b3c4d5e6f78908888/abc123",
+  "imageUrl": "https://res.cloudinary.com/demo/image/upload/v1/RistaPro/chat/...",
+  "mimeType": "image/jpeg",
+  "size": 350000,
+  "width": 1080,
+  "height": 1350
+}
+```
+
+Save the full response object and pass it as an element of `attachments` in `POST /`.
+
 ### `POST /`
 
 Purpose:
 
-- Send one text message into an open conversation
-- Update last message and unread counts
-- Emit `message:new` through Socket.IO
+- Send one text, image, or image+caption message into an open conversation.
+- Encrypts text/caption before saving to MongoDB.
+- Updates `conversation.lastMessage` and unread counts.
+- Emits `message:new` via Socket.IO.
+- Queues generic FCM push notifications.
 
-Body:
+Content type: `application/json`
+
+**Text message:**
 
 ```json
 {
-  "conversationId": "conversation id",
-  "candidateId": "sender candidate id",
-  "message": "Assalamu alaikum",
-  "replyTo": "optional message id"
+  "conversationId": "665f1a2b3c4d5e6f78908888",
+  "candidateId": "665f1a2b3c4d5e6f78901234",
+  "type": "text",
+  "message": "Assalamu Alaikum",
+  "replyTo": "optional message id to reply to"
 }
 ```
+
+**Image only:**
+
+```json
+{
+  "conversationId": "665f1a2b3c4d5e6f78908888",
+  "candidateId": "665f1a2b3c4d5e6f78901234",
+  "type": "image",
+  "attachments": [
+    {
+      "provider": "cloudinary",
+      "cloudinaryPublicId": "RistaPro/chat/.../abc123",
+      "imageUrl": "https://res.cloudinary.com/...",
+      "mimeType": "image/jpeg",
+      "size": 350000,
+      "width": 1080,
+      "height": 1350
+    }
+  ]
+}
+```
+
+**Image with caption:**
+
+```json
+{
+  "conversationId": "665f1a2b3c4d5e6f78908888",
+  "candidateId": "665f1a2b3c4d5e6f78901234",
+  "type": "image_text",
+  "caption": "Look at this!",
+  "attachments": [
+    {
+      "provider": "cloudinary",
+      "cloudinaryPublicId": "RistaPro/chat/.../abc123",
+      "imageUrl": "https://res.cloudinary.com/...",
+      "mimeType": "image/jpeg",
+      "size": 350000,
+      "width": 1080,
+      "height": 1350
+    }
+  ]
+}
+```
+
+Validation rules:
+
+- `text` requires `message`, rejects `attachments` and `caption`
+- `image` requires at least one attachment, rejects `message` and `caption`
+- `image_text` requires `caption` and at least one attachment, rejects `message`
+- max 10 attachments per message
 
 Detailed docs: `src/app/modules/message/API.md`
 
@@ -3358,7 +3571,9 @@ Body:
 {
   "conversationId": "{{conversationId}}",
   "candidateId": "{{candidateA}}",
-  "message": "Assalamu alaikum"
+  "type": "text",
+  "message": "Assalamu Alaikum",
+  "attachments": []
 }
 ```
 
@@ -3400,8 +3615,7 @@ Body:
 ```json
 {
   "requesterCandidateId": "{{candidateA}}",
-  "targetCandidateId": "{{candidateB}}",
-  "firstMessage": "Can we start a conversation?"
+  "targetCandidateId": "{{candidateB}}"
 }
 ```
 
@@ -3675,7 +3889,7 @@ Content-Type: application/json
 10. If a swipe response has `matched: true`, store `match._id` and `match.conversation`
 11. Load `/matches?candidateId=<candidateId>` for the user's active match list
 12. Load `/conversations?candidateId=<candidateId>` for the chat inbox
-13. Send `/messages` for text chat
+13. Send backend-encrypted chat messages with `/messages`; upload normal chat media with `/conversations/:conversationId/media`
 14. Start audio/video calls with `/calls/start` from an open 1-to-1 conversation
 15. Renew long call tokens with `/calls/:callId/token` and end calls with `/calls/:callId/end`
 16. Use `/conversations/message_requests` when users are not matched yet

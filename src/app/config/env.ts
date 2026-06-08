@@ -26,6 +26,7 @@ interface EnvInterfaces {
   CLOUDINARY_NAME: string;
   CLOUDINARY_API_KEY: string;
   CLOUDINARY_SECRET: string;
+  CHAT_ENCRYPTION_KEY: string;
 
   REQUEST_RATE_LIMIT: number;
   REQUEST_RATE_LIMIT_TIME: number;
@@ -95,6 +96,7 @@ const loadEnvVariables = (): EnvInterfaces => {
     'CLOUDINARY_NAME',
     'CLOUDINARY_API_KEY',
     'CLOUDINARY_SECRET',
+    'CHAT_ENCRYPTION_KEY',
 
     'REQUEST_RATE_LIMIT',
     'REQUEST_RATE_LIMIT_TIME',
@@ -165,6 +167,7 @@ const loadEnvVariables = (): EnvInterfaces => {
     CLOUDINARY_NAME: process.env.CLOUDINARY_NAME as string,
     CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY as string,
     CLOUDINARY_SECRET: process.env.CLOUDINARY_SECRET as string,
+    CHAT_ENCRYPTION_KEY: process.env.CHAT_ENCRYPTION_KEY as string,
 
     REQUEST_RATE_LIMIT_TIME: Number(
       process.env.REQUEST_RATE_LIMIT_TIME

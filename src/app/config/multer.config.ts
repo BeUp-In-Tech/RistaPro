@@ -33,6 +33,28 @@ const storage = new CloudinaryStorage({
 
 export const multerUpload = multer({ storage: storage });
 
+export const encryptedChatMediaMulterUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 15 * 1024 * 1024,
+  },
+});
+
+export const chatMediaMulterUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 15 * 1024 * 1024,
+  },
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+      return;
+    }
+
+    cb(new AppError(StatusCodes.BAD_REQUEST, 'Only image files are allowed'));
+  },
+});
+
 export const documentMulterUpload = multer({
   storage: storage,
   fileFilter: (_req, file, cb) => {
