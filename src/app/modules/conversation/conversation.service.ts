@@ -60,7 +60,7 @@ import {
 import Message from '../message/message.model';
 import { buildMessageResponse } from '../message/message.service';
 import { ChatMessageType } from '../message/message.interface';
-import { encryptChatText } from '../../utils/chatEncryption';
+import { decryptChatText, encryptChatText } from '../../utils/chatEncryption';
 import { RishtaProgressService } from '../rishta_progress/rishta_progress.service';
 import {
   RishtaProgressStep,
@@ -439,16 +439,32 @@ const getMessageRequests = async (
 
   type TPopulatedCandidate = { _id: Types.ObjectId; name?: string; images?: string[] };
 
-  return requests.map(({ requesterCandidate, ...rest }) => ({
-    ...rest,
-    requesterCandidate: requesterCandidate
-      ? {
-          ...(requesterCandidate as TPopulatedCandidate),
-          image: (requesterCandidate as TPopulatedCandidate).images?.[0] ?? null,
-          images: undefined,
-        }
-      : null,
-  }));
+  return requests.map(({ requesterCandidate, initialMessage, ...rest }) => {
+    let decryptedInitialMessage: string | null = null;
+
+    if (initialMessage) {
+      try {
+        decryptedInitialMessage = decryptChatText({
+          ...initialMessage,
+          algorithm: initialMessage.algorithm as 'AES-256-GCM',
+        });
+      } catch {
+        decryptedInitialMessage = null;
+      }
+    }
+
+    return {
+      ...rest,
+      initialMessage: decryptedInitialMessage,
+      requesterCandidate: requesterCandidate
+        ? {
+            ...(requesterCandidate as TPopulatedCandidate),
+            image: (requesterCandidate as TPopulatedCandidate).images?.[0] ?? null,
+            images: undefined,
+          }
+        : null,
+    };
+  });
 };
 
 // PATCH /conversations/message-requests/:requestId/accept - creates the chat.
