@@ -117,10 +117,10 @@ export const initSocket = async (server: any) => {
 
   io.on('connection', (socket) => {
     const currentUserId = String(socket.data.userId);
-
     console.log('User connected: ', socket.id);
     socket.join(currentUserId);
 
+    // ONLINE USER UPDATE
     void (async () => {
       await redisClient.sAdd('online_users_set', currentUserId);
       const onlineUserIds = await redisClient.sMembers('online_users_set');
@@ -129,6 +129,8 @@ export const initSocket = async (server: any) => {
       console.log('Online user sync error', error.message);
     });
 
+
+    // JOIN USER IN ROOM
     socket.on('join-user', async (userId: string) => {
       if (userId !== currentUserId) {
         socket.emit('socket:error', {
@@ -138,12 +140,15 @@ export const initSocket = async (server: any) => {
       }
 
       socket.join(currentUserId);
+      console.log("User joined: ", currentUserId);
+      
       await redisClient.sAdd('online_users_set', currentUserId);
 
       const onlineUserIds = await redisClient.sMembers('online_users_set');
       io.emit('online_users', onlineUserIds);
     });
 
+    // JOIN USER IN CONVERSATION ROOM
     socket.on('join-conversation', async (conversationId: string) => {
       try {
         const canAccess = await userCanAccessConversation(
@@ -160,6 +165,7 @@ export const initSocket = async (server: any) => {
         }
 
         socket.join(getConversationRoom(conversationId));
+        console.log("User joined in conversation: ", conversationId);
       } catch {
         socket.emit('conversation:error', {
           conversationId,

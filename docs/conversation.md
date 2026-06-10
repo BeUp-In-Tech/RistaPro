@@ -77,7 +77,14 @@ Query:
 ```txt
 candidateId=<candidateId>        required
 status=OPEN|ARCHIVED|BLOCKED     optional, default OPEN
+search=<name>                    optional — case-insensitive substring search on opponent name
+page=<number>                    optional, default 1
+limit=<1-100>                    optional, default 20
 ```
+
+- `search` filters conversations by the opponent candidate's name. It is case-insensitive and matches any substring (e.g. `search=ah` matches "Ahmed", "Shahid").
+- If `search` is provided but no matching opponent is found, returns an empty list immediately.
+- Debounce `search` input by ~300ms on the frontend before firing the request.
 
 Response includes populated `opponent` and decrypted `lastMessage`:
 

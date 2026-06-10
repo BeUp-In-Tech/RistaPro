@@ -159,6 +159,30 @@ const getConversations = async (userId: string, query: Record<string, string>) =
     };
   }
 
+  // If a name search is provided, pre-filter opponents by name then restrict
+  // conversations to only those containing a matching participant.
+  if (query.search?.trim()) {
+    const Candidate = (await import('../candidate/candidate.model')).default;
+    const matchingOpponents = await Candidate.find({
+      _id: { $ne: new Types.ObjectId(query.candidateId) },
+      name: { $regex: query.search.trim(), $options: 'i' },
+    })
+      .select('_id')
+      .lean<{ _id: Types.ObjectId }[]>();
+
+    const opponentIds = matchingOpponents.map((c) => c._id);
+
+    // No matching candidates → return empty result immediately
+    if (!opponentIds.length) {
+      return { meta: { page: 1, limit: 20, total: 0, totalPage: 0 }, conversations: [] };
+    }
+
+    conversationQuery.participants = {
+      $all: [new Types.ObjectId(query.candidateId)],
+      $in: opponentIds,
+    };
+  }
+
   const baseQuery = Conversation.find(conversationQuery).sort({
     updatedAt: -1,
     createdAt: -1,
@@ -177,7 +201,7 @@ const getConversations = async (userId: string, query: Record<string, string>) =
     queryBuilder.getMeta(),
   ]);
 
-   interface TPopulatedParticipant {
+  interface TPopulatedParticipant {
     _id: Types.ObjectId;
     name?: string;
     images?: string[];
