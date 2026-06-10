@@ -58,6 +58,7 @@ export interface IConversationMessagesQuery {
 export interface ICreateMessageRequestPayload {
   requesterCandidateId: string;
   targetCandidateId: string;
+  initialMessage?: string;
 }
 
 export interface IMessageRequestListQuery {

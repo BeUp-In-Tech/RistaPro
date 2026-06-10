@@ -59,6 +59,8 @@ import {
 } from './conversationGuardianRequest.interface';
 import Message from '../message/message.model';
 import { buildMessageResponse } from '../message/message.service';
+import { ChatMessageType } from '../message/message.interface';
+import { encryptChatText } from '../../utils/chatEncryption';
 import { RishtaProgressService } from '../rishta_progress/rishta_progress.service';
 import {
   RishtaProgressStep,
@@ -361,15 +363,21 @@ const createMessageRequest = async (
     );
   }
 
+  const encryptedInitialMessage = payload.initialMessage
+    ? encryptChatText(payload.initialMessage)
+    : null;
+
   let request: IConversationMessageRequest;
 
   try {
     request = await ConversationMessageRequest.create({
       pairKey,
       requesterCandidate: new Types.ObjectId(payload.requesterCandidateId),
+      requesterLinkedUser: access._id,
       requesterUser: new Types.ObjectId(userId),
       status: ConversationMessageRequestStatus.PENDING,
       targetCandidate: new Types.ObjectId(payload.targetCandidateId),
+      ...(encryptedInitialMessage && { initialMessage: encryptedInitialMessage }),
     });
   } catch (error) {
     if ((error as { code?: number }).code !== 11000) {
@@ -529,8 +537,62 @@ const acceptMessageRequest = async (
   });
 
   const audienceUserIds = await getConversationAudienceUserIds(conversation);
+
+  // If the requester included an initial message, persist it now as the first message
+  // in the conversation using the same Message model structure as /messages POST.
+  let initialMessageResponse: Record<string, unknown> | null = null;
+
+  if (request.initialMessage) {
+    const messageDoc = await Message.create({
+      attachments: [],
+      body: request.initialMessage,
+      conversation: conversation._id,
+      seenBy: [request.requesterUser],
+      sender: request.requesterCandidate,
+      sentBy: request.requesterUser,
+      ...(request.requesterLinkedUser && {
+        sentByLinkedUser: request.requesterLinkedUser,
+      }),
+      type: ChatMessageType.TEXT,
+    });
+
+    const savedMessage = await Message.findById(messageDoc._id)
+      .select(CHAT_MESSAGE_SELECT)
+      .lean();
+
+    if (savedMessage) {
+      initialMessageResponse = buildMessageResponse(savedMessage);
+
+      const unreadIncrements = audienceUserIds
+        .filter((id) => id !== request.requesterUser.toString())
+        .reduce<Record<string, number>>((acc, id) => {
+          acc[`unreadCounts.${id}`] = 1;
+          return acc;
+        }, {});
+
+      await Conversation.findByIdAndUpdate(conversation._id, {
+        $inc: unreadIncrements,
+        $set: {
+          lastMessage: messageDoc._id,
+          [`unreadCounts.${request.requesterUser.toString()}`]: 0,
+        },
+      });
+
+      emitChatEvent({
+        conversationId: conversation._id.toString(),
+        event: 'message:new',
+        payload: {
+          conversationId: conversation._id.toString(),
+          message: initialMessageResponse,
+        },
+        userIds: audienceUserIds,
+      });
+    }
+  }
+
   const responsePayload = {
     conversation,
+    ...(initialMessageResponse && { initialMessage: initialMessageResponse }),
     request: {
       ...request,
       conversation: conversation._id,

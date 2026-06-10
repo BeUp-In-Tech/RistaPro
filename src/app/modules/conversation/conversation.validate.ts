@@ -1,5 +1,4 @@
 import z from 'zod';
-import { ConversationSource, ConversationStatus } from './conversation.interface';
 import { ConversationGuardianRequestStatus } from './conversationGuardianRequest.interface';
 
 const objectIdString = (field: string) =>

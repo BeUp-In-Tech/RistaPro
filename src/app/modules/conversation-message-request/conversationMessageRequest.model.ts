@@ -4,6 +4,17 @@ import {
   IConversationMessageRequest,
 } from './conversationMessageRequest.interface';
 
+const encryptedBodySchema = new Schema(
+  {
+    ciphertext: { type: String, required: true },
+    nonce: { type: String, required: true },
+    authTag: { type: String, required: true },
+    algorithm: { type: String, default: 'AES-256-GCM' },
+    keyVersion: { type: Number, required: true },
+  },
+  { _id: false, versionKey: false }
+);
+
 const conversationMessageRequestSchema =
   new Schema<IConversationMessageRequest>(
     {
@@ -14,6 +25,10 @@ const conversationMessageRequestSchema =
         required: true,
       },
       requesterUser: { type: Schema.Types.ObjectId, ref: 'user', required: true },
+      requesterLinkedUser: {
+        type: Schema.Types.ObjectId,
+        ref: 'candidate_linked_user',
+      },
       targetCandidate: {
         type: Schema.Types.ObjectId,
         ref: 'candidate',
@@ -21,6 +36,7 @@ const conversationMessageRequestSchema =
       },
       targetRespondedBy: { type: Schema.Types.ObjectId, ref: 'user' },
       conversation: { type: Schema.Types.ObjectId, ref: 'conversation' },
+      initialMessage: { type: encryptedBodySchema, default: null },
       status: {
         type: String,
         enum: Object.values(ConversationMessageRequestStatus),

@@ -8,6 +8,12 @@ export const createConversationMessageRequestZodSchema = z
   .object({
     requesterCandidateId: objectIdString('Requester candidate id'),
     targetCandidateId: objectIdString('Target candidate id'),
+    initialMessage: z
+      .string({ error: 'Initial message must be a string' })
+      .trim()
+      .min(1, 'Initial message cannot be empty')
+      .max(1000, 'Initial message must be at most 1000 characters')
+      .optional(),
   })
   .strict();
 
