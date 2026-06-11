@@ -52,6 +52,7 @@ export interface IConversationListQuery {
 export interface IConversationMessagesQuery {
   candidateId: string;
   before?: string;
+  page: number;
   limit: number;
 }
 

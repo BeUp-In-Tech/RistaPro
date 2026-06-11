@@ -251,6 +251,7 @@ const getConversationMessages = async (
   const messageQuery: Record<string, unknown> = {
     conversation: new Types.ObjectId(conversationId),
   };
+  const countQuery: Record<string, unknown> = { ...messageQuery };
 
   if (query.before) {
     const before = new Date(query.before);
@@ -263,17 +264,24 @@ const getConversationMessages = async (
   }
 
   type TOpponentCandidate = { _id: Types.ObjectId; name?: string; images?: string[] };
+  type TMessageWithCreatedAt = Record<string, unknown> & { createdAt?: Date };
+  const skip = query.before ? 0 : (query.page - 1) * query.limit;
 
-  const [messages, populatedConversation] = await Promise.all([
+  const [messages, total, populatedConversation] = await Promise.all([
     Message.find(messageQuery)
       .select(CHAT_MESSAGE_SELECT)
       .sort({ createdAt: -1 })
-      .limit(query.limit)
-      .lean(),
+      .skip(skip)
+      .limit(query.limit + 1)
+      .lean<TMessageWithCreatedAt[]>(),
+    Message.countDocuments(countQuery),
     Conversation.findById(conversationId)
       .populate({ path: 'participants', select: CHAT_CANDIDATE_SELECT })
       .lean(),
   ]);
+  const hasMore = messages.length > query.limit;
+  const paginatedMessages = messages.slice(0, query.limit);
+  const oldestMessage = paginatedMessages[paginatedMessages.length - 1];
 
   const opponentRaw = (
     populatedConversation?.participants as unknown as TOpponentCandidate[]
@@ -288,8 +296,18 @@ const getConversationMessages = async (
     : null;
 
   return {
+    meta: {
+      hasMore,
+      limit: query.limit,
+      nextBefore: hasMore ? oldestMessage?.createdAt?.toISOString() ?? null : null,
+      page: query.page,
+      total,
+      totalPage: Math.ceil(total / query.limit),
+    },
     opponent,
-    messages: messages.reverse().map((message) => buildMessageResponse(message)),
+    messages: paginatedMessages
+      .reverse()
+      .map((message) => buildMessageResponse(message)),
   };
 };
 
