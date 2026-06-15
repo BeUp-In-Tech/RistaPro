@@ -5,67 +5,14 @@ import { createAdapter } from '@socket.io/redis-adapter';
 import { JwtPayload } from 'jsonwebtoken';
 import env from '../config/env';
 import { redisClient } from '../config/redis.config';
-import {
-  getConversationAudienceUserIds,
-  getConversationByIdOrThrow,
-} from '../modules/conversation/conversation.helper';
 import { ActiveStatus } from '../modules/user/user.interface';
 import User from '../modules/user/user.model';
 import { verifyToken } from '../utils/jwt';
+import { getConversationRoom, getSocketToken, userCanAccessConversation } from './socket.helper';
 
 export let io: Server;
 
-export const getConversationRoom = (conversationId: string) =>
-  `conversation:${conversationId}`;
 
-export const emitChatEvent = (params: {
-  conversationId?: string;
-  event: string;
-  payload: unknown;
-  userIds?: string[];
-}) => {
-  if (!io) {
-    return;
-  }
-
-  const uniqueUserIds = Array.from(new Set(params.userIds ?? []));
-  const target = uniqueUserIds.length
-    ? io.to(uniqueUserIds)
-    : params.conversationId
-      ? io.to(getConversationRoom(params.conversationId))
-      : io;
-
-  target.emit(params.event, params.payload);
-};
-
-const getSocketToken = (socket: any) => {
-  const authToken = socket.handshake.auth?.token;
-  if (typeof authToken === 'string' && authToken.trim()) {
-    return authToken.startsWith('Bearer ')
-      ? authToken.split(' ')[1]
-      : authToken.trim();
-  }
-
-  const authorizationHeader = socket.handshake.headers?.authorization;
-  if (
-    typeof authorizationHeader === 'string' &&
-    authorizationHeader.startsWith('Bearer ')
-  ) {
-    return authorizationHeader.split(' ')[1];
-  }
-
-  return null;
-};
-
-const userCanAccessConversation = async (
-  userId: string,
-  conversationId: string
-) => {
-  const conversation = await getConversationByIdOrThrow(conversationId);
-  const audienceUserIds = await getConversationAudienceUserIds(conversation);
-
-  return audienceUserIds.includes(userId);
-};
 
 export const initSocket = async (server: any) => {
   const pubClient = redisClient.duplicate();
@@ -115,6 +62,8 @@ export const initSocket = async (server: any) => {
     }
   });
 
+
+  // SOCKET CONNECTION
   io.on('connection', (socket) => {
     const currentUserId = String(socket.data.userId);
     console.log('User connected: ', socket.id);
@@ -178,6 +127,8 @@ export const initSocket = async (server: any) => {
       socket.leave(getConversationRoom(conversationId));
     });
 
+
+    // Socket typing indicator start
     socket.on(
       'typing:start',
       async (payload: { conversationId: string; candidateId?: string }) => {
@@ -201,6 +152,7 @@ export const initSocket = async (server: any) => {
       }
     );
 
+    // socket typing indicator stop
     socket.on(
       'typing:stop',
       async (payload: { conversationId: string; candidateId?: string }) => {
@@ -224,6 +176,8 @@ export const initSocket = async (server: any) => {
       }
     );
 
+
+    // Handle socket disconnect
     socket.on('disconnect', async () => {
       try {
         const matchingSockets = await io.in(currentUserId).fetchSockets();
