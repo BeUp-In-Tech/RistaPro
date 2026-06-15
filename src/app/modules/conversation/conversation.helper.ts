@@ -26,6 +26,7 @@ export const CHAT_CANDIDATE_SELECT =
 export const CHAT_MESSAGE_SELECT =
   '_id conversation sender sentBy sentByLinkedUser senderDeviceId type body attachments encryptionVersion seenBy replyTo metadata createdAt';
 
+// Validate that `id` is a valid Mongo ObjectId or throw a bad-request error
 export const assertValidObjectId = (id: string, fieldLabel: string) => {
   if (!Types.ObjectId.isValid(id)) {
     throw new AppError(StatusCodes.BAD_REQUEST, `Invalid ${fieldLabel}`);
@@ -34,14 +35,17 @@ export const assertValidObjectId = (id: string, fieldLabel: string) => {
   return id;
 };
 
+// Build a stable pair key for two candidate ids (sorted and joined)
 export const buildConversationPairKey = (
   firstCandidateId: string,
   secondCandidateId: string
 ) => [firstCandidateId, secondCandidateId].sort().join('_');
 
+// Resolve a plan key or fallback to 'free'
 const getPlanKeyOrDefault = (plan?: string): PlanKey =>
   PLAN_KEYS.includes(plan as PlanKey) ? (plan as PlanKey) : 'free';
 
+// Load candidate's plan and return plan details with defaults
 export const getCandidatePlanOrDefault = async (candidateId: string) => {
   const candidate = await Candidate.findById(candidateId)
     .select('_id plan user isActive')
@@ -88,6 +92,7 @@ export const getCandidatePlanOrDefault = async (candidateId: string) => {
   };
 };
 
+// Ensure the candidate's plan allows messaging or throw a payment-required error
 export const assertCanUseMessagingPlan = (plan: Pick<IPlan, 'canMessage'>) => {
   if (!plan.canMessage) {
     throw new AppError(
@@ -97,13 +102,17 @@ export const assertCanUseMessagingPlan = (plan: Pick<IPlan, 'canMessage'>) => {
   }
 };
 
+// True when the linked-user has view-only access
 export const isViewerAccess = (access: TActiveLinkedUserLean) =>
   access.accessRole === CandidateLinkedUserAccessRole.VIEWER;
 
+// True when the linked-user can perform write actions (owner or editor)
 export const isWritableLinkedUser = (accessRole: CandidateLinkedUserAccessRole) =>
   accessRole === CandidateLinkedUserAccessRole.OWNER ||
   accessRole === CandidateLinkedUserAccessRole.EDITOR;
 
+
+// Check whether a linked-user relation qualifies as a guardian/relative
 export const isGuardianRelation = (
   relation: CandidateLinkedUserRelation
 ) =>
@@ -115,6 +124,8 @@ export const isGuardianRelation = (
   relation === CandidateLinkedUserRelation.RELATIVE ||
   relation === CandidateLinkedUserRelation.CONSULTANT;
 
+
+// Load conversation by id or throw not-found
 export const getConversationByIdOrThrow = async (conversationId: string) => {
   assertValidObjectId(conversationId, 'conversation id');
 
@@ -127,6 +138,7 @@ export const getConversationByIdOrThrow = async (conversationId: string) => {
   return conversation;
 };
 
+// Return unread count for a specific user from conversation unreadCounts
 export const getUnreadCountForUser = (
   unreadCounts:
     | IConversation['unreadCounts']
@@ -145,6 +157,7 @@ export const getUnreadCountForUser = (
   return Number(unreadCounts[userId] ?? 0);
 };
 
+// Build conversation response including unreadCount for the requesting user
 export const buildConversationResponse = (
   conversation: TConversationLean,
   userId: string
@@ -153,6 +166,7 @@ export const buildConversationResponse = (
   unreadCount: getUnreadCountForUser(conversation.unreadCounts, userId),
 });
 
+// Throw if linked-user has viewer-only access (can't write/respond)
 export const assertWritableConversationAccess = (
   access: TActiveLinkedUserLean
 ) => {
@@ -164,6 +178,7 @@ export const assertWritableConversationAccess = (
   }
 };
 
+// Ensure target candidate exists and is active
 export const getActiveTargetCandidateOrThrow = async (candidateId: string) => {
   const candidate = await Candidate.findOne({
     _id: candidateId,
@@ -179,10 +194,13 @@ export const getActiveTargetCandidateOrThrow = async (candidateId: string) => {
   return candidate;
 };
 
+// Helper to get participant candidate ids as strings
 export const getConversationCandidateIds = (conversation: {
   participants: Types.ObjectId[];
 }) => conversation.participants.map((candidateId) => candidateId.toString());
 
+
+// Assert the provided candidateId is one of the conversation participants
 export const assertCandidateInConversation = (
   conversation: { participants: Types.ObjectId[] },
   candidateId: string
@@ -199,6 +217,7 @@ export const assertCandidateInConversation = (
   }
 };
 
+// Return the other participant candidate id (conversation must have two participants)
 export const getOtherConversationCandidateId = (
   conversation: { participants: Types.ObjectId[] },
   candidateId: string
@@ -217,6 +236,7 @@ export const getOtherConversationCandidateId = (
   return otherCandidate.toString();
 };
 
+// Find an active guardian participant record that matches the linked-user access
 export const findActiveGuardianParticipant = (
   guardianParticipants: IConversationGuardianParticipant[] | undefined,
   access: TActiveLinkedUserLean
@@ -229,12 +249,14 @@ export const findActiveGuardianParticipant = (
       participant.user.toString() === access.user.toString()
   );
 
+// Ensure a linked-user (including guardians) is authorized to read the conversation
 export const assertLinkedUserCanReadConversation = (params: {
   access: TActiveLinkedUserLean;
   guardianParticipants?: IConversationGuardianParticipant[];
 }) => {
   const { access, guardianParticipants } = params;
 
+  // Check guardian relation
   if (!isGuardianRelation(access.relationshipToCandidate)) {
     return;
   }
@@ -256,6 +278,7 @@ export const assertLinkedUserCanReadConversation = (params: {
   }
 };
 
+// Ensure a linked-user is allowed to send messages (write + read checks)
 export const assertLinkedUserCanSendMessage = (params: {
   access: TActiveLinkedUserLean;
   guardianParticipants?: IConversationGuardianParticipant[];
@@ -272,6 +295,7 @@ export const assertLinkedUserCanSendMessage = (params: {
   assertLinkedUserCanReadConversation({ access, guardianParticipants });
 };
 
+// Get audience user ids for a set of candidates (owners + non-guardian linked users)
 export const getCandidateAudienceUserIds = async (candidateIds: string[]) => {
   const [candidateOwners, linkedUsers] = await Promise.all([
     Candidate.find({
@@ -306,6 +330,7 @@ export const getCandidateAudienceUserIds = async (candidateIds: string[]) => {
   );
 };
 
+// Get audience user ids for a conversation (includes active guardians)
 export const getConversationAudienceUserIds = async (conversation: {
   participants: Types.ObjectId[];
   guardianParticipants?: IConversationGuardianParticipant[];

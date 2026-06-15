@@ -182,6 +182,23 @@ const getCandidateByIdOrThrow = async (candidateId: string) => {
   return candidate;
 };
 
+/**
+ * Synchronizes legacy candidate ownership to the new CandidateLinkedUser system.
+ * 
+ * Purpose: Ensures backward compatibility when transitioning from simple Candidate.user
+ * ownership model to the sophisticated CandidateLinkedUser relationship system.
+ * 
+ * Behavior:
+ * - Finds all ACTIVE candidates owned by the user
+ * - Validates user owns at most ONE candidate (to prevent conflicts)
+ * - Creates CandidateLinkedUser records with OWNER role for any missing links
+ * - Silently skips if links already exist (idempotent operation)
+ * - Gracefully handles duplicate key errors
+ * 
+ * @param params.userId - The user ID to sync ownership for
+ * @param params.candidateIds - Optional: specific candidate IDs to check (filters the search)
+ * @throws {AppError} If user owns multiple active candidate profiles
+ */
 export const syncLegacyOwnerLinks = async (params: {
   userId: string;
   candidateIds?: string[];
@@ -270,6 +287,7 @@ export const syncLegacyOwnerLinks = async (params: {
   }
 };
 
+// Returns active linked-user access for a candidate or throws; also performs legacy-owner sync
 export const getActiveLinkedUserAccessOrThrow = async (params: {
   userId: string;
   candidateId: string;
@@ -277,13 +295,19 @@ export const getActiveLinkedUserAccessOrThrow = async (params: {
 }) => {
   const { candidateId, requireOwner = false, userId } = params;
 
+  // Check candidate exist by id or throw error
   const candidate = await getCandidateByIdOrThrow(candidateId);
+
+  // Check candidate is matched with current user Candidate profile Or throw error
   await ensureNoOtherActiveCandidateAccess({
     userId,
     excludeCandidateId: candidateId,
     message:
       'This account is already linked to another active candidate profile',
   });
+  
+  // Sync legacy ownership: Auto-create CandidateLinkedUser OWNER record if it doesn't exist
+  // This ensures old candidates without linked-user records are properly migrated on first access
   await syncLegacyOwnerLinks({ userId, candidateIds: [candidateId] });
 
   const linkedUser = await CandidateLinkedUser.findOne({
@@ -297,7 +321,7 @@ export const getActiveLinkedUserAccessOrThrow = async (params: {
   if (!linkedUser) {
     throw new AppError(
       StatusCodes.FORBIDDEN,
-      'You do not have access to manage this candidate profile'
+      "You're not authorized to manage this candidate profile"
     );
   }
 

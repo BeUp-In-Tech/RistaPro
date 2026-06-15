@@ -90,6 +90,14 @@ export interface IGuardianRequestListQuery {
   type: 'incoming' | 'outgoing' | 'all';
 }
 
+export interface IGuardianLinkedUsersQuery {
+  candidateId: string;
+}
+
+export interface IRemoveGuardianParticipantPayload {
+  candidateId: string;
+}
+
 export type TConversationLean = Partial<IConversation> & {
   _id: Types.ObjectId;
   pairKey: string;

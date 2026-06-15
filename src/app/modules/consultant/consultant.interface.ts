@@ -1,4 +1,7 @@
 import { Document, Types } from 'mongoose';
+import { RishtaProgressStep } from '../rishta_progress/rishta_progress.interface';
+import { CandidateLinkedUserAccessRole } from '../candidate/linked-user/candidateLinkedUser.interface';
+import { Role } from '../user/user.interface';
 
 export enum ConsultantAssignmentStatus {
   ACTIVE = 'ACTIVE',
@@ -197,4 +200,32 @@ export interface IConsultantMarriageRecordListQuery {
   caseId?: string;
   limit?: number;
   page?: number;
+}
+
+
+export const CONSULTANT_PROGRESS_STEPS = [
+  RishtaProgressStep.MATCHES,
+  RishtaProgressStep.START_CHAT,
+  RishtaProgressStep.PARENT_INVOLVES,
+  RishtaProgressStep.SHAADI,
+];
+
+export interface TCandidateAccess {
+  _id?: Types.ObjectId;
+  accessRole: CandidateLinkedUserAccessRole;
+  candidate: Types.ObjectId;
+  user: Types.ObjectId;
+}
+
+export interface TGuestInviteContext {
+  consultationCase: IConsultationCase;
+  invite: IConsultantGuestInvite;
+}
+
+export interface TConsultantUser {
+  _id: Types.ObjectId;
+  email: string;
+  full_name: string;
+  picture?: string;
+  role?: Role;
 }

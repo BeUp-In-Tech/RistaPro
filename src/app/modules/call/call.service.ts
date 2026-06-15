@@ -21,7 +21,7 @@ import { NotificationType } from '../notification/notification.interface';
 import { PLANS } from '../plan/plan.constant';
 import { IPlan, PLAN_KEYS, PlanKey } from '../plan/plan.interface';
 import PlanModel from '../plan/plan.model';
-import { emitChatEvent } from '../../socket/socket';
+import { emitChatEvent } from '../../socket/socket.helper';
 import { ActiveStatus } from '../user/user.interface';
 import {
   CallParticipantRole,

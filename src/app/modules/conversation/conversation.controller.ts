@@ -6,7 +6,9 @@ import { CatchAsync } from '../../utils/CatchAsync';
 import { SendResponse } from '../../utils/SendResponse';
 import {
   conversationMessagesQueryZodSchema,
+  guardianLinkedUsersQueryZodSchema,
   guardianRequestListQueryZodSchema,
+  removeGuardianParticipantZodSchema,
 } from './conversation.validate';
 import { ConversationService } from './conversation.service';
 import { conversationMessageRequestListQueryZodSchema } from '../conversation-message-request/conversationMessageRequest.validate';
@@ -184,6 +186,49 @@ const createGuardianRequest = CatchAsync(
   }
 );
 
+// AUTH LINKED USER LISTS GUARDIAN-CAPABLE LINKED USERS FOR THIS CHAT
+const getGuardianLinkedUsers = CatchAsync(
+  async (req: Request, res: Response) => {
+    const { userId } = req.user as JwtPayload;
+    const query = await guardianLinkedUsersQueryZodSchema.parseAsync(req.query);
+    const result = await ConversationService.getGuardianLinkedUsers(
+      String(userId),
+      String(req.params.conversationId),
+      query
+    );
+
+    SendResponse(res, {
+      success: true,
+      statusCode: StatusCodes.OK,
+      message: 'Guardian linked users retrieved successfully',
+      data: result,
+    });
+  }
+);
+
+// AUTH SELF USER REMOVES AN INVOLVED GUARDIAN/PARENT FROM THIS CHAT
+const removeGuardianParticipant = CatchAsync(
+  async (req: Request, res: Response) => {
+    const { userId } = req.user as JwtPayload;
+    const payload = await removeGuardianParticipantZodSchema.parseAsync(
+      req.body
+    );
+    const result = await ConversationService.removeGuardianParticipant(
+      String(userId),
+      String(req.params.conversationId),
+      String(req.params.linkedUserId),
+      payload
+    );
+
+    SendResponse(res, {
+      success: true,
+      statusCode: StatusCodes.OK,
+      message: 'Guardian removed from conversation successfully',
+      data: result,
+    });
+  }
+);
+
 // AUTH LINKED USER LISTS GUARDIAN REQUESTS
 const getGuardianRequests = CatchAsync(async (req: Request, res: Response) => {
   const { userId } = req.user as JwtPayload;
@@ -246,9 +291,11 @@ export const ConversationController = {
   createMessageRequest,
   getConversationMessages,
   getConversations,
+  getGuardianLinkedUsers,
   getGuardianRequests,
   getMessageRequests,
   markConversationRead,
+  removeGuardianParticipant,
   rejectGuardianRequest,
   rejectMessageRequest,
   startMatchConversation,

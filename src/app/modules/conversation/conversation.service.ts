@@ -1,14 +1,20 @@
 import { StatusCodes } from 'http-status-codes';
 import { Types } from 'mongoose';
 import AppError from '../../errorHelpers/AppError';
-import { emitChatEvent } from '../../socket/socket';
+import { emitChatEvent } from '../../socket/socket.helper';
 import { getActiveLinkedUserAccessOrThrow } from '../candidate/linked-user/candidateLinkedUser.helper';
 import {
   CandidateLinkedUserRelation,
   CandidateLinkedUserStatus,
   TActiveLinkedUserLean,
+  TActiveLinkedUserWithUser,
 } from '../candidate/linked-user/candidateLinkedUser.interface';
 import CandidateLinkedUser from '../candidate/linked-user/candidateLinkedUser.model';
+import {
+  LINKED_USER_USER_SELECT,
+  sortLinkedUsersForResponse,
+} from '../candidate/linked-user/candidateLinkedUser.helper';
+import { buildCandidateLinkedUserResponse } from '../candidate/linked-user/candidateLinkedUser.utility';
 import ConversationMessageRequest from '../conversation-message-request/conversationMessageRequest.model';
 import {
   ConversationMessageRequestStatus,
@@ -46,8 +52,10 @@ import {
   IConversationMessagesQuery,
   ICreateGuardianRequestPayload,
   ICreateMessageRequestPayload,
+  IGuardianLinkedUsersQuery,
   IGuardianRequestListQuery,
   IMessageRequestListQuery,
+  IRemoveGuardianParticipantPayload,
   IRespondRequestPayload,
   TConversationLean,
 } from './conversation.interface';
@@ -68,6 +76,8 @@ import {
 } from '../rishta_progress/rishta_progress.interface';
 import { QueryBuilder } from '../../utils/QueryBuilder';
 
+const CHAT_SENT_BY_USER_SELECT = '_id full_name picture role';
+
 const buildConversationClientResponse = (
   conversation: TConversationLean,
   userId: string
@@ -85,6 +95,31 @@ const buildConversationClientResponse = (
 
   return response;
 };
+
+const GUARDIAN_LINKED_USER_RELATIONS = [
+  CandidateLinkedUserRelation.FATHER,
+  CandidateLinkedUserRelation.MOTHER,
+  CandidateLinkedUserRelation.BROTHER,
+  CandidateLinkedUserRelation.SISTER,
+  CandidateLinkedUserRelation.GUARDIAN,
+  CandidateLinkedUserRelation.RELATIVE,
+  CandidateLinkedUserRelation.CONSULTANT,
+];
+
+const getActiveGuardianParticipantsForCandidate = (
+  conversation: { guardianParticipants?: TConversationLean['guardianParticipants'] },
+  candidateId: string
+) =>
+  conversation.guardianParticipants?.filter(
+    (participant) =>
+      participant.isActive &&
+      participant.candidate.toString() === candidateId
+  ) ?? [];
+
+const hasActiveGuardianForCandidate = (
+  conversation: { guardianParticipants?: TConversationLean['guardianParticipants'] },
+  candidateId: string
+) => getActiveGuardianParticipantsForCandidate(conversation, candidateId).length > 0;
 
 // POST /conversations/matches/:matchId/start - opens the chat for an active match.
 const startMatchConversation = async (
@@ -232,17 +267,24 @@ const getConversationMessages = async (
   conversationId: string,
   query: IConversationMessagesQuery
 ) => {
+
+  // Check conversation id valid
   assertValidObjectId(conversationId, 'conversation id');
   assertValidObjectId(query.candidateId, 'candidate id');
 
+  // Check If conversation found or throw error
   const conversation = await getConversationByIdOrThrow(conversationId);
-  assertCandidateInConversation(conversation, query.candidateId);
 
+  // CHECK CANDIDATE IS IN THE CONVERSATION OR THROW ERROR
+  assertCandidateInConversation(conversation, query.candidateId); 
+
+  // Check candidate is matched with current user Candidate profile Or throw error
   const { access } = await getActiveLinkedUserAccessOrThrow({
     candidateId: query.candidateId,
     userId,
   });
 
+  // Ensure a linked-user (including guardians) is authorized to read the conversation
   assertLinkedUserCanReadConversation({
     access,
     guardianParticipants: conversation.guardianParticipants,
@@ -263,26 +305,120 @@ const getConversationMessages = async (
     messageQuery.createdAt = { $lt: before };
   }
 
-  type TOpponentCandidate = { _id: Types.ObjectId; name?: string; images?: string[] };
-  type TMessageWithCreatedAt = Record<string, unknown> & { createdAt?: Date };
+  interface TOpponentCandidate { _id: Types.ObjectId; name?: string; images?: string[] };
+  interface TPopulatedSentByUser {
+    _id: Types.ObjectId;
+    full_name?: string;
+    picture?: string;
+    role?: string;
+  }
+  type TMessageWithCreatedAt = Record<string, unknown> & {
+    createdAt?: Date;
+    sender?: Types.ObjectId | TOpponentCandidate;
+    sentBy?: Types.ObjectId | TPopulatedSentByUser;
+  };
   const skip = query.before ? 0 : (query.page - 1) * query.limit;
 
-  const [messages, total, populatedConversation] = await Promise.all([
+  const [messages, total, populatedConversation, selfLinkedUsers] = await Promise.all([
     Message.find(messageQuery)
       .select(CHAT_MESSAGE_SELECT)
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(query.limit + 1)
+      .limit(query.limit + 1) 
+      .populate({ path: 'sender', select: CHAT_CANDIDATE_SELECT })
+      .populate({ path: 'sentBy', select: CHAT_SENT_BY_USER_SELECT })
       .lean<TMessageWithCreatedAt[]>(),
     Message.countDocuments(countQuery),
     Conversation.findById(conversationId)
       .populate({ path: 'participants', select: CHAT_CANDIDATE_SELECT })
       .lean(),
+    CandidateLinkedUser.find({
+      candidate: { $in: conversation.participants },
+      relationshipToCandidate: CandidateLinkedUserRelation.SELF,
+      status: CandidateLinkedUserStatus.ACTIVE,
+    })
+      .select('candidate user')
+      .lean<{ candidate: Types.ObjectId; user: Types.ObjectId }[]>(),
   ]);
+
+  /**
+   * PAGINATION OPTIMIZATION: Cursor-Based "Limit+1" Pattern
+   * 
+   * CONCEPT:
+   * Instead of fetching messages and making a separate count() query to determine if more pages exist,
+   * we fetch one extra message (limit+1) to detect pagination state in a single database round-trip.
+   * 
+   * HOW IT WORKS:
+   * 1. Query fetches (query.limit + 1) messages from the database
+   * 2. Check if actual results > query.limit
+   *    - If true: hasMore = true (extra message exists, indicating next page available)
+   *    - If false: hasMore = false (query returned ≤ limit messages, no next page)
+   * 3. Slice array to exactly query.limit (remove the extra +1 message from response)
+   * 4. Return hasMore flag to client for pagination UI
+   * 
+   * WHY IT'S USED (Complexity Solved):
+   * - EFFICIENCY: Saves N+1 query problem - single query determines pagination state
+   *   vs. two queries: one for messages, one separate count for hasMore
+   * - PERFORMANCE: Especially important for large chat histories where count queries are expensive
+   * - SCALABILITY: Linear query cost O(limit) vs. O(limit + collection_size) for count-based pagination
+   * 
+   * DOWNSTREAM USAGE:
+   * - Response meta.hasMore tells client if more messages exist
+   * - Client uses this to show "Load More" button and populate nextBefore cursor
+   * - Line 371: nextBefore = hasMore ? oldestMessage?.createdAt?.toISOString() : null
+   */
   const hasMore = messages.length > query.limit;
   const paginatedMessages = messages.slice(0, query.limit);
   const oldestMessage = paginatedMessages[paginatedMessages.length - 1];
 
+  const selfUserIdByCandidateId = new Map(
+    selfLinkedUsers.map((linkedUser) => [
+      linkedUser.candidate.toString(),
+      linkedUser.user.toString(),
+    ])
+  );
+
+  const getId = (value: Types.ObjectId | { _id?: Types.ObjectId } | undefined) =>
+    value && typeof value === 'object' && '_id' in value
+      ? value._id?.toString()
+      : value?.toString();
+
+  // Build messages response
+  const buildMessageWithSenderResponse = (message: TMessageWithCreatedAt) => {
+    const senderCandidateId = getId(message.sender);
+    const sentByUserId = getId(message.sentBy);
+    const senderSelfUserId = senderCandidateId
+      ? selfUserIdByCandidateId.get(senderCandidateId)
+      : undefined;
+    const messageWithSenderId = {
+      ...message,
+      sender: senderCandidateId
+        ? new Types.ObjectId(senderCandidateId)
+        : message.sender,
+    };
+
+    if (
+      senderCandidateId &&
+      sentByUserId &&
+      senderSelfUserId === sentByUserId &&
+      message.sender &&
+      typeof message.sender === 'object' &&
+      'name' in message.sender
+    ) {
+      return buildMessageResponse({
+        ...messageWithSenderId,
+        sentBy: {
+          _id: message.sender._id,
+          image: message.sender.images?.[0] ?? null,
+          name: message.sender.name,
+        },
+      });
+    }
+
+    return buildMessageResponse(messageWithSenderId);
+  };
+
+  // Opponent data
   const opponentRaw = (
     populatedConversation?.participants as unknown as TOpponentCandidate[]
   )?.find((p) => p._id.toString() !== query.candidateId);
@@ -307,7 +443,7 @@ const getConversationMessages = async (
     opponent,
     messages: paginatedMessages
       .reverse()
-      .map((message) => buildMessageResponse(message)),
+      .map((message) => buildMessageWithSenderResponse(message)),
   };
 };
 
@@ -479,7 +615,7 @@ const getMessageRequests = async (
     .populate({ path: 'requesterCandidate', select: CHAT_CANDIDATE_SELECT })
     .lean();
 
-  type TPopulatedCandidate = { _id: Types.ObjectId; name?: string; images?: string[] };
+  interface TPopulatedCandidate { _id: Types.ObjectId; name?: string; images?: string[] };
 
   return requests.map(({ requesterCandidate, initialMessage, ...rest }) => {
     let decryptedInitialMessage: string | null = null;
@@ -507,6 +643,120 @@ const getMessageRequests = async (
         : null,
     };
   });
+};
+
+// GET /conversations/:conversationId/guardian-linked-users - lists linked users available for guardian include.
+const getGuardianLinkedUsers = async (
+  userId: string,
+  conversationId: string,
+  query: IGuardianLinkedUsersQuery
+) => {
+  assertValidObjectId(conversationId, 'conversation id');
+  assertValidObjectId(query.candidateId, 'candidate id');
+
+  const conversation = await getConversationByIdOrThrow(conversationId);
+
+  if (conversation.status !== ConversationStatus.OPEN) {
+    throw new AppError(
+      StatusCodes.CONFLICT,
+      'Guardian linked users can only be listed for open conversations'
+    );
+  }
+
+  assertCandidateInConversation(conversation, query.candidateId);
+
+  const { access } = await getActiveLinkedUserAccessOrThrow({
+    candidateId: query.candidateId,
+    userId,
+  });
+
+  assertLinkedUserCanReadConversation({
+    access,
+    guardianParticipants: conversation.guardianParticipants,
+  });
+
+  const [linkedUsers, pendingRequests] = await Promise.all([
+    CandidateLinkedUser.find({
+      candidate: new Types.ObjectId(query.candidateId),
+      relationshipToCandidate: { $in: GUARDIAN_LINKED_USER_RELATIONS },
+      status: CandidateLinkedUserStatus.ACTIVE,
+      user: { $ne: new Types.ObjectId(userId) },
+    })
+      .populate({
+        path: 'user',
+        select: LINKED_USER_USER_SELECT,
+      })
+      .lean<TActiveLinkedUserWithUser[]>(),
+    ConversationGuardianRequest.find({
+      conversation: new Types.ObjectId(conversationId),
+      requesterCandidate: new Types.ObjectId(query.candidateId),
+      status: ConversationGuardianRequestStatus.PENDING,
+    })
+      .select('requestedGuardianLinkedUser')
+      .lean<{ requestedGuardianLinkedUser: Types.ObjectId }[]>(),
+  ]);
+
+  sortLinkedUsersForResponse(linkedUsers);
+
+  const activeGuardianParticipants = getActiveGuardianParticipantsForCandidate(
+    conversation,
+    query.candidateId
+  );
+  const activeGuardianLinkedUserIds = new Set(
+    activeGuardianParticipants.map((participant) =>
+      participant.linkedUser.toString()
+    )
+  );
+  const pendingRequestLinkedUserIds = new Set(
+    pendingRequests.map((request) =>
+      request.requestedGuardianLinkedUser.toString()
+    )
+  );
+  const hasActiveGuardianInConversation = activeGuardianParticipants.length > 0;
+  const authCanInvite = isWritableLinkedUser(access.accessRole);
+  const authCanRemove =
+    access.relationshipToCandidate === CandidateLinkedUserRelation.SELF;
+
+  return {
+    candidateId: query.candidateId,
+    conversationId,
+    hasActiveGuardianInConversation,
+    users: linkedUsers.map((linkedUser) => {
+      const linkedUserId = linkedUser._id.toString();
+      const isAlreadyInvolved = activeGuardianLinkedUserIds.has(linkedUserId);
+      const hasPendingRequest = pendingRequestLinkedUserIds.has(linkedUserId);
+      const canInvite =
+        authCanInvite &&
+        !hasActiveGuardianInConversation &&
+        !isAlreadyInvolved &&
+        !hasPendingRequest;
+
+      let inviteBlockedReason: string | null = null;
+
+      if (!authCanInvite) {
+        inviteBlockedReason = 'Viewer access cannot request guardian inclusion';
+      } else if (isAlreadyInvolved) {
+        inviteBlockedReason =
+          'This linked user is already included in the conversation';
+      } else if (hasActiveGuardianInConversation) {
+        inviteBlockedReason =
+          'A parent or guardian is already involved in this conversation';
+      } else if (hasPendingRequest) {
+        inviteBlockedReason =
+          'A pending guardian request already exists for this linked user';
+      }
+
+      return {
+        ...buildCandidateLinkedUserResponse(linkedUser),
+        canInvite,
+        canRemove: authCanRemove && isAlreadyInvolved,
+        hasActiveGuardianInConversation,
+        hasPendingRequest,
+        inviteBlockedReason,
+        isAlreadyInvolved,
+      };
+    }),
+  };
 };
 
 // PATCH /conversations/message-requests/:requestId/accept - creates the chat.
@@ -762,6 +1012,18 @@ const createGuardianRequest = async (
     );
   }
 
+  assertLinkedUserCanReadConversation({
+    access,
+    guardianParticipants: conversation.guardianParticipants,
+  });
+
+  if (hasActiveGuardianForCandidate(conversation, payload.candidateId)) {
+    throw new AppError(
+      StatusCodes.CONFLICT,
+      'A parent or guardian is already involved in this conversation'
+    );
+  }
+
   const guardianAccess = await CandidateLinkedUser.findOne({
     _id: payload.linkedUserId,
     candidate: payload.candidateId,
@@ -913,6 +1175,18 @@ const acceptGuardianRequest = async (
     throw new AppError(
       StatusCodes.CONFLICT,
       'Guardian requests can only be accepted for open conversations'
+    );
+  }
+
+  if (
+    hasActiveGuardianForCandidate(
+      pendingConversation,
+      pendingRequest.requesterCandidate.toString()
+    )
+  ) {
+    throw new AppError(
+      StatusCodes.CONFLICT,
+      'A parent or guardian is already involved in this conversation'
     );
   }
 
@@ -1078,6 +1352,113 @@ const rejectGuardianRequest = async (
   return request;
 };
 
+// PATCH /conversations/:conversationId/guardian-participants/:linkedUserId/remove - removes an approved guardian from this chat only.
+const removeGuardianParticipant = async (
+  userId: string,
+  conversationId: string,
+  linkedUserId: string,
+  payload: IRemoveGuardianParticipantPayload
+) => {
+  assertValidObjectId(conversationId, 'conversation id');
+  assertValidObjectId(linkedUserId, 'linked user id');
+  assertValidObjectId(payload.candidateId, 'candidate id');
+
+  const conversation = await getConversationByIdOrThrow(conversationId);
+
+  if (conversation.status !== ConversationStatus.OPEN) {
+    throw new AppError(
+      StatusCodes.CONFLICT,
+      'Guardians can only be removed from open conversations'
+    );
+  }
+
+  assertCandidateInConversation(conversation, payload.candidateId);
+
+  const { access } = await getActiveLinkedUserAccessOrThrow({
+    candidateId: payload.candidateId,
+    userId,
+  });
+
+  if (access.relationshipToCandidate !== CandidateLinkedUserRelation.SELF) {
+    throw new AppError(
+      StatusCodes.FORBIDDEN,
+      'Only the self user can remove a parent or guardian from chat'
+    );
+  }
+
+  const activeParticipant = conversation.guardianParticipants?.find(
+    (participant) =>
+      participant.isActive &&
+      participant.candidate.toString() === payload.candidateId &&
+      participant.linkedUser.toString() === linkedUserId
+  );
+
+  if (!activeParticipant) {
+    throw new AppError(
+      StatusCodes.NOT_FOUND,
+      'Active guardian participant not found in this conversation'
+    );
+  }
+
+  const parentInvolvement = Boolean(
+    conversation.guardianParticipants?.some(
+      (participant) =>
+        participant.isActive &&
+        !(
+          participant.candidate.toString() === payload.candidateId &&
+          participant.linkedUser.toString() === linkedUserId
+        )
+    )
+  );
+
+  const audienceUserIds = await getConversationAudienceUserIds(conversation);
+
+  const updateResult = await Conversation.updateOne(
+    {
+      _id: new Types.ObjectId(conversationId),
+      guardianParticipants: {
+        $elemMatch: {
+          candidate: new Types.ObjectId(payload.candidateId),
+          isActive: true,
+          linkedUser: new Types.ObjectId(linkedUserId),
+        },
+      },
+    },
+    {
+      $set: {
+        'guardianParticipants.$.isActive': false,
+        'guardianParticipants.$.removedAt': new Date(),
+        'guardianParticipants.$.removedBy': new Types.ObjectId(userId),
+        parentInvolvement,
+      },
+    }
+  );
+
+  if (updateResult.modifiedCount === 0) {
+    throw new AppError(
+      StatusCodes.CONFLICT,
+      'Guardian participant was already removed'
+    );
+  }
+
+  const payloadData = {
+    candidateId: payload.candidateId,
+    conversationId,
+    linkedUserId,
+    parentInvolvement,
+    removedBy: userId,
+  };
+
+  emitChatEvent({
+    conversationId,
+    event: 'guardian:removed',
+    payload: payloadData,
+    userIds: audienceUserIds,
+  });
+
+  return payloadData;
+};
+
 export const ConversationService = {
   acceptGuardianRequest,
   acceptMessageRequest,
@@ -1085,9 +1466,11 @@ export const ConversationService = {
   createMessageRequest,
   getConversationMessages,
   getConversations,
+  getGuardianLinkedUsers,
   getGuardianRequests,
   getMessageRequests,
   markConversationRead,
+  removeGuardianParticipant,
   rejectGuardianRequest,
   rejectMessageRequest,
   startMatchConversation,

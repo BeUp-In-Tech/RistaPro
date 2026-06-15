@@ -74,11 +74,21 @@ router.get(
   checkAuth(Role.USER),
   ConversationController.getConversationMessages
 );
+router.get(
+  '/:conversationId/guardian-linked-users',
+  checkAuth(Role.USER),
+  ConversationController.getGuardianLinkedUsers
+);
 router.patch(
   '/:conversationId/read',
   checkAuth(Role.USER),
   validateRequest(markConversationReadZodSchema),
   ConversationController.markConversationRead
+);
+router.patch(
+  '/:conversationId/guardian-participants/:linkedUserId/remove',
+  checkAuth(Role.USER),
+  ConversationController.removeGuardianParticipant
 );
 router.post(
   '/:conversationId/guardian-requests',

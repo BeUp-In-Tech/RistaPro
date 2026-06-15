@@ -2,7 +2,7 @@ import { StatusCodes } from 'http-status-codes';
 import { Types } from 'mongoose';
 import AppError from '../../errorHelpers/AppError';
 import { uploadChatMediaToCloudinary } from '../../config/cloudinary.config';
-import { emitChatEvent } from '../../socket/socket';
+import { emitChatEvent } from '../../socket/socket.helper';
 import { sendNotificationByBullMQ } from '../../utils/backgroundJobProcessingHelper';
 import { getActiveLinkedUserAccessOrThrow } from '../candidate/linked-user/candidateLinkedUser.helper';
 import {

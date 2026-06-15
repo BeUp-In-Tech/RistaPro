@@ -1,10 +1,9 @@
 import crypto from 'crypto';
-import { RtcRole, RtcTokenBuilder } from 'agora-access-token';
 import { StatusCodes } from 'http-status-codes';
 import { Types } from 'mongoose';
 import env from '../../config/env';
 import AppError from '../../errorHelpers/AppError';
-import { emitChatEvent } from '../../socket/socket';
+import { emitChatEvent } from '../../socket/socket.helper';
 import { sendNotificationByBullMQ } from '../../utils/backgroundJobProcessingHelper';
 import Candidate from '../candidate/candidate.model';
 import {
@@ -18,7 +17,6 @@ import { IPlan, PLAN_KEYS, PlanKey } from '../plan/plan.interface';
 import PlanModel from '../plan/plan.model';
 import {
   RishtaProgressStatus,
-  RishtaProgressStep,
   RishtaProgressStepSource,
   RishtaMarriageRequestStatus,
 } from '../rishta_progress/rishta_progress.interface';
@@ -37,19 +35,21 @@ import {
   ConsultationMessageSenderType,
   IAddCaseCandidatePayload,
   IAvailableConsultantsQuery,
-  IConsultantAssignmentListQuery,
   IConsultantGuestInvite,
   IConsultantMarriageRecordListQuery,
   IConsultationCase,
   IConsultationCaseListQuery,
   IConsultationMessagesQuery,
-  ICreateConsultantAssignmentPayload,
   ICreateCandidateInvitePayload,
   ICreateConsultantMarriageRecordPayload,
   ICreateConsultationCasePayload,
   ICreateGuestInvitePayload,
   IStartConsultationCasePayload,
   ISendConsultationMessagePayload,
+  TCandidateAccess,
+  TConsultantUser,
+  TGuestInviteContext,
+  CONSULTANT_PROGRESS_STEPS,
 } from './consultant.interface';
 import {
   ConsultantAssignment,
@@ -61,32 +61,6 @@ import {
 } from './consultant.model';
 
 const GUEST_INVITE_DEFAULT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-const CONSULTANT_PROGRESS_STEPS = [
-  RishtaProgressStep.MATCHES,
-  RishtaProgressStep.START_CHAT,
-  RishtaProgressStep.PARENT_INVOLVES,
-  RishtaProgressStep.SHAADI,
-];
-
-interface TCandidateAccess {
-  _id?: Types.ObjectId;
-  accessRole: CandidateLinkedUserAccessRole;
-  candidate: Types.ObjectId;
-  user: Types.ObjectId;
-}
-
-interface TGuestInviteContext {
-  consultationCase: IConsultationCase;
-  invite: IConsultantGuestInvite;
-}
-
-interface TConsultantUser {
-  _id: Types.ObjectId;
-  email: string;
-  full_name: string;
-  picture?: string;
-  role?: Role;
-}
 
 const assertValidObjectId = (value: string, label: string) => {
   if (!Types.ObjectId.isValid(value)) {
@@ -530,44 +504,44 @@ const getGuestInviteContext = async (token: string): Promise<TGuestInviteContext
   return { consultationCase, invite };
 };
 
-const getNextAgoraUid = (usedUids: Set<number>) => {
-  let uid = Math.floor(Math.random() * 2147483000) + 1;
+// const getNextAgoraUid = (usedUids: Set<number>) => {
+//   let uid = Math.floor(Math.random() * 2147483000) + 1;
 
-  while (usedUids.has(uid)) {
-    uid = Math.floor(Math.random() * 2147483000) + 1;
-  }
+//   while (usedUids.has(uid)) {
+//     uid = Math.floor(Math.random() * 2147483000) + 1;
+//   }
 
-  return uid;
-};
+//   return uid;
+// };
 
-const getAgoraToken = (params: { channelName: string; uid: number }) => {
-  if (!env.AGORA_APP_ID || !env.AGORA_APP_CERTIFICATE) {
-    throw new AppError(
-      StatusCodes.INTERNAL_SERVER_ERROR,
-      'Agora credentials are not configured'
-    );
-  }
+// const getAgoraToken = (params: { channelName: string; uid: number }) => {
+//   if (!env.AGORA_APP_ID || !env.AGORA_APP_CERTIFICATE) {
+//     throw new AppError(
+//       StatusCodes.INTERNAL_SERVER_ERROR,
+//       'Agora credentials are not configured'
+//     );
+//   }
 
-  const tokenTtlSeconds = Number.isFinite(env.AGORA_TOKEN_TTL_SECONDS)
-    ? Math.min(Math.max(env.AGORA_TOKEN_TTL_SECONDS, 60), 86400)
-    : 3600;
-  const expiresAtSeconds = Math.floor(Date.now() / 1000) + tokenTtlSeconds;
+//   const tokenTtlSeconds = Number.isFinite(env.AGORA_TOKEN_TTL_SECONDS)
+//     ? Math.min(Math.max(env.AGORA_TOKEN_TTL_SECONDS, 60), 86400)
+//     : 3600;
+//   const expiresAtSeconds = Math.floor(Date.now() / 1000) + tokenTtlSeconds;
 
-  return {
-    appId: env.AGORA_APP_ID,
-    channelName: params.channelName,
-    expiresAt: new Date(expiresAtSeconds * 1000),
-    token: RtcTokenBuilder.buildTokenWithUid(
-      env.AGORA_APP_ID,
-      env.AGORA_APP_CERTIFICATE,
-      params.channelName,
-      params.uid,
-      RtcRole.PUBLISHER,
-      expiresAtSeconds
-    ),
-    uid: params.uid,
-  };
-};
+//   return {
+//     appId: env.AGORA_APP_ID,
+//     channelName: params.channelName,
+//     expiresAt: new Date(expiresAtSeconds * 1000),
+//     token: RtcTokenBuilder.buildTokenWithUid(
+//       env.AGORA_APP_ID,
+//       env.AGORA_APP_CERTIFICATE,
+//       params.channelName,
+//       params.uid,
+//       RtcRole.PUBLISHER,
+//       expiresAtSeconds
+//     ),
+//     uid: params.uid,
+//   };
+// };
 
 const getAvailableConsultants = async (
   userId: string,

@@ -52,7 +52,19 @@ export const guardianRequestListQueryZodSchema = z
   })
   .strict();
 
+export const guardianLinkedUsersQueryZodSchema = z
+  .object({
+    candidateId: objectIdString('Candidate id'),
+  })
+  .strict();
+
 export const respondGuardianRequestZodSchema = z
+  .object({
+    candidateId: objectIdString('Candidate id'),
+  })
+  .strict();
+
+export const removeGuardianParticipantZodSchema = z
   .object({
     candidateId: objectIdString('Candidate id'),
   })

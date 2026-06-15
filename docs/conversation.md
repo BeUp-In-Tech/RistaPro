@@ -44,6 +44,7 @@ guardian-request:new
 guardian-request:accepted
 guardian-request:rejected
 guardian:included
+guardian:removed
 typing:start
 typing:stop
 conversation:error
@@ -280,6 +281,81 @@ Body:
 
 ## Relative/Guardian Include Flow
 
+Use this flow when a candidate wants to bring one parent, guardian, relative, or consultant linked user into an existing chat conversation.
+
+Only one active parent/guardian participant is allowed for the same candidate side in a conversation. Once one is active, new guardian invites for that candidate side are blocked until the candidate's `SELF` linked user removes the active participant from that chat.
+
+### `GET /:conversationId/guardian-linked-users`
+
+Lists guardian-capable linked users for the given candidate and conversation. Use this endpoint to build the invite/remove picker in the frontend.
+
+Query:
+
+```txt
+candidateId=<candidateId>   required
+```
+
+Example:
+
+```http
+GET /api/v1/conversations/665f1a2b3c4d5e6f78908888/guardian-linked-users?candidateId=665f1a2b3c4d5e6f78901234
+Authorization: Bearer <accessToken>
+```
+
+Rules:
+
+- The current logged-in user is excluded from `users`.
+- Returned linked users are limited to `FATHER`, `MOTHER`, `BROTHER`, `SISTER`, `GUARDIAN`, `RELATIVE`, and `CONSULTANT`.
+- `VIEWER` access can read allowed conversations but cannot send guardian invites.
+- If this candidate side already has an active parent/guardian in the conversation, `canInvite` is false for every user.
+
+Response:
+
+```json
+{
+  "candidateId": "665f1a2b3c4d5e6f78901234",
+  "conversationId": "665f1a2b3c4d5e6f78908888",
+  "hasActiveGuardianInConversation": true,
+  "users": [
+    {
+      "_id": "linkedUserId",
+      "relationshipToCandidate": "FATHER",
+      "relationshipToCandidateLabel": "Father",
+      "accessRole": "EDITOR",
+      "accessRoleLabel": "Editor",
+      "status": "ACTIVE",
+      "isPrimary": false,
+      "user": {
+        "_id": "userId",
+        "full_name": "Parent User",
+        "email": "parent@example.com",
+        "picture": null,
+        "role": "USER",
+        "isVerified": true,
+        "isActive": "ACTIVE"
+      },
+      "isAlreadyInvolved": true,
+      "hasPendingRequest": false,
+      "hasActiveGuardianInConversation": true,
+      "canInvite": false,
+      "canRemove": true,
+      "inviteBlockedReason": "This linked user is already included in the conversation"
+    }
+  ]
+}
+```
+
+Picker fields:
+
+| Field | Meaning |
+|-------|---------|
+| `isAlreadyInvolved` | This linked user is already active in `conversation.guardianParticipants`. |
+| `hasPendingRequest` | A pending guardian request already exists for this linked user in this conversation. |
+| `hasActiveGuardianInConversation` | This candidate side already has one active parent/guardian in this conversation. |
+| `canInvite` | The frontend can enable the invite action for this linked user. |
+| `canRemove` | The frontend can enable remove. This is true only for the candidate's `SELF` linked user when the listed parent/guardian is already involved. |
+| `inviteBlockedReason` | Frontend-safe reason for disabling invite. `null` means invite is allowed. |
+
 ### `POST /:conversationId/guardian-requests`
 
 Requests the opponent to include a family/guardian linked user in the conversation.
@@ -293,6 +369,15 @@ Body:
   "message": "Optional request note (max 500 chars)"
 }
 ```
+
+Rules:
+
+- The requester must have writable access for `candidateId`.
+- The linked user must belong to `candidateId`.
+- The linked user relation must be guardian-capable.
+- A second pending request for the same linked user is rejected.
+- If a parent/guardian is already active for this candidate side in the conversation, this route rejects another invite.
+- Emits `guardian-request:new` to the opponent side.
 
 ### `GET /guardian-requests`
 
@@ -311,6 +396,54 @@ Body:
 ```json
 {
   "candidateId": "opponentCandidateId"
+}
+```
+
+Behavior:
+
+- Marks the request as accepted.
+- Adds the requested linked user to `conversation.guardianParticipants`.
+- Sets `parentInvolvement` to `true`.
+- Emits `guardian-request:accepted` and `guardian:included`.
+- If this candidate side already has an active parent/guardian, accepting another pending request is rejected.
+
+### `PATCH /:conversationId/guardian-participants/:linkedUserId/remove`
+
+Removes an already-involved parent/guardian from this conversation only.
+
+Body:
+
+```json
+{
+  "candidateId": "candidateId"
+}
+```
+
+Example:
+
+```http
+PATCH /api/v1/conversations/665f1a2b3c4d5e6f78908888/guardian-participants/665f1a2b3c4d5e6f78909999/remove
+Authorization: Bearer <selfUserAccessToken>
+Content-Type: application/json
+```
+
+Rules:
+
+- Only the candidate linked user with `relationshipToCandidate === "SELF"` can remove an involved parent/guardian.
+- Removal is conversation-scoped only. It does not unlink or deactivate the parent/guardian from the candidate profile.
+- The matching `guardianParticipants` item is marked inactive with `removedBy` and `removedAt`.
+- `parentInvolvement` becomes `false` when no active guardian participants remain in the conversation.
+- Emits `guardian:removed`.
+
+Response:
+
+```json
+{
+  "candidateId": "candidateId",
+  "conversationId": "conversationId",
+  "linkedUserId": "linkedUserId",
+  "parentInvolvement": false,
+  "removedBy": "selfUserId"
 }
 ```
 
