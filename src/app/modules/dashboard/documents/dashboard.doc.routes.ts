@@ -9,14 +9,14 @@ const router = Router();
 
 
 router.get('/', checkAuth(Role.ADMIN), dashboardDocumentsController.readDocuments);
-// ADMIN APPROVE ID/EDUCATION DOCUMENT
+router.get('/:candidateId', checkAuth(Role.ADMIN), dashboardDocumentsController.readUserDocument);
+ 
 router.patch(
   '/:documentId/approve',
   checkAuth(Role.ADMIN),
   dashboardDocumentsController.approveDocument
 );
 
-// ADMIN REJECT ID/EDUCATION DOCUMENT
 router.patch(
   '/:documentId/reject',
   checkAuth(Role.ADMIN),

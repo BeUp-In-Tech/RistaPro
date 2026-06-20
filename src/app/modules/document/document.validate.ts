@@ -49,12 +49,6 @@ export const parentPhotoUploadZodSchema = z.object({
   candidateId: z.string('Candidate ID is required'),
 });
 
-export const parentFaceVerificationZodSchema = z.object({
-  candidateId: z.string('Candidate ID is required'),
-  isFaceVerified: z.boolean({
-    error: 'Parent face verification result is required',
-  }),
-});
 
 export const parentIdUploadZodSchema = z.object({
   candidateId: z.string('Candidate ID is required'),

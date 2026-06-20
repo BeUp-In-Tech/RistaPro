@@ -6,7 +6,6 @@ import { DocumentController } from './document.controller';
 import {
   documentUploadZodSchema,
   faceVerificationZodSchema,
-  parentFaceVerificationZodSchema,
   parentIdUploadZodSchema,
   parentPhotoUploadZodSchema,
 } from './document.validate';
@@ -34,13 +33,6 @@ router.post(
   DocumentController.uploadParentPhoto
 );
 
-// AUTHENTICATED USER VERIFY PARENT/GUARDIAN FACE
-router.post(
-  '/parent/face-verification',
-  checkAuth(Role.USER, Role.ADMIN),
-  validateRequest(parentFaceVerificationZodSchema),
-  DocumentController.verifyParentFace
-);
 
 // AUTHENTICATED USER UPLOAD PARENT/GUARDIAN ID CARD
 router.post(

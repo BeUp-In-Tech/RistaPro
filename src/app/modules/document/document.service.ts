@@ -254,91 +254,6 @@ const uploadParentPhoto = async (candidateId: string, photoUrl: string) => {
   return document;
 };
 
-// VERIFY PARENT FACE
-const verifyParentFace = async (
-  candidateId: string,
-  isFaceVerified: boolean
-) => {
-  const candidate = await Candidate.findById(candidateId);
-  if (!candidate) {
-    throw new AppError(StatusCodes.NOT_FOUND, 'Candidate not found');
-  }
-
-  if (
-    candidate.verification_status?.parent_verified?.status ===
-    VerificationState.APPROVED
-  ) {
-    throw new AppError(
-      StatusCodes.BAD_REQUEST,
-      'Parent verification is already approved'
-    );
-  }
-
-  const parentPhoto = await DocumentModel.findOne({
-    candidate: candidateId,
-    type: DocumentType.PARENT_PHOTO,
-    verification_status: DocumentVerification.PENDING,
-  }).sort({ createdAt: -1 });
-
-  if (!parentPhoto) {
-    throw new AppError(
-      StatusCodes.BAD_REQUEST,
-      'Parent photo upload is required before face verification'
-    );
-  }
-
-  if (!candidate.verification_status) {
-    candidate.verification_status = {
-      face_verified: { status: VerificationState.NONE },
-      id_verified: { status: VerificationState.NONE },
-      parent_verified: { status: VerificationState.NONE },
-      education_verified: { status: VerificationState.NONE },
-      admin_verified: { status: VerificationState.NONE },
-    };
-  }
-  const verificationStatus =
-    candidate.verification_status as IVerificationStatus;
-
-  parentPhoto.verification_status = isFaceVerified
-    ? DocumentVerification.APPROVED
-    : DocumentVerification.REJECTED;
-  parentPhoto.rejected_reason = isFaceVerified
-    ? undefined
-    : 'Parent face verification failed';
-
-  const approvedParentId = await DocumentModel.findOne({
-    candidate: candidateId,
-    type: DocumentType.PARENT_ID,
-    verification_status: DocumentVerification.APPROVED,
-  });
-
-  if (!isFaceVerified) {
-    verificationStatus.parent_verified = {
-      status: VerificationState.REJECTED,
-      date: new Date(),
-      success: false,
-    };
-  } else if (approvedParentId) {
-    verificationStatus.parent_verified = {
-      status: VerificationState.APPROVED,
-      date: new Date(),
-      success: true,
-    };
-  } else {
-    verificationStatus.parent_verified = {
-      status: VerificationState.PENDING,
-      date: new Date(),
-    };
-  }
-
-  await Promise.all([parentPhoto.save(), candidate.save()]);
-
-  return {
-    candidate: candidate._id,
-    parent_verified: verificationStatus.parent_verified,
-    parent_photo: parentPhoto,
-  };
-};
 
 // UPLOAD PARENT ID DOCUMENT
 const uploadParentIdDocument = async (
@@ -453,7 +368,6 @@ export const DocumentService = {
   verifyFace,
   uploadDocument,
   uploadParentPhoto,
-  verifyParentFace,
   uploadParentIdDocument,
   getCandidateDocuments,
 };

@@ -68,23 +68,6 @@ const uploadParentPhoto = CatchAsync(async (req: Request, res: Response) => {
   });
 });
 
-const verifyParentFace = CatchAsync(async (req: Request, res: Response) => {
-  const { candidateId, isFaceVerified } = req.body;
-
-  const result = await DocumentService.verifyParentFace(
-    candidateId,
-    isFaceVerified
-  );
-
-  SendResponse(res, {
-    statusCode: StatusCodes.OK,
-    success: true,
-    message: isFaceVerified
-      ? 'Parent face verified successfully'
-      : 'Parent face verification failed',
-    data: result,
-  });
-});
 
 const uploadParentIdDocument = CatchAsync(
   async (req: Request, res: Response) => {
@@ -140,7 +123,6 @@ export const DocumentController = {
   verifyFace,
   uploadDocument,
   uploadParentPhoto,
-  verifyParentFace,
   uploadParentIdDocument,
   getCandidateDocuments,
 };

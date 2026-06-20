@@ -12,6 +12,7 @@ import {
   DocumentVerification,
 } from '../../document/document.interface';
 import Candidate from '../../candidate/candidate.model';
+import mongoose from 'mongoose';
 
 // READ USER'S DOCUMENTS
 const readDocuments = async (
@@ -32,7 +33,12 @@ const readDocuments = async (
   const order = query.order?.toLocaleLowerCase() || 'desc';
   const sort: 1 | -1 = order === 'asc' ? 1 : -1;
 
+  const filterByStatus = query.status || DocumentVerification.PENDING;
+
   const documentsPromise = DocumentModel.aggregate([
+    {
+      $match: { verification_status: filterByStatus }
+    },
     {
       $sort: {
         createdAt: -1,
@@ -97,6 +103,19 @@ const readDocuments = async (
     totalResultPromise,
   ]);
 
+  
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const userDocuments: any = [];
+  documents.map(d => {
+    userDocuments.push({
+      ...d,
+      profile: {
+        ...d?.profile,
+        images: d?.profile?.images?.[0]
+      }
+    })
+  })
+
   const total = totalDocuments[0]?.totalDocuments || 0;
 
   const meta = {
@@ -113,9 +132,55 @@ const readDocuments = async (
 
   return {
     meta,
-    documents,
+    data: userDocuments,
   };
 };
+
+// READ USER DOCUMENT
+const readUserDocument = async (user: JwtPayload, candidateId: string) => {
+  const documents = await DocumentModel.aggregate([
+    {
+      $match: { candidate: new mongoose.Types.ObjectId(candidateId) },
+    },
+
+    {
+      $sort: {createdAt: -1}
+    },
+    {
+      $lookup: {
+        from: 'candidates',
+        localField: 'candidate',
+        foreignField: '_id',
+        as: 'profile',
+        pipeline: [
+          {
+            $project: {
+              name: 1,
+              images: 1
+            }
+          }
+        ]
+      }
+    },
+    {
+      $unwind: "$profile"
+    }
+  ]);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const userDocuments: any = [];
+
+  documents.map((d) => {
+    userDocuments.push({
+      ...d,
+      profile: {
+        images: d?.profile?.images?.[0]
+      }
+    })
+  })
+
+  return userDocuments;
+}
 
 // APPROVE DOCUMENT
 const approveDocument = async (documentId: string) => {
@@ -230,7 +295,15 @@ const approveDocument = async (documentId: string) => {
     ),
   ]);
 
-  return document;
+  const response = {
+    ...document.toObject(),
+    link: {
+      reject: `/d/doc/${documentId}/reject`,
+      read: `/d/doc/${documentId}`,
+    },
+  };
+
+  return response;
 };
 
 // REJECT DOCUMENT
@@ -307,11 +380,21 @@ const rejectDocument = async (documentId: string, rejectedReason: string) => {
 
   await Promise.all([document.save(), candidate.save()]);
 
-  return document;
+  const response = {
+    ...document.toObject(),
+    link: {
+      reject: `/d/doc/${documentId}/approve`,
+      document: `/d/doc/${documentId}`,
+      documents: `/d/doc/`
+    },
+  };
+
+  return response;
 };
 
 export const dashboardDocuments = {
   readDocuments,
   rejectDocument,
   approveDocument,
+  readUserDocument
 };
