@@ -3,12 +3,21 @@ import AppError from '../../../errorHelpers/AppError';
 import { Role } from '../../user/user.interface';
 import { JwtPayload } from 'jsonwebtoken';
 import DocumentModel from '../../document/document.model';
-import { IVerificationStatus, VerificationState } from '../../candidate/candidate.interface';
-import { DocumentType, DocumentVerification } from '../../document/document.interface';
+import {
+  IVerificationStatus,
+  VerificationState,
+} from '../../candidate/candidate.interface';
+import {
+  DocumentType,
+  DocumentVerification,
+} from '../../document/document.interface';
 import Candidate from '../../candidate/candidate.model';
 
 // READ USER'S DOCUMENTS
-const readDocuments = async (user: JwtPayload, query: Record<string, string>) => {
+const readDocuments = async (
+  user: JwtPayload,
+  query: Record<string, string>
+) => {
   if (user.role !== Role.ADMIN) {
     throw new AppError(
       StatusCodes.FORBIDDEN,
@@ -16,57 +25,97 @@ const readDocuments = async (user: JwtPayload, query: Record<string, string>) =>
     );
   }
 
-
   const page = Number(query.page) || 1;
   const limit = Number(query.limit) || 20;
   const skip = (page - 1) * limit;
 
-  const sort = query.order.toLocaleLowerCase() === 'asc' ? 1 : -1;
+  const order = query.order?.toLocaleLowerCase() || 'desc';
+  const sort: 1 | -1 = order === 'asc' ? 1 : -1;
 
-  const documents = await DocumentModel.aggregate([
+  const documentsPromise = DocumentModel.aggregate([
+    {
+      $sort: {
+        createdAt: -1,
+      },
+    },
     {
       $group: {
         _id: '$candidate',
-        docs: {$push: "$$ROOT"}
+        lastSubmitted: {
+          $first: '$$ROOT',
+        },
+        latestCreatedAt: {
+          $first: '$createdAt',
+        },
       },
     },
-
     {
-        $lookup: {
-            from: 'candidates',
-            localField: '_id',
-            foreignField: '_id',
-            as: 'profile',
-            pipeline: [
-                {
-                    $project: {
-                        name: 1,
-                        images: 1
-                    }
-                }
-            ]
-        }
-    },
-
-    {
-        $unwind: "$profile"
-    },
-
-    {
-      $sort: { 'docs.createdAt': sort }
-    },
-
-    {
-      $skip: skip
+      $lookup: {
+        from: 'candidates',
+        localField: '_id',
+        foreignField: '_id',
+        as: 'profile',
+        pipeline: [
+          {
+            $project: {
+              name: 1,
+              images: 1,
+            },
+          },
+        ],
+      },
     },
     {
-      $limit: limit
-    }
+      $unwind: '$profile',
+    },
+    {
+      $sort: {
+        latestCreatedAt: sort,
+      },
+    },
+    {
+      $skip: skip,
+    },
+    {
+      $limit: limit,
+    },
   ]);
 
-  return documents;
-};
+  const totalResultPromise = DocumentModel.aggregate([
+    {
+      $group: {
+        _id: '$candidate',
+      },
+    },
+    {
+      $count: 'totalDocuments',
+    },
+  ]);
 
+  const [documents, totalDocuments] = await Promise.all([
+    documentsPromise,
+    totalResultPromise,
+  ]);
+
+  const total = totalDocuments[0]?.totalDocuments || 0;
+
+  const meta = {
+    page,
+    limit,
+    total,
+    totalPages: Math.ceil(total / limit),
+    links: {
+      single: `/d/doc/:documentId`,
+      approve: `/d/doc/:documentId/approve`,
+      reject: `/d/doc/:documentId/reject`,
+    },
+  };
+
+  return {
+    meta,
+    documents,
+  };
+};
 
 // APPROVE DOCUMENT
 const approveDocument = async (documentId: string) => {
@@ -261,9 +310,8 @@ const rejectDocument = async (documentId: string, rejectedReason: string) => {
   return document;
 };
 
-
 export const dashboardDocuments = {
   readDocuments,
   rejectDocument,
-  approveDocument
+  approveDocument,
 };

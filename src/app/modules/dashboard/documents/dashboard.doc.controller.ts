@@ -11,6 +11,9 @@ const readDocuments = CatchAsync(async (req: Request, res: Response, next: NextF
     const user = req.user as JwtPayload;
     const result = await dashboardDocuments.readDocuments(user, query);
 
+    // HTTP CACHE CONTROL
+    res.setHeader('Cache-Control', 'no-store');
+
     SendResponse(res, {
         success: true,
         statusCode: StatusCodes.OK,
