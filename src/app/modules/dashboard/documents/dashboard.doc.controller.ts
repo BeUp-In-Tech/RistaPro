@@ -20,6 +20,37 @@ const readDocuments = CatchAsync(async (req: Request, res: Response, next: NextF
 });
 
 
+const approveDocument = CatchAsync(async (req: Request, res: Response) => {
+  const { documentId } = req.params;
+  const result = await dashboardDocuments.approveDocument(String(documentId));
+
+  SendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: 'Document approved successfully',
+    data: result,
+  });
+});
+
+const rejectDocument = CatchAsync(async (req: Request, res: Response) => {
+  const { documentId } = req.params;
+  const { rejected_reason } = req.body;
+  const result = await dashboardDocuments.rejectDocument(
+    String(documentId),
+    rejected_reason
+  );
+
+  SendResponse(res, {
+    statusCode: StatusCodes.OK,
+    success: true,
+    message: 'Document rejected successfully',
+    data: result,
+  });
+});
+
+
 export const dashboardDocumentsController = {
-    readDocuments
+    readDocuments,
+    approveDocument,
+    rejectDocument
 }

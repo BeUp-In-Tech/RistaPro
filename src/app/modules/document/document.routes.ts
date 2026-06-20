@@ -4,7 +4,6 @@ import { validateRequest } from '../../middlewares/validateRequest';
 import { Role } from '../user/user.interface';
 import { DocumentController } from './document.controller';
 import {
-  documentRejectZodSchema,
   documentUploadZodSchema,
   faceVerificationZodSchema,
   parentFaceVerificationZodSchema,
@@ -59,21 +58,6 @@ router.post(
   documentMulterUpload.array('documents', 10),
   validateRequest(documentUploadZodSchema),
   DocumentController.uploadDocument
-);
-
-// ADMIN APPROVE ID/EDUCATION DOCUMENT
-router.patch(
-  '/:documentId/approve',
-  checkAuth(Role.ADMIN),
-  DocumentController.approveDocument
-);
-
-// ADMIN REJECT ID/EDUCATION DOCUMENT
-router.patch(
-  '/:documentId/reject',
-  checkAuth(Role.ADMIN),
-  validateRequest(documentRejectZodSchema),
-  DocumentController.rejectDocument
 );
 
 // AUTHENTICATED USER GET DOCUMENTS

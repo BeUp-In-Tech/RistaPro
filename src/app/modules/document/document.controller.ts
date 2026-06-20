@@ -117,33 +117,7 @@ const uploadParentIdDocument = CatchAsync(
   }
 );
 
-const approveDocument = CatchAsync(async (req: Request, res: Response) => {
-  const { documentId } = req.params;
-  const result = await DocumentService.approveDocument(String(documentId));
 
-  SendResponse(res, {
-    statusCode: StatusCodes.OK,
-    success: true,
-    message: 'Document approved successfully',
-    data: result,
-  });
-});
-
-const rejectDocument = CatchAsync(async (req: Request, res: Response) => {
-  const { documentId } = req.params;
-  const { rejected_reason } = req.body;
-  const result = await DocumentService.rejectDocument(
-    String(documentId),
-    rejected_reason
-  );
-
-  SendResponse(res, {
-    statusCode: StatusCodes.OK,
-    success: true,
-    message: 'Document rejected successfully',
-    data: result,
-  });
-});
 
 const getCandidateDocuments = CatchAsync(
   async (req: Request, res: Response) => {
@@ -168,7 +142,5 @@ export const DocumentController = {
   uploadParentPhoto,
   verifyParentFace,
   uploadParentIdDocument,
-  approveDocument,
-  rejectDocument,
   getCandidateDocuments,
 };
