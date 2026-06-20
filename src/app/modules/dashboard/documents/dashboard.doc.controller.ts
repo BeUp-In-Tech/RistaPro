@@ -39,6 +39,22 @@ const readUserDocument = CatchAsync(async (req: Request, res: Response, next: Ne
 });
 
 
+const viewDocument = CatchAsync(async (req: Request, res: Response, next: NextFunction) => {
+    const documentId = req.params.documentId as string;
+    const result = await dashboardDocuments.viewDocument(documentId);
+
+    // HTTP CACHE CONTROL
+    res.setHeader('Cache-Control', 'no-store');
+
+    SendResponse(res, {
+        success: true,
+        statusCode: StatusCodes.OK,
+        message: "Document retrieved successfully",
+        data: result
+    })
+});
+
+
 const approveDocument = CatchAsync(async (req: Request, res: Response) => {
   const { documentId } = req.params;
   const result = await dashboardDocuments.approveDocument(String(documentId));
@@ -72,5 +88,6 @@ export const dashboardDocumentsController = {
     readDocuments,
     approveDocument,
     rejectDocument,
-    readUserDocument
+    readUserDocument,
+    viewDocument
 }

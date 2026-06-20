@@ -9,7 +9,10 @@ const router = Router();
 
 
 router.get('/', checkAuth(Role.ADMIN), dashboardDocumentsController.readDocuments);
+
 router.get('/:candidateId', checkAuth(Role.ADMIN), dashboardDocumentsController.readUserDocument);
+
+router.get('/:documentId/view', checkAuth(Role.ADMIN), dashboardDocumentsController.viewDocument)
  
 router.patch(
   '/:documentId/approve',

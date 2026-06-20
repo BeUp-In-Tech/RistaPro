@@ -182,6 +182,17 @@ const readUserDocument = async (user: JwtPayload, candidateId: string) => {
   return userDocuments;
 }
 
+// VIEW DOCUMENT
+const viewDocument = async ( documentId: string) => {
+  const document = await DocumentModel.findById(documentId).lean();
+
+  if (!document) {
+    throw new AppError(StatusCodes.NOT_FOUND, "Document not found");
+  }
+
+  return document;
+}
+
 // APPROVE DOCUMENT
 const approveDocument = async (documentId: string) => {
   const document = await DocumentModel.findById(documentId);
@@ -396,5 +407,6 @@ export const dashboardDocuments = {
   readDocuments,
   rejectDocument,
   approveDocument,
-  readUserDocument
+  readUserDocument,
+  viewDocument
 };
