@@ -8,9 +8,9 @@ import { validateRequest } from "../../../middlewares/validateRequest";
 const router = Router();
 
 
-router.get('/', checkAuth(Role.ADMIN), dashboardDocumentsController.readDocuments);
+router.get('/', checkAuth(Role.ADMIN), dashboardDocumentsController.readCandidatesDocuments);
 
-router.get('/:candidateId', checkAuth(Role.ADMIN), dashboardDocumentsController.readUserDocument);
+router.get('/:candidateId', checkAuth(Role.ADMIN), dashboardDocumentsController.readCandidateDocuments);
 
 router.get('/:documentId/view', checkAuth(Role.ADMIN), dashboardDocumentsController.viewDocument)
  

@@ -6,10 +6,10 @@ import { StatusCodes } from "http-status-codes";
 import { dashboardDocuments } from "./dashboard.doc.service";
 import { JwtPayload } from "jsonwebtoken";
 
-const readDocuments = CatchAsync(async (req: Request, res: Response, next: NextFunction) => {
+const readCandidatesDocuments = CatchAsync(async (req: Request, res: Response, next: NextFunction) => {
     const query = req.query as Record<string, string>;
     const user = req.user as JwtPayload;
-    const result = await dashboardDocuments.readDocuments(user, query);
+    const result = await dashboardDocuments.readCandidatesDocuments(user, query);
 
     // HTTP CACHE CONTROL
     res.setHeader('Cache-Control', 'no-store');
@@ -22,10 +22,10 @@ const readDocuments = CatchAsync(async (req: Request, res: Response, next: NextF
     })
 });
 
-const readUserDocument = CatchAsync(async (req: Request, res: Response, next: NextFunction) => {
+const readCandidateDocuments = CatchAsync(async (req: Request, res: Response, next: NextFunction) => {
     const user = req.user as JwtPayload;
     const candidateId = req.params.candidateId as string;
-    const result = await dashboardDocuments.readUserDocument(user,  candidateId);
+    const result = await dashboardDocuments.readCandidateDocuments(user,  candidateId);
 
     // HTTP CACHE CONTROL
     res.setHeader('Cache-Control', 'no-store');
@@ -85,9 +85,9 @@ const rejectDocument = CatchAsync(async (req: Request, res: Response) => {
 
 
 export const dashboardDocumentsController = {
-    readDocuments,
+    readCandidatesDocuments,
+    readCandidateDocuments,
     approveDocument,
     rejectDocument,
-    readUserDocument,
     viewDocument
 }

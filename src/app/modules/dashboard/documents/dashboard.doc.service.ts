@@ -14,8 +14,8 @@ import {
 import Candidate from '../../candidate/candidate.model';
 import mongoose from 'mongoose';
 
-// READ USER'S DOCUMENTS
-const readDocuments = async (
+// READ CANDIDATES DOCUMENTS
+const readCandidatesDocuments = async (
   user: JwtPayload,
   query: Record<string, string>
 ) => {
@@ -37,7 +37,7 @@ const readDocuments = async (
 
   const documentsPromise = DocumentModel.aggregate([
     {
-      $match: { verification_status: filterByStatus }
+      $match: { verification_status: filterByStatus },
     },
     {
       $sort: {
@@ -103,18 +103,17 @@ const readDocuments = async (
     totalResultPromise,
   ]);
 
-  
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const userDocuments: any = [];
-  documents.map(d => {
+  documents.map((d) => {
     userDocuments.push({
       ...d,
       profile: {
         ...d?.profile,
-        images: d?.profile?.images?.[0]
-      }
-    })
-  })
+        images: d?.profile?.images?.[0],
+      },
+    });
+  });
 
   const total = totalDocuments[0]?.totalDocuments || 0;
 
@@ -125,6 +124,7 @@ const readDocuments = async (
     totalPages: Math.ceil(total / limit),
     links: {
       single: `/d/doc/:documentId`,
+      view: `/d/doc/:documentId/view`,
       approve: `/d/doc/:documentId/approve`,
       reject: `/d/doc/:documentId/reject`,
     },
@@ -136,15 +136,18 @@ const readDocuments = async (
   };
 };
 
-// READ USER DOCUMENT
-const readUserDocument = async (user: JwtPayload, candidateId: string) => {
+// READ CANDIDATE DOCUMENT
+const readCandidateDocuments = async (
+  user: JwtPayload,
+  candidateId: string
+) => {
   const documents = await DocumentModel.aggregate([
     {
       $match: { candidate: new mongoose.Types.ObjectId(candidateId) },
     },
 
     {
-      $sort: {createdAt: -1}
+      $sort: { createdAt: -1 },
     },
     {
       $lookup: {
@@ -156,15 +159,15 @@ const readUserDocument = async (user: JwtPayload, candidateId: string) => {
           {
             $project: {
               name: 1,
-              images: 1
-            }
-          }
-        ]
-      }
+              images: 1,
+            },
+          },
+        ],
+      },
     },
     {
-      $unwind: "$profile"
-    }
+      $unwind: '$profile',
+    },
   ]);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -174,24 +177,38 @@ const readUserDocument = async (user: JwtPayload, candidateId: string) => {
     userDocuments.push({
       ...d,
       profile: {
-        images: d?.profile?.images?.[0]
-      }
-    })
-  })
+        images: d?.profile?.images?.[0],
+      },
+    });
+  });
 
-  return userDocuments;
-}
+  const links = {
+    single: `/d/doc/:documentId`,
+    view: `/d/doc/:documentId/view`,
+    approve: `/d/doc/:documentId/approve`,
+    reject: `/d/doc/:documentId/reject`,
+  };
+
+  return { userDocuments, links };
+};
 
 // VIEW DOCUMENT
-const viewDocument = async ( documentId: string) => {
+const viewDocument = async (documentId: string) => {
   const document = await DocumentModel.findById(documentId).lean();
 
   if (!document) {
-    throw new AppError(StatusCodes.NOT_FOUND, "Document not found");
+    throw new AppError(StatusCodes.NOT_FOUND, 'Document not found');
   }
 
-  return document;
-}
+  const links = {
+    reject: `/d/doc/${documentId}/approve`,
+    view: `/d/doc/${documentId}/view`,
+    candidates_documents: `/d/doc/`,
+    candidate_documents: `/d/doc/${document.candidate.toString()}`,
+  };
+
+  return {document, links};
+};
 
 // APPROVE DOCUMENT
 const approveDocument = async (documentId: string) => {
@@ -309,8 +326,10 @@ const approveDocument = async (documentId: string) => {
   const response = {
     ...document.toObject(),
     link: {
-      reject: `/d/doc/${documentId}/reject`,
-      read: `/d/doc/${documentId}`,
+      reject: `/d/doc/${documentId}/approve`,
+      view: `/d/doc/${documentId}/view`,
+      candidates_documents: `/d/doc/`,
+      candidate_documents: `/d/doc/${candidate._id.toString()}`,
     },
   };
 
@@ -395,8 +414,9 @@ const rejectDocument = async (documentId: string, rejectedReason: string) => {
     ...document.toObject(),
     link: {
       reject: `/d/doc/${documentId}/approve`,
-      document: `/d/doc/${documentId}`,
-      documents: `/d/doc/`
+      view: `/d/doc/${documentId}/view`,
+      candidates_documents: `/d/doc/`,
+      candidate_documents: `/d/doc/${candidate._id.toString()}`,
     },
   };
 
@@ -404,9 +424,9 @@ const rejectDocument = async (documentId: string, rejectedReason: string) => {
 };
 
 export const dashboardDocuments = {
-  readDocuments,
+  readCandidatesDocuments,
+  readCandidateDocuments,
   rejectDocument,
   approveDocument,
-  readUserDocument,
-  viewDocument
+  viewDocument,
 };
