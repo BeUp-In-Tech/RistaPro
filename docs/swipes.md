@@ -50,7 +50,18 @@ Response:
       "age": 24,
       "gender": "FEMALE",
       "images": ["https://image-url.jpg"],
-      "labels": {},
+      "labels": {
+        "religious": {
+          "religion": "Islam",
+          "sect": "Sunni",
+          "madhhab": "Hanafi"
+        },
+        "casteIdentity": {
+          "category": "Punjabi",
+          "caste": "Jatt",
+          "clan": "Bajwa"
+        }
+      },
       "livesIn": "Dhaka",
       "distanceKm": 8.4,
       "matchScore": 92,
@@ -80,15 +91,16 @@ Strict preference filters:
 - gender, when `strictFilters.gender` is true
 - age, when age values exist
 - height, when `strictFilters.height` is true
-- religion, when `strictFilters.religion` is true
-- caste, when `strictFilters.caste` is true
+- religion and sect detail, when their strict filter flags are true
+- caste category, caste, clan, madhhab, movement, theological orientation, and Sufi order when their strict filter flags are true
 - location distance, when `strictFilters.location` is true
 
 Soft scoring:
 
 - gender match
 - age range match
-- religion, sect, and caste match
+- nested `religious` matches, including religion, sect, sect detail, madhhab, movement, theological orientation, and Sufi order
+- nested `casteIdentity` matches, including category, caste, and clan
 - height range match
 - education and occupation match
 - relationship, children, move abroad, smoke, and drink preferences

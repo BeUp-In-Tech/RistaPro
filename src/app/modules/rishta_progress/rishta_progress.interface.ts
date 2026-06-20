@@ -98,14 +98,14 @@ export interface IRishtaPairLocator {
   progressId?: string;
 }
 
-export interface ICreateMarriageRequestPayload extends IRishtaPairLocator {}
+export type ICreateMarriageRequestPayload = IRishtaPairLocator;
 
 export interface IRespondMarriageRequestPayload {
   candidateId: string;
   rejectReason?: string;
 }
 
-export interface IAdminMarkMarriedPayload extends IRishtaPairLocator {}
+export type IAdminMarkMarriedPayload = IRishtaPairLocator;
 
 export interface IMarriedListQuery {
   page: number;

@@ -1,19 +1,28 @@
 import { Types } from 'mongoose';
 import {
-  CastKey,
   ChildrenKey,
   DrinkStatusKey,
   HighestEducationKey,
   InterestKey,
+  MadhhabKey,
+  MovementKey,
   MoveAbroadKey,
   OccupationKey,
   PersonalityKey,
   RelationshipStatusKey,
   ReligionKey,
+  SectDetailKey,
   SectKey,
   SmokeStatusKey,
+  SufiOrderKey,
+  TheologicalOrientationKey,
 } from '../../constant/constant';
-import { Gender, IVerificationStatus } from '../candidate/candidate.interface';
+import {
+  Gender,
+  ICandidateCasteIdentityFields,
+  ICandidateReligiousFields,
+  IVerificationStatus,
+} from '../candidate/candidate.interface';
 import { LikeSource, LikeType } from '../like/like.interface';
 import { MatchStatus } from '../match/match.interface';
 import { ActiveStatus } from '../user/user.interface';
@@ -52,7 +61,8 @@ export interface ISwipeFeedCandidateLean {
   _id: Types.ObjectId;
   address?: string;
   bio?: string;
-  caste?: CastKey;
+  religious?: ICandidateReligiousFields;
+  casteIdentity?: ICandidateCasteIdentityFields;
   coordinates?: number[];
   createdAt?: Date;
   dateOfBirth: Date;
@@ -64,6 +74,8 @@ export interface ISwipeFeedCandidateLean {
   images?: string[];
   interests?: InterestKey[];
   isActive: ActiveStatus;
+  madhhab?: MadhhabKey;
+  movement?: MovementKey;
   move_abroad?: MoveAbroadKey;
   name: string;
   occupation?: OccupationKey;
@@ -72,7 +84,10 @@ export interface ISwipeFeedCandidateLean {
   relationship_status?: RelationshipStatusKey;
   religion?: ReligionKey;
   sect?: SectKey;
+  sectDetail?: SectDetailKey;
   smoke_status?: SmokeStatusKey;
+  sufiOrder?: SufiOrderKey;
+  theologicalOrientation?: TheologicalOrientationKey;
   updatedAt?: Date;
   user:
     | Types.ObjectId

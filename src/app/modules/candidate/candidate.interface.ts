@@ -3,9 +3,12 @@ import { ActiveStatus } from '../user/user.interface';
 import { PlanKey } from '../plan/plan.interface';
 import {
   ReligionKey,
+  SectDetailKey,
   SectKey,
-  CastKey,
+  CasteCategoryKey,
+  CasteTreeCasteKey,
   RelationshipStatusKey,
+  ClanKey,
   ChildrenKey,
   MoveAbroadKey,
   OccupationKey,
@@ -13,7 +16,11 @@ import {
   SmokeStatusKey,
   DrinkStatusKey,
   InterestKey,
+  MadhhabKey,
+  MovementKey,
   PersonalityKey,
+  SufiOrderKey,
+  TheologicalOrientationKey,
 } from '../../constant/constant';
 
 export enum Gender {
@@ -59,15 +66,38 @@ export interface IVerificationStatus {
   admin_verified: IVerificationDetail;
 }
 
+export interface ICandidateReligiousFields {
+  religion?: ReligionKey;
+  sect?: SectKey;
+  sectDetail?: SectDetailKey;
+  madhhab?: MadhhabKey;
+  movement?: MovementKey;
+  theologicalOrientation?: TheologicalOrientationKey;
+  sufiOrder?: SufiOrderKey;
+}
+
+export interface ICandidateCasteIdentityFields {
+  category?: CasteCategoryKey;
+  caste?: CasteTreeCasteKey;
+  clan?: ClanKey;
+}
+
 // Fields that a client is allowed to send while creating or updating a profile.
 export interface ICandidateProfileFields {
   name: string;
   dateOfBirth: Date;
   gender: Gender;
   height?: number; // in centimeters
+  religious?: ICandidateReligiousFields;
+  casteIdentity?: ICandidateCasteIdentityFields;
+  // Deprecated flat religious fields. New clients should use religious.
   religion?: ReligionKey;
   sect?: SectKey;
-  caste?: CastKey;
+  sectDetail?: SectDetailKey;
+  madhhab?: MadhhabKey;
+  movement?: MovementKey;
+  theologicalOrientation?: TheologicalOrientationKey;
+  sufiOrder?: SufiOrderKey;
   profile_assist?: string;
   relationship_status?: RelationshipStatusKey;
   have_children?: ChildrenKey;

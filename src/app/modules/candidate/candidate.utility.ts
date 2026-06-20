@@ -1,6 +1,8 @@
-import { CASTS, CHILDREN, DRINK_STATUSES, HIGHEST_EDUCATION, INTERESTS, MOVE_ABROAD, OCCUPATIONS, PERSONALITY_TRAITS, RELATIONSHIP_STATUSES, RELIGIONS, SECTS, SMOKE_STATUSES } from '../../constant/constant';
+import { CASTE_CATEGORIES, CASTE_CLANS, CASTE_TREE_CASTES, CHILDREN, DRINK_STATUSES, HIGHEST_EDUCATION, INTERESTS, MADHHABS, MOVE_ABROAD, OCCUPATIONS, PERSONALITY_TRAITS, RELATIONSHIP_STATUSES, RELIGION_TREE_MADHHABS, RELIGION_TREE_MOVEMENTS, RELIGION_TREE_RELIGIONS, RELIGION_TREE_SECTS, RELIGIONS, SECT_DETAIL_VALUES, SECTS, SMOKE_STATUSES, SUFI_ORDERS, THEOLOGICAL_ORIENTATIONS } from '../../constant/constant';
 import {
+  ICandidateCasteIdentityFields,
   ICandidateProfileFields,
+  ICandidateReligiousFields,
   ICreateCandidatePayload,
   IUpdateCandidatePayload,
   IVerificationStatus,
@@ -29,10 +31,50 @@ export const normalizeArrayValues = <T extends string>(values: T[]) =>
  */
 const getLabel = (value: string | undefined, mapping: Record<string, string>) => (value && mapping[value] ? mapping[value] : undefined);
 
+export const getCandidateReligiousFields = (
+  candidate: Partial<ICandidateProfileFields>
+): ICandidateReligiousFields => ({
+  religion: candidate.religious?.religion ?? candidate.religion,
+  sect: candidate.religious?.sect ?? candidate.sect,
+  sectDetail: candidate.religious?.sectDetail ?? candidate.sectDetail,
+  madhhab: candidate.religious?.madhhab ?? candidate.madhhab,
+  movement: candidate.religious?.movement ?? candidate.movement,
+  theologicalOrientation:
+    candidate.religious?.theologicalOrientation ??
+    candidate.theologicalOrientation,
+  sufiOrder: candidate.religious?.sufiOrder ?? candidate.sufiOrder,
+});
+
+export const getCandidateCasteIdentityFields = (
+  candidate: Partial<ICandidateProfileFields>
+): ICandidateCasteIdentityFields => ({
+  category: candidate.casteIdentity?.category,
+  caste: candidate.casteIdentity?.caste,
+  clan: candidate.casteIdentity?.clan,
+});
+
 export const buildCandidateLabels = (candidate: Partial<ICandidateProfileFields>) => ({
-  religion: getLabel(candidate.religion, RELIGIONS),
-  sect: candidate.religion && candidate.sect ? getLabel(candidate.sect, SECTS[candidate.religion as keyof typeof SECTS] || {}) : undefined,
-  caste: getLabel(candidate.caste, CASTS),
+  religious: {
+    religion: getLabel(getCandidateReligiousFields(candidate).religion, RELIGIONS) ?? getLabel(getCandidateReligiousFields(candidate).religion, RELIGION_TREE_RELIGIONS),
+    sect: getCandidateReligiousFields(candidate).religion && getCandidateReligiousFields(candidate).sect ? getLabel(getCandidateReligiousFields(candidate).sect, SECTS[getCandidateReligiousFields(candidate).religion as keyof typeof SECTS] || {}) ?? getLabel(getCandidateReligiousFields(candidate).sect, RELIGION_TREE_SECTS) : undefined,
+    sectDetail: getLabel(getCandidateReligiousFields(candidate).sectDetail, SECT_DETAIL_VALUES),
+    madhhab: getLabel(getCandidateReligiousFields(candidate).madhhab, MADHHABS) ?? getLabel(getCandidateReligiousFields(candidate).madhhab, RELIGION_TREE_MADHHABS),
+    movement: getLabel(getCandidateReligiousFields(candidate).movement, RELIGION_TREE_MOVEMENTS),
+    theologicalOrientation: getLabel(getCandidateReligiousFields(candidate).theologicalOrientation, THEOLOGICAL_ORIENTATIONS),
+    sufiOrder: getLabel(getCandidateReligiousFields(candidate).sufiOrder, SUFI_ORDERS),
+  },
+  casteIdentity: {
+    category: getLabel(getCandidateCasteIdentityFields(candidate).category, CASTE_CATEGORIES),
+    caste: getLabel(getCandidateCasteIdentityFields(candidate).caste, CASTE_TREE_CASTES),
+    clan: getLabel(getCandidateCasteIdentityFields(candidate).clan, CASTE_CLANS),
+  },
+  religion: getLabel(getCandidateReligiousFields(candidate).religion, RELIGIONS) ?? getLabel(getCandidateReligiousFields(candidate).religion, RELIGION_TREE_RELIGIONS),
+  sect: getCandidateReligiousFields(candidate).religion && getCandidateReligiousFields(candidate).sect ? getLabel(getCandidateReligiousFields(candidate).sect, SECTS[getCandidateReligiousFields(candidate).religion as keyof typeof SECTS] || {}) ?? getLabel(getCandidateReligiousFields(candidate).sect, RELIGION_TREE_SECTS) : undefined,
+  sectDetail: getLabel(getCandidateReligiousFields(candidate).sectDetail, SECT_DETAIL_VALUES),
+  madhhab: getLabel(getCandidateReligiousFields(candidate).madhhab, MADHHABS) ?? getLabel(getCandidateReligiousFields(candidate).madhhab, RELIGION_TREE_MADHHABS),
+  movement: getLabel(getCandidateReligiousFields(candidate).movement, RELIGION_TREE_MOVEMENTS),
+  theologicalOrientation: getLabel(getCandidateReligiousFields(candidate).theologicalOrientation, THEOLOGICAL_ORIENTATIONS),
+  sufiOrder: getLabel(getCandidateReligiousFields(candidate).sufiOrder, SUFI_ORDERS),
   relationship_status: getLabel(candidate.relationship_status, RELATIONSHIP_STATUSES),
   have_children: getLabel(candidate.have_children, CHILDREN),
   move_abroad: getLabel(candidate.move_abroad, MOVE_ABROAD),
@@ -77,6 +119,8 @@ export const buildCandidateResponse = <
   options: { userIsVerified: boolean }
 ) => ({
   ...candidate,
+  religious: getCandidateReligiousFields(candidate),
+  casteIdentity: getCandidateCasteIdentityFields(candidate),
   badge: hasVerificationBadge({
     userIsVerified: options.userIsVerified,
     verificationStatus: candidate.verification_status,
@@ -88,14 +132,20 @@ export const buildCandidateResponse = <
  * Build clean DB payload from create request - filters undefined values
  */
 export const buildCandidateCreatePayload = (userId: string, payload: ICreateCandidatePayload) => ({
+  ...(() => {
+    const religious = getCandidateReligiousFields(payload);
+    const casteIdentity = getCandidateCasteIdentityFields(payload);
+
+    return {
+      ...(Object.values(religious).some((value) => value !== undefined) && { religious }),
+      ...(Object.values(casteIdentity).some((value) => value !== undefined) && { casteIdentity }),
+    };
+  })(),
   user: userId,
   name: payload.name?.trim(),
   dateOfBirth: payload.dateOfBirth,
   gender: payload.gender,
   ...(payload.height !== undefined && { height: payload.height }),
-  ...(payload.religion !== undefined && { religion: payload.religion }),
-  ...(payload.sect !== undefined && { sect: payload.sect }),
-  ...(payload.caste !== undefined && { caste: payload.caste }),
   ...(payload.profile_assist !== undefined && { profile_assist: payload.profile_assist.trim() }),
   ...(payload.relationship_status !== undefined && { relationship_status: payload.relationship_status }),
   ...(payload.have_children !== undefined && { have_children: payload.have_children }),
@@ -121,9 +171,23 @@ export const buildCandidateUpdatePayload = (payload: IUpdateCandidatePayload) =>
   ...(payload.dateOfBirth !== undefined && { dateOfBirth: payload.dateOfBirth }),
   ...(payload.gender !== undefined && { gender: payload.gender }),
   ...(payload.height !== undefined && { height: payload.height }),
-  ...(payload.religion !== undefined && { religion: payload.religion }),
-  ...(payload.sect !== undefined && { sect: payload.sect }),
-  ...(payload.caste !== undefined && { caste: payload.caste }),
+  ...(payload.religious?.religion !== undefined && { 'religious.religion': payload.religious.religion }),
+  ...(payload.religious?.sect !== undefined && { 'religious.sect': payload.religious.sect }),
+  ...(payload.religious?.sectDetail !== undefined && { 'religious.sectDetail': payload.religious.sectDetail }),
+  ...(payload.religious?.madhhab !== undefined && { 'religious.madhhab': payload.religious.madhhab }),
+  ...(payload.religious?.movement !== undefined && { 'religious.movement': payload.religious.movement }),
+  ...(payload.religious?.theologicalOrientation !== undefined && { 'religious.theologicalOrientation': payload.religious.theologicalOrientation }),
+  ...(payload.religious?.sufiOrder !== undefined && { 'religious.sufiOrder': payload.religious.sufiOrder }),
+  ...(payload.religion !== undefined && { 'religious.religion': payload.religion }),
+  ...(payload.sect !== undefined && { 'religious.sect': payload.sect }),
+  ...(payload.sectDetail !== undefined && { 'religious.sectDetail': payload.sectDetail }),
+  ...(payload.madhhab !== undefined && { 'religious.madhhab': payload.madhhab }),
+  ...(payload.movement !== undefined && { 'religious.movement': payload.movement }),
+  ...(payload.theologicalOrientation !== undefined && { 'religious.theologicalOrientation': payload.theologicalOrientation }),
+  ...(payload.sufiOrder !== undefined && { 'religious.sufiOrder': payload.sufiOrder }),
+  ...(payload.casteIdentity?.category !== undefined && { 'casteIdentity.category': payload.casteIdentity.category }),
+  ...(payload.casteIdentity?.caste !== undefined && { 'casteIdentity.caste': payload.casteIdentity.caste }),
+  ...(payload.casteIdentity?.clan !== undefined && { 'casteIdentity.clan': payload.casteIdentity.clan }),
   ...(payload.profile_assist !== undefined && { profile_assist: payload.profile_assist.trim() }),
   ...(payload.relationship_status !== undefined && { relationship_status: payload.relationship_status }),
   ...(payload.have_children !== undefined && { have_children: payload.have_children }),

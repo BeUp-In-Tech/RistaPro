@@ -1,0 +1,461 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Candidate Constants Frontend Reference</title>
+    <style>
+      :root {
+        --primary: #e83e8c;
+        --primary-strong: #c51f6f;
+        --secondary: #6f4e37;
+        --secondary-soft: #f5eee9;
+        --surface: #ffffff;
+        --page: #fff7fb;
+        --text: #24181e;
+        --muted: #765f68;
+        --border: #ead6df;
+        --focus: rgba(232, 62, 140, 0.22);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: var(--page);
+        color: var(--text);
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+      }
+
+      main {
+        width: min(1120px, calc(100% - 32px));
+        margin: 0 auto;
+        padding: 32px 0;
+      }
+
+      header {
+        display: grid;
+        gap: 8px;
+        margin-bottom: 22px;
+      }
+
+      h1,
+      h2,
+      h3 {
+        margin: 0;
+      }
+
+      h1 {
+        color: var(--secondary);
+        font-size: 30px;
+        line-height: 1.15;
+      }
+
+      h2 {
+        color: var(--primary-strong);
+        font-size: 18px;
+      }
+
+      h3 {
+        color: var(--secondary);
+        font-size: 15px;
+      }
+
+      p {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.55;
+      }
+
+      section {
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--surface);
+        padding: 18px;
+        margin-top: 18px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .note {
+        border-left: 4px solid var(--primary);
+        border-radius: 8px;
+        background: #fffafb;
+        padding: 14px;
+      }
+
+      ul {
+        margin: 8px 0 0;
+        padding-left: 18px;
+        color: var(--muted);
+        line-height: 1.6;
+      }
+
+      code {
+        border-radius: 4px;
+        background: var(--secondary-soft);
+        color: #4a2f23;
+        padding: 2px 5px;
+      }
+
+      pre {
+        margin: 12px 0 0;
+        overflow: auto;
+        border: 1px solid #ead8cc;
+        border-radius: 8px;
+        background: var(--secondary-soft);
+        color: #3b2820;
+        padding: 14px;
+        white-space: pre-wrap;
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      label {
+        display: grid;
+        gap: 7px;
+        color: var(--secondary);
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      select {
+        width: 100%;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: #fff;
+        color: var(--text);
+        font: inherit;
+        min-height: 42px;
+        padding: 0 12px;
+        outline: none;
+      }
+
+      select:focus {
+        border-color: var(--primary);
+        box-shadow: 0 0 0 4px var(--focus);
+      }
+
+      select:disabled {
+        background: #f7f1f4;
+        color: #9a8790;
+      }
+
+      .form-grid {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      @media (max-width: 900px) {
+        .grid,
+        .form-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Candidate Constants Frontend Reference</h1>
+        <p>
+          Use this page as the frontend handoff for rendering cascading
+          religious and caste identity dropdowns from
+          <code>GET /api/v1/candidates/constants</code>.
+        </p>
+      </header>
+
+      <section>
+        <h2>Implementation Plan</h2>
+        <div class="grid">
+          <div class="note">
+            <h3>1. Fetch Once</h3>
+            <ul>
+              <li>Call <code>GET /api/v1/candidates/constants</code> when the profile form opens.</li>
+              <li>Use <code>response.data.religionTree</code> for religious fields.</li>
+              <li>Use <code>response.data.casteTree</code> for caste identity fields.</li>
+              <li>Show <code>name</code> in the UI and store <code>id</code> in form state.</li>
+            </ul>
+          </div>
+          <div class="note">
+            <h3>2. Religious Dropdowns</h3>
+            <ul>
+              <li><code>Religion</code> comes from <code>religionTree</code>.</li>
+              <li><code>Sect</code> comes from <code>selectedReligion.sects</code>.</li>
+              <li>Details come from <code>selectedSect.detailGroups</code>.</li>
+              <li>Supported detail group IDs include <code>madhhab</code>, <code>movement</code>, <code>orientation</code>, and <code>branch</code>.</li>
+            </ul>
+          </div>
+          <div class="note">
+            <h3>3. Caste Dropdowns</h3>
+            <ul>
+              <li><code>Category</code> comes from <code>casteTree</code>.</li>
+              <li><code>Caste / Biradari / Tribe</code> comes from <code>selectedCategory.castes</code>.</li>
+              <li><code>Clan / Lineage</code> comes from <code>selectedCaste.clans</code>.</li>
+              <li>Disable child dropdowns when a parent is empty or has no children.</li>
+            </ul>
+          </div>
+          <div class="note">
+            <h3>4. Reset Rules</h3>
+            <ul>
+              <li>When religion changes, clear sect and all religious detail fields.</li>
+              <li>When sect changes, clear all religious detail fields.</li>
+              <li>When caste category changes, clear caste and clan.</li>
+              <li>When caste changes, clear clan.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>Payload To Submit</h2>
+        <p>
+          Submit keys only. The backend validates keys and resolves display
+          labels from constants. Do not submit old flat fields like
+          <code>lineage</code>, <code>tribe</code>, or top-level
+          <code>caste</code>.
+        </p>
+        <pre>{
+  "religious": {
+    "religion": "ISLAM",
+    "sect": "SUNNI",
+    "madhhab": "HANAFI",
+    "movement": "DEOBANDI",
+    "theologicalOrientation": "MATURIDI"
+  },
+  "casteIdentity": {
+    "category": "PUNJABI",
+    "caste": "JATT",
+    "clan": "BAJWA"
+  }
+}</pre>
+      </section>
+
+      <section>
+        <h2>Minimal Rendering Example</h2>
+        <div class="form-grid">
+          <label>
+            Religion
+            <select id="religion"></select>
+          </label>
+          <label>
+            Sect
+            <select id="sect" disabled></select>
+          </label>
+          <label>
+            Category
+            <select id="category"></select>
+          </label>
+          <label>
+            Caste / Tribe
+            <select id="caste" disabled></select>
+          </label>
+          <label>
+            Clan / Lineage
+            <select id="clan" disabled></select>
+          </label>
+        </div>
+        <pre id="payload">{}</pre>
+      </section>
+
+      <section>
+        <h2>Frontend Logic</h2>
+        <pre>const state = {
+  constants: null,
+  religious: {},
+  casteIdentity: {}
+};
+
+const fillSelect = (select, options, placeholder) => {
+  select.innerHTML = "";
+  select.append(new Option(placeholder, ""));
+  for (const option of options || []) {
+    select.append(new Option(option.name, option.id));
+  }
+  select.disabled = !options?.length;
+};
+
+const getReligion = () =>
+  state.constants.religionTree.find((item) => item.id === state.religious.religion);
+
+const getSect = () =>
+  getReligion()?.sects?.find((item) => item.id === state.religious.sect);
+
+const getCategory = () =>
+  state.constants.casteTree.find((item) => item.id === state.casteIdentity.category);
+
+const getCaste = () =>
+  getCategory()?.castes?.find((item) => item.id === state.casteIdentity.caste);
+
+// On religion change:
+state.religious = { religion: selectedReligionId };
+fillSelect(sectSelect, getReligion()?.sects || [], "Select sect");
+
+// On category change:
+state.casteIdentity = { category: selectedCategoryId };
+fillSelect(casteSelect, getCategory()?.castes || [], "Select caste");
+
+// Final create/update body:
+const body = {
+  religious: state.religious,
+  casteIdentity: state.casteIdentity
+};</pre>
+      </section>
+    </main>
+
+    <script>
+      const fallbackConstants = {
+        religionTree: [
+          {
+            id: "ISLAM",
+            name: "Islam",
+            sects: [
+              { id: "SUNNI", name: "Sunni" },
+              { id: "SHIA", name: "Shia" },
+              { id: "ISMAILI", name: "Ismaili" },
+            ],
+          },
+        ],
+        casteTree: [
+          {
+            id: "PUNJABI",
+            name: "Punjabi",
+            castes: [
+              {
+                id: "JATT",
+                name: "Jatt",
+                clans: [
+                  { id: "BAJWA", name: "Bajwa" },
+                  { id: "CHEEMA", name: "Cheema" },
+                ],
+              },
+            ],
+          },
+          {
+            id: "PASHTUN",
+            name: "Pashtun",
+            castes: [
+              { id: "YOUSEFZAI", name: "Yousafzai" },
+              { id: "AFRIDI", name: "Afridi" },
+            ],
+          },
+        ],
+      };
+
+      const els = {
+        religion: document.querySelector("#religion"),
+        sect: document.querySelector("#sect"),
+        category: document.querySelector("#category"),
+        caste: document.querySelector("#caste"),
+        clan: document.querySelector("#clan"),
+        payload: document.querySelector("#payload"),
+      };
+
+      const state = {
+        constants: fallbackConstants,
+        religious: {},
+        casteIdentity: {},
+      };
+
+      const fillSelect = (select, options, placeholder) => {
+        select.innerHTML = "";
+        select.append(new Option(placeholder, ""));
+        for (const option of options || []) {
+          select.append(new Option(option.name, option.id));
+        }
+        select.disabled = !options?.length;
+      };
+
+      const getReligion = () =>
+        state.constants.religionTree.find(
+          (item) => item.id === state.religious.religion
+        );
+
+      const getCategory = () =>
+        state.constants.casteTree.find(
+          (item) => item.id === state.casteIdentity.category
+        );
+
+      const getCaste = () =>
+        getCategory()?.castes?.find(
+          (item) => item.id === state.casteIdentity.caste
+        );
+
+      const renderPayload = () => {
+        els.payload.textContent = JSON.stringify(
+          {
+            religious: state.religious,
+            casteIdentity: state.casteIdentity,
+          },
+          null,
+          2
+        );
+      };
+
+      const hydrate = (constants) => {
+        state.constants = constants;
+        fillSelect(els.religion, constants.religionTree || [], "Select religion");
+        fillSelect(els.category, constants.casteTree || [], "Select category");
+        fillSelect(els.sect, [], "Select sect");
+        fillSelect(els.caste, [], "Select caste");
+        fillSelect(els.clan, [], "Select clan");
+        renderPayload();
+      };
+
+      els.religion.addEventListener("change", () => {
+        state.religious = els.religion.value
+          ? { religion: els.religion.value }
+          : {};
+        fillSelect(els.sect, getReligion()?.sects || [], "Select sect");
+        renderPayload();
+      });
+
+      els.sect.addEventListener("change", () => {
+        state.religious.sect = els.sect.value || undefined;
+        if (!state.religious.sect) delete state.religious.sect;
+        renderPayload();
+      });
+
+      els.category.addEventListener("change", () => {
+        state.casteIdentity = els.category.value
+          ? { category: els.category.value }
+          : {};
+        fillSelect(els.caste, getCategory()?.castes || [], "Select caste");
+        fillSelect(els.clan, [], "Select clan");
+        renderPayload();
+      });
+
+      els.caste.addEventListener("change", () => {
+        if (els.caste.value) state.casteIdentity.caste = els.caste.value;
+        else delete state.casteIdentity.caste;
+        delete state.casteIdentity.clan;
+        fillSelect(els.clan, getCaste()?.clans || [], "Select clan");
+        renderPayload();
+      });
+
+      els.clan.addEventListener("change", () => {
+        if (els.clan.value) state.casteIdentity.clan = els.clan.value;
+        else delete state.casteIdentity.clan;
+        renderPayload();
+      });
+
+      fetch("/api/v1/candidates/constants")
+        .then((response) => {
+          if (!response.ok) throw new Error("Constants request failed");
+          return response.json();
+        })
+        .then((response) => hydrate(response.data || response))
+        .catch(() => hydrate(fallbackConstants));
+    </script>
+  </body>
+</html>

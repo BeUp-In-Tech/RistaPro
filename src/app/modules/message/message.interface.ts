@@ -54,3 +54,29 @@ export interface ISendMessagePayload {
   attachments?: IChatAttachment[];
   replyTo?: string;
 }
+
+
+
+export type TMessageForClient = Record<string, unknown> & {
+  body?: unknown;
+  seenBy?: unknown;
+  sentBy?: unknown;
+  viewerUserId?: string;
+  type?: ChatMessageType;
+};
+
+export interface TPopulatedCandidate {
+  _id?: Types.ObjectId | string;
+  images?: string[];
+  name?: string;
+};
+
+export interface TPopulatedSentByUser {
+  _id?: Types.ObjectId | string;
+  full_name?: string;
+  image?: string | null;
+  name?: string;
+  picture?: string;
+  role?: string;
+};
+

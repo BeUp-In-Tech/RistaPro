@@ -46,8 +46,19 @@ Authorization: Bearer <accessToken>
       "name": "Amina",
       "age": 24,
       "gender": "FEMALE",
-      "image": "https://image-url.jpg",
-      "labels": {},
+      "images": ["https://image-url.jpg"],
+      "labels": {
+        "religious": {
+          "religion": "Islam",
+          "sect": "Sunni",
+          "madhhab": "Hanafi"
+        },
+        "casteIdentity": {
+          "category": "Punjabi",
+          "caste": "Jatt",
+          "clan": "Bajwa"
+        }
+      },
       "livesIn": "Dhaka",
       "distanceKm": 8.4,
       "matchScore": 92,
@@ -64,6 +75,9 @@ Authorization: Bearer <accessToken>
 **Notes:**
 - Excludes own profile, already-acted profiles, matched profiles, and reported profiles.
 - Strict filters remove candidates; soft preferences add match score.
+- Religion preferences match candidate `religious.*` fields.
+- Caste preferences match candidate `casteIdentity.*` fields.
+- Caste matching uses nested `casteIdentity` fields.
 - If too few results, optional filters are relaxed and `relaxed: true` is returned.
 - First page builds a Redis feed session for fast cursor pagination.
 
@@ -102,11 +116,19 @@ Return preference-matching candidates near the requester's location.
       "name": "Amina",
       "age": 24,
       "gender": "FEMALE",
-      "image": "https://image-url.jpg",
+      "images": ["https://image-url.jpg"],
       "livesIn": "Dhaka",
       "distanceKm": 8.4,
       "matchScore": 72,
-      "religion": "ISLAM"
+      "religion": "ISLAM",
+      "labels": {
+        "religious": {
+          "religion": "Islam"
+        },
+        "casteIdentity": {
+          "category": "Punjabi"
+        }
+      }
     }
   ]
 }
@@ -114,6 +136,7 @@ Return preference-matching candidates near the requester's location.
 
 **Notes:**
 - Backend reverse-geocodes requester coordinates with OpenStreetMap Nominatim.
+- Nearby matching uses the same nested `religious` and `casteIdentity` candidate fields as the feed.
 - Geocoding failure does not fail the request; `currentLocation` becomes `null`.
 - Coordinates are never saved to the candidate profile from this API.
 

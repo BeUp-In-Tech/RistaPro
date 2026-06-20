@@ -66,6 +66,8 @@ Response:
 ]
 ```
 
+`religion` is read from candidate `religious.religion`, with legacy flat `religion` as fallback during migration.
+
 ## `GET /:matchId`
 
 Purpose:

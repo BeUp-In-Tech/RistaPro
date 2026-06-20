@@ -20,6 +20,8 @@ import { VerificationState } from '../candidate/candidate.interface';
 import Candidate from '../candidate/candidate.model';
 import {
   buildCandidateLabels,
+  getCandidateCasteIdentityFields,
+  getCandidateReligiousFields,
   hasVerificationBadge,
 } from '../candidate/candidate.utility';
 import { CandidateLinkedUserAccessRole } from '../candidate/linked-user/candidateLinkedUser.interface';
@@ -65,7 +67,7 @@ export const SWIPE_ACTION_LOCK_TTL_SECONDS = 10;
 export const DEFAULT_NEARBY_RADIUS_KM = 25;
 
 export const FEED_CANDIDATE_SELECT =
-  '_id name dateOfBirth gender height religion sect caste relationship_status have_children move_abroad occupation highest_education smoke_status drink_status interests personality bio images address coordinates verification_status isActive user createdAt updatedAt';
+  '_id name dateOfBirth gender height religious casteIdentity religion sect sectDetail madhhab movement theologicalOrientation sufiOrder relationship_status have_children move_abroad occupation highest_education smoke_status drink_status interests personality bio images address coordinates verification_status isActive user createdAt updatedAt';
 
 const QUOTA_CANDIDATE_SELECT = '_id plan user';
 
@@ -344,6 +346,9 @@ export const scoreFeedCandidate = (params: {
     viewerCandidate.gender,
     preference.preferredGenders
   );
+  const candidateReligious = getCandidateReligiousFields(candidate);
+  const viewerReligious = getCandidateReligiousFields(viewerCandidate);
+  const candidateCasteIdentity = getCandidateCasteIdentityFields(candidate);
 
   if (preferredGenders.includes(candidate.gender)) {
     matchScore += 30;
@@ -355,19 +360,59 @@ export const scoreFeedCandidate = (params: {
     scoreReasons.push('Age matches your preference');
   }
 
-  if (isValueIncluded(preference.religions, candidate.religion)) {
+  if (isValueIncluded(preference.religions, candidateReligious.religion)) {
     matchScore += 15;
     scoreReasons.push('Religion matches your preference');
   }
 
-  if (isValueIncluded(preference.sects, candidate.sect)) {
+  if (isValueIncluded(preference.sects, candidateReligious.sect)) {
     matchScore += 10;
     scoreReasons.push('Sect matches your preference');
   }
 
-  if (isValueIncluded(preference.castes, candidate.caste)) {
+  if (isValueIncluded(preference.sectDetails, candidateReligious.sectDetail)) {
+    matchScore += 7;
+    scoreReasons.push('Sect detail matches your preference');
+  }
+
+  if (isValueIncluded(preference.castes, candidateCasteIdentity.caste)) {
     matchScore += 8;
     scoreReasons.push('Caste matches your preference');
+  }
+
+  if (isValueIncluded(preference.casteCategories, candidateCasteIdentity.category)) {
+    matchScore += 6;
+    scoreReasons.push('Caste category matches your preference');
+  }
+
+  if (isValueIncluded(preference.clans, candidateCasteIdentity.clan)) {
+    matchScore += 8;
+    scoreReasons.push('Clan matches your preference');
+  }
+
+  if (isValueIncluded(preference.madhhabs, candidateReligious.madhhab)) {
+    matchScore += 6;
+    scoreReasons.push('Madhhab matches your preference');
+  }
+
+  if (isValueIncluded(preference.movements, candidateReligious.movement)) {
+    matchScore += 6;
+    scoreReasons.push('Movement matches your preference');
+  }
+
+  if (
+    isValueIncluded(
+      preference.theologicalOrientations,
+      candidateReligious.theologicalOrientation
+    )
+  ) {
+    matchScore += 6;
+    scoreReasons.push('Theological orientation matches your preference');
+  }
+
+  if (isValueIncluded(preference.sufiOrders, candidateReligious.sufiOrder)) {
+    matchScore += 5;
+    scoreReasons.push('Sufi order matches your preference');
   }
 
   if (
@@ -464,7 +509,10 @@ export const scoreFeedCandidate = (params: {
     matchScore -= 20;
   }
 
-  if (candidate.religion && candidate.religion === viewerCandidate.religion) {
+  if (
+    candidateReligious.religion &&
+    candidateReligious.religion === viewerReligious.religion
+  ) {
     matchScore += 3;
   }
 
@@ -511,10 +559,7 @@ export const buildFeedCard = (
   }),
   gender: candidate.gender,
   images: candidate.images ?? [],
-  labels: buildCandidateLabels({
-    personality: candidate.personality,
-    religion: candidate.religion,
-  }),
+  labels: buildCandidateLabels(candidate),
   livesIn: candidate.address?.split(',')[0]?.trim() || undefined,
   distanceKm: viewerCandidate
     ? (getDistanceKm(viewerCandidate.coordinates, candidate.coordinates) ??
@@ -523,7 +568,7 @@ export const buildFeedCard = (
   matchScore: score.matchScore,
   name: candidate.name,
   personality: candidate.personality ?? [],
-  religion: candidate.religion,
+  religion: getCandidateReligiousFields(candidate).religion,
 });
 
 export const formatNearbyLivesIn = (address?: string | null) => {
@@ -562,11 +607,7 @@ export const buildNearbyMatchCard = (params: {
       verificationStatus: candidate.verification_status,
     }),
     distanceKm: Number(distanceKm.toFixed(1)),
-    labels: buildCandidateLabels({
-      occupation: candidate.occupation,
-      personality: candidate.personality,
-      religion: candidate.religion,
-    }),
+    labels: buildCandidateLabels(candidate),
     livesIn: formatNearbyLivesIn(candidate.address),
     occupation: candidate.occupation,
   };
@@ -641,6 +682,22 @@ export const buildCandidateFeedQuery = (params: {
     isActive: ActiveStatus.ACTIVE,
   };
 
+  const addNestedLegacyInFilter = (
+    nestedPath: string,
+    legacyPath: string,
+    values: string[]
+  ) => {
+    query.$and = [
+      ...((query.$and as FilterQuery<ISwipeFeedCandidateLean>[]) ?? []),
+      {
+        $or: [
+          { [nestedPath]: { $in: values } },
+          { [legacyPath]: { $in: values } },
+        ],
+      },
+    ];
+  };
+
   if (!excludedCandidateIds.some((id) => id.toString() === candidateId)) {
     query._id = {
       $nin: [...excludedCandidateIds, new Types.ObjectId(candidateId)],
@@ -677,11 +734,67 @@ export const buildCandidateFeedQuery = (params: {
   }
 
   if (!relaxed && strictFilters.religion && preference.religions?.length) {
-    query.religion = { $in: preference.religions };
+    addNestedLegacyInFilter(
+      'religious.religion',
+      'religion',
+      preference.religions
+    );
+  }
+
+  if (!relaxed && strictFilters.sectDetail && preference.sectDetails?.length) {
+    addNestedLegacyInFilter(
+      'religious.sectDetail',
+      'sectDetail',
+      preference.sectDetails
+    );
   }
 
   if (!relaxed && strictFilters.caste && preference.castes?.length) {
-    query.caste = { $in: preference.castes };
+    query['casteIdentity.caste'] = { $in: preference.castes };
+  }
+
+  if (!relaxed && strictFilters.casteCategory && preference.casteCategories?.length) {
+    query['casteIdentity.category'] = { $in: preference.casteCategories };
+  }
+
+  if (!relaxed && strictFilters.clan && preference.clans?.length) {
+    query['casteIdentity.clan'] = { $in: preference.clans };
+  }
+
+  if (!relaxed && strictFilters.madhhab && preference.madhhabs?.length) {
+    addNestedLegacyInFilter(
+      'religious.madhhab',
+      'madhhab',
+      preference.madhhabs
+    );
+  }
+
+  if (!relaxed && strictFilters.movement && preference.movements?.length) {
+    addNestedLegacyInFilter(
+      'religious.movement',
+      'movement',
+      preference.movements
+    );
+  }
+
+  if (
+    !relaxed &&
+    strictFilters.theologicalOrientation &&
+    preference.theologicalOrientations?.length
+  ) {
+    addNestedLegacyInFilter(
+      'religious.theologicalOrientation',
+      'theologicalOrientation',
+      preference.theologicalOrientations
+    );
+  }
+
+  if (!relaxed && strictFilters.sufiOrder && preference.sufiOrders?.length) {
+    addNestedLegacyInFilter(
+      'religious.sufiOrder',
+      'sufiOrder',
+      preference.sufiOrders
+    );
   }
 
   return query;

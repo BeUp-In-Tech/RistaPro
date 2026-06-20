@@ -85,9 +85,26 @@ const getMyFullCandidateProfile = CatchAsync(
   }
 );
 
+// ADMIN MIGRATE LEGACY FLAT TAXONOMY VALUES TO TREE-BASED FIELDS
+const migrateLegacyTaxonomy = CatchAsync(async (req: Request, res: Response) => {
+  const result = await CandidateService.migrateLegacyTaxonomy({
+    dryRun: req.query.dryRun === 'true',
+  });
+
+  SendResponse(res, {
+    success: true,
+    statusCode: StatusCodes.OK,
+    message: result.dryRun
+      ? 'Legacy taxonomy migration dry run completed'
+      : 'Legacy taxonomy migration completed',
+    data: result,
+  });
+});
+
 export const CandidateController = {
   createCandidate,
   getFullCandidateProfileDetails,
   getMyFullCandidateProfile,
+  migrateLegacyTaxonomy,
   updateCandidate,
 };

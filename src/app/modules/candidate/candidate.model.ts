@@ -12,7 +12,17 @@ import { PLAN_KEYS } from '../plan/plan.interface';
 import {
   RELIGIONS,
   SECTS,
-  CASTS,
+  SECT_DETAIL_VALUES,
+  CASTE_CATEGORIES,
+  CASTE_CLANS,
+  CASTE_TREE_CASTES,
+  MADHHABS,
+  RELIGION_TREE_MADHHABS,
+  RELIGION_TREE_MOVEMENTS,
+  RELIGION_TREE_RELIGIONS,
+  RELIGION_TREE_SECTS,
+  SUFI_ORDERS,
+  THEOLOGICAL_ORIENTATIONS,
   RELATIONSHIP_STATUSES,
   CHILDREN,
   MOVE_ABROAD,
@@ -23,6 +33,23 @@ import {
   INTERESTS,
   PERSONALITY_TRAITS,
 } from '../../constant/constant';
+
+const religionKeys = Array.from(
+  new Set([...Object.keys(RELIGIONS), ...Object.keys(RELIGION_TREE_RELIGIONS)])
+);
+
+const sectKeys = Array.from(
+  new Set([
+    ...Object.values(SECTS).flatMap((map) => Object.keys(map)),
+    ...Object.keys(RELIGION_TREE_SECTS),
+  ])
+);
+
+const casteKeys = Object.keys(CASTE_TREE_CASTES);
+
+const madhhabKeys = Array.from(
+  new Set([...Object.keys(MADHHABS), ...Object.keys(RELIGION_TREE_MADHHABS)])
+);
 
 // Reusable shape for verification activity logs and current verification state.
 const verificationDetailSchema = new Schema<IVerificationDetail>(
@@ -50,6 +77,31 @@ const verificationStatusSchema = new Schema<IVerificationStatus>(
   { _id: false, versionKey: false }
 );
 
+const religiousSchema = new Schema(
+  {
+    religion: { type: String, enum: religionKeys },
+    sect: { type: String, enum: sectKeys },
+    sectDetail: { type: String, enum: Object.keys(SECT_DETAIL_VALUES) },
+    madhhab: { type: String, enum: madhhabKeys },
+    movement: { type: String, enum: Object.keys(RELIGION_TREE_MOVEMENTS) },
+    theologicalOrientation: {
+      type: String,
+      enum: Object.keys(THEOLOGICAL_ORIENTATIONS),
+    },
+    sufiOrder: { type: String, enum: Object.keys(SUFI_ORDERS) },
+  },
+  { _id: false, versionKey: false }
+);
+
+const casteIdentitySchema = new Schema(
+  {
+    category: { type: String, enum: Object.keys(CASTE_CATEGORIES) },
+    caste: { type: String, enum: casteKeys },
+    clan: { type: String, enum: Object.keys(CASTE_CLANS) },
+  },
+  { _id: false, versionKey: false }
+);
+
 const candidateSchema = new Schema<ICandidate>(
   {
     user: { type: Schema.Types.ObjectId, ref: 'user', required: true },
@@ -58,14 +110,22 @@ const candidateSchema = new Schema<ICandidate>(
     dateOfBirth: { type: Date, required: true },
     gender: { type: String, enum: Object.values(Gender), required: true },
     height: { type: Number },
-    religion: { type: String, enum: Object.keys(RELIGIONS) },
+    religious: { type: religiousSchema, default: undefined },
+    casteIdentity: { type: casteIdentitySchema, default: undefined },
+    // Deprecated flat fields are kept temporarily so old documents and clients keep working.
+    religion: { type: String, enum: religionKeys },
     sect: {
       type: String,
-      enum: Array.from(
-        new Set(Object.values(SECTS).flatMap((map) => Object.keys(map)))
-      ),
+      enum: sectKeys,
     },
-    caste: { type: String, enum: Object.keys(CASTS) },
+    sectDetail: { type: String, enum: Object.keys(SECT_DETAIL_VALUES) },
+    madhhab: { type: String, enum: madhhabKeys },
+    movement: { type: String, enum: Object.keys(RELIGION_TREE_MOVEMENTS) },
+    theologicalOrientation: {
+      type: String,
+      enum: Object.keys(THEOLOGICAL_ORIENTATIONS),
+    },
+    sufiOrder: { type: String, enum: Object.keys(SUFI_ORDERS) },
     profile_assist: { type: String, trim: true },
     relationship_status: {
       type: String,
@@ -100,7 +160,18 @@ const candidateSchema = new Schema<ICandidate>(
 );
 
 candidateSchema.index({ isActive: 1, gender: 1, dateOfBirth: 1, createdAt: -1 });
-candidateSchema.index({ isActive: 1, religion: 1, caste: 1, createdAt: -1 });
+candidateSchema.index({
+  isActive: 1,
+  'religious.religion': 1,
+  'casteIdentity.caste': 1,
+  createdAt: -1,
+});
+candidateSchema.index({
+  isActive: 1,
+  'casteIdentity.category': 1,
+  'casteIdentity.clan': 1,
+  createdAt: -1,
+});
 candidateSchema.index({ isActive: 1, height: 1, createdAt: -1 });
 candidateSchema.index({ user: 1, isActive: 1 });
 

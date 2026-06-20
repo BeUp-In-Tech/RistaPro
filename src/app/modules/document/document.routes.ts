@@ -79,7 +79,7 @@ router.patch(
 // AUTHENTICATED USER GET DOCUMENTS
 router.get(
   '/:candidateId',
-  checkAuth(Role.USER, Role.ADMIN),
+  checkAuth(Role.USER),
   DocumentController.getCandidateDocuments
 );
 

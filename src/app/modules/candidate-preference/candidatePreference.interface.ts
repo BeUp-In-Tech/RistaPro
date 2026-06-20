@@ -1,17 +1,24 @@
 import { Document, Types } from 'mongoose';
 import {
-  CastKey,
+  CasteCategoryKey,
+  CasteTreeCasteKey,
   ChildrenKey,
+  ClanKey,
   DrinkStatusKey,
   HighestEducationKey,
   InterestKey,
+  MadhhabKey,
+  MovementKey,
   MoveAbroadKey,
   OccupationKey,
   PersonalityKey,
   RelationshipStatusKey,
   ReligionKey,
+  SectDetailKey,
   SectKey,
   SmokeStatusKey,
+  SufiOrderKey,
+  TheologicalOrientationKey,
 } from '../../constant/constant';
 import { Gender } from '../candidate/candidate.interface';
 
@@ -20,7 +27,14 @@ export interface ICandidatePreferenceStrictFilters {
   age: boolean;
   height: boolean;
   religion: boolean;
+  sectDetail: boolean;
   caste: boolean;
+  casteCategory: boolean;
+  clan: boolean;
+  madhhab: boolean;
+  movement: boolean;
+  theologicalOrientation: boolean;
+  sufiOrder: boolean;
   location: boolean;
 }
 
@@ -33,7 +47,14 @@ export interface ICandidatePreference extends Document {
   heightMax?: number;
   religions?: ReligionKey[];
   sects?: SectKey[];
-  castes?: CastKey[];
+  sectDetails?: SectDetailKey[];
+  casteCategories?: CasteCategoryKey[];
+  castes?: CasteTreeCasteKey[];
+  clans?: ClanKey[];
+  madhhabs?: MadhhabKey[];
+  movements?: MovementKey[];
+  theologicalOrientations?: TheologicalOrientationKey[];
+  sufiOrders?: SufiOrderKey[];
   relationship_statuses?: RelationshipStatusKey[];
   have_children?: ChildrenKey[];
   move_abroad?: MoveAbroadKey[];
@@ -59,7 +80,14 @@ export interface ICandidatePreferencePayload {
   heightMax?: number | null;
   religions?: ReligionKey[];
   sects?: SectKey[];
-  castes?: CastKey[];
+  sectDetails?: SectDetailKey[];
+  casteCategories?: CasteCategoryKey[];
+  castes?: CasteTreeCasteKey[];
+  clans?: ClanKey[];
+  madhhabs?: MadhhabKey[];
+  movements?: MovementKey[];
+  theologicalOrientations?: TheologicalOrientationKey[];
+  sufiOrders?: SufiOrderKey[];
   relationship_statuses?: RelationshipStatusKey[];
   have_children?: ChildrenKey[];
   move_abroad?: MoveAbroadKey[];

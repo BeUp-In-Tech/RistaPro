@@ -30,7 +30,6 @@ import {
   assertCanUseMessagingPlan,
   assertCandidateInConversation,
   assertWritableConversationAccess,
-  buildConversationResponse,
   assertLinkedUserCanReadConversation,
   assertValidObjectId,
   buildConversationPairKey,
@@ -45,6 +44,10 @@ import {
   getOtherConversationCandidateId,
   isGuardianRelation,
   isWritableLinkedUser,
+  buildConversationClientResponse,
+  hasActiveGuardianForCandidate,
+  GUARDIAN_LINKED_USER_RELATIONS,
+  getActiveGuardianParticipantsForCandidate,
 } from './conversation.helper';
 import {
   ConversationSource,
@@ -66,7 +69,6 @@ import {
   IConversationGuardianRequest,
 } from './conversationGuardianRequest.interface';
 import Message from '../message/message.model';
-import { buildMessageResponse } from '../message/message.service';
 import { ChatMessageType } from '../message/message.interface';
 import { decryptChatText, encryptChatText } from '../../utils/chatEncryption';
 import { RishtaProgressService } from '../rishta_progress/rishta_progress.service';
@@ -75,51 +77,11 @@ import {
   RishtaProgressStepSource,
 } from '../rishta_progress/rishta_progress.interface';
 import { QueryBuilder } from '../../utils/QueryBuilder';
+import User from '../user/user.model';
+import { buildMessageClientResponse, buildMessageResponse } from '../message/message.helper';
 
 const CHAT_SENT_BY_USER_SELECT = '_id full_name picture role';
 
-const buildConversationClientResponse = (
-  conversation: TConversationLean,
-  userId: string
-) => {
-  const response = buildConversationResponse(conversation, userId);
-
-  if (response.lastMessage && typeof response.lastMessage === 'object') {
-    return {
-      ...response,
-      lastMessage: buildMessageResponse(
-        response.lastMessage as unknown as Record<string, unknown>
-      ),
-    };
-  }
-
-  return response;
-};
-
-const GUARDIAN_LINKED_USER_RELATIONS = [
-  CandidateLinkedUserRelation.FATHER,
-  CandidateLinkedUserRelation.MOTHER,
-  CandidateLinkedUserRelation.BROTHER,
-  CandidateLinkedUserRelation.SISTER,
-  CandidateLinkedUserRelation.GUARDIAN,
-  CandidateLinkedUserRelation.RELATIVE,
-  CandidateLinkedUserRelation.CONSULTANT,
-];
-
-const getActiveGuardianParticipantsForCandidate = (
-  conversation: { guardianParticipants?: TConversationLean['guardianParticipants'] },
-  candidateId: string
-) =>
-  conversation.guardianParticipants?.filter(
-    (participant) =>
-      participant.isActive &&
-      participant.candidate.toString() === candidateId
-  ) ?? [];
-
-const hasActiveGuardianForCandidate = (
-  conversation: { guardianParticipants?: TConversationLean['guardianParticipants'] },
-  candidateId: string
-) => getActiveGuardianParticipantsForCandidate(conversation, candidateId).length > 0;
 
 // POST /conversations/matches/:matchId/start - opens the chat for an active match.
 const startMatchConversation = async (
@@ -327,6 +289,7 @@ const getConversationMessages = async (
       .limit(query.limit + 1) 
       .populate({ path: 'sender', select: CHAT_CANDIDATE_SELECT })
       .populate({ path: 'sentBy', select: CHAT_SENT_BY_USER_SELECT })
+      .populate({ path: 'seenBy', select: '_id full_name' })
       .lean<TMessageWithCreatedAt[]>(),
     Message.countDocuments(countQuery),
     Conversation.findById(conversationId)
@@ -407,6 +370,7 @@ const getConversationMessages = async (
     ) {
       return buildMessageResponse({
         ...messageWithSenderId,
+        viewerUserId: userId,
         sentBy: {
           _id: message.sender._id,
           image: message.sender.images?.[0] ?? null,
@@ -415,7 +379,7 @@ const getConversationMessages = async (
       });
     }
 
-    return buildMessageResponse(messageWithSenderId);
+    return buildMessageResponse({ ...messageWithSenderId, viewerUserId: userId });
   };
 
   // Opponent data
@@ -481,17 +445,32 @@ const markConversationRead = async (
     $set: { [`unreadCounts.${userId}`]: 0 },
   });
 
+  const seenByUser = await User.findById(userId)
+    .select('_id full_name')
+    .lean<{ _id: Types.ObjectId; full_name?: string } | null>();
+
   const payloadData = {
     candidateId: payload.candidateId,
     conversationId,
     seenBy: userId,
   };
 
+  const audienceUserIds = await getConversationAudienceUserIds(conversation);
+  const readReceiptPayload = {
+    ...payloadData,
+    seenByUser: seenByUser
+      ? {
+          _id: seenByUser._id,
+          name: seenByUser.full_name,
+        }
+      : null,
+  };
+
   emitChatEvent({
     conversationId,
     event: 'conversation:read',
-    payload: payloadData,
-    userIds: await getConversationAudienceUserIds(conversation),
+    payload: readReceiptPayload,
+    userIds: audienceUserIds.filter((audienceUserId) => audienceUserId !== userId),
   });
 
   return payloadData;
@@ -537,7 +516,7 @@ const createMessageRequest = async (
   if (openConversation) {
     throw new AppError(
       StatusCodes.CONFLICT,
-      'An open conversation already exists between these candidates'
+      'Conversation already exists between these candidates'
     );
   }
 
@@ -864,12 +843,32 @@ const acceptMessageRequest = async (
       type: ChatMessageType.TEXT,
     });
 
-    const savedMessage = await Message.findById(messageDoc._id)
-      .select(CHAT_MESSAGE_SELECT)
-      .lean();
+    const [savedMessage, requesterLinkedUserAccess] = await Promise.all([
+      Message.findById(messageDoc._id)
+        .select(CHAT_MESSAGE_SELECT)
+        .populate({ path: 'sender', select: CHAT_CANDIDATE_SELECT })
+        .populate({ path: 'sentBy', select: CHAT_SENT_BY_USER_SELECT })
+        .populate({ path: 'seenBy', select: '_id full_name' })
+        .lean(),
+      request.requesterLinkedUser
+        ? CandidateLinkedUser.findById(request.requesterLinkedUser)
+            .select('relationshipToCandidate user')
+            .lean<{
+              relationshipToCandidate?: CandidateLinkedUserRelation;
+              user?: Types.ObjectId;
+            } | null>()
+        : Promise.resolve(null),
+    ]);
 
     if (savedMessage) {
-      initialMessageResponse = buildMessageResponse(savedMessage);
+      initialMessageResponse = buildMessageClientResponse(
+        savedMessage,
+        userId,
+        requesterLinkedUserAccess?.relationshipToCandidate ===
+          CandidateLinkedUserRelation.SELF
+          ? request.requesterUser.toString()
+          : undefined
+      );
 
       const unreadIncrements = audienceUserIds
         .filter((id) => id !== request.requesterUser.toString())
@@ -907,12 +906,6 @@ const acceptMessageRequest = async (
     },
   };
 
-  emitChatEvent({
-    conversationId: conversation._id.toString(),
-    event: 'message-request:accepted',
-    payload: responsePayload,
-    userIds: audienceUserIds,
-  });
 
   emitChatEvent({
     conversationId: conversation._id.toString(),

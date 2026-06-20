@@ -133,9 +133,26 @@ Response:
 ```json
 {
   "opponent": { "_id": "...", "name": "...", "image": "..." },
-  "messages": [ ...message objects ]
+  "messages": [
+    {
+      "_id": "messageId",
+      "type": "text",
+      "message": "Assalamu Alaikum",
+      "sender": "candidateId",
+      "sentBy": "userId",
+      "seenBy": [
+        {
+          "_id": "userId",
+          "name": "Amina"
+        }
+      ],
+      "createdAt": "2026-06-10T10:00:00.000Z"
+    }
+  ]
 }
 ```
+
+`seenBy` is populated with only opponent/other reader users. The current logged-in user's own seen entry is filtered out.
 
 For pagination, pass the `createdAt` of the oldest loaded message as `before` to fetch the previous page.
 
@@ -157,13 +174,27 @@ Body:
 
 **When to call:** immediately after opening a conversation, and whenever a `message:new` event arrives while that conversation is visible.
 
-Emits socket event `conversation:read` to all participants:
+Returns a minimal payload to the caller:
 
 ```json
 {
   "conversationId": "...",
   "candidateId": "...",
   "seenBy": "userId"
+}
+```
+
+Emits socket event `conversation:read` only to the other conversation participants:
+
+```json
+{
+  "conversationId": "...",
+  "candidateId": "...",
+  "seenBy": "userId",
+  "seenByUser": {
+    "_id": "userId",
+    "name": "Amina"
+  }
 }
 ```
 
@@ -261,7 +292,12 @@ Response includes `initialMessage` field (decrypted) when one was provided:
     "message": "Assalamu Alaikum, I saw your profile...",
     "sender": "candidateAId",
     "sentBy": "userAId",
-    "seenBy": ["userAId"],
+    "seenBy": [
+      {
+        "_id": "userAId",
+        "name": "Amina"
+      }
+    ],
     "createdAt": "2026-06-10T10:00:00.000Z"
   }
 }

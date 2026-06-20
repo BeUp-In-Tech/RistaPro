@@ -23,7 +23,7 @@ interface TCandidatePreferenceSeed {
 }
 
 export const PREFERENCE_RESPONSE_SELECT =
-  '_id candidate preferredGenders ageMin ageMax heightMin heightMax religions sects castes relationship_statuses have_children move_abroad occupations highest_educations smoke_statuses drink_statuses interests personality maxDistanceKm strictFilters createdBy updatedBy createdAt updatedAt';
+  '_id candidate preferredGenders ageMin ageMax heightMin heightMax religions sects sectDetails casteCategories castes clans madhhabs movements theologicalOrientations sufiOrders relationship_statuses have_children move_abroad occupations highest_educations smoke_statuses drink_statuses interests personality maxDistanceKm strictFilters createdBy updatedBy createdAt updatedAt';
 
 // Used before any preference lookup so invalid ObjectIds never reach Mongo queries.
 export const assertValidCandidateId = (candidateId: string) => {

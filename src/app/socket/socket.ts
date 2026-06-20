@@ -129,52 +129,52 @@ export const initSocket = async (server: any) => {
 
 
     // Socket typing indicator start
-    socket.on(
-      'typing:start',
-      async (payload: { conversationId: string; candidateId?: string }) => {
-        try {
-          const canAccess = await userCanAccessConversation(
-            currentUserId,
-            payload.conversationId
-          );
+    socket.on('typing:start', async (payload: { conversationId: string }) => {
+      try {
+        const canAccess = await userCanAccessConversation(
+          currentUserId,
+          payload.conversationId
+        );
 
-          if (!canAccess) {
-            return;
-          }
-
-          socket.to(getConversationRoom(payload.conversationId)).emit(
-            'typing:start',
-            payload
-          );
-        } catch {
+        if (!canAccess) {
           return;
         }
+
+        socket.to(getConversationRoom(payload.conversationId)).emit(
+          'typing:start',
+          {
+            conversationId: payload.conversationId,
+            userId: currentUserId,
+          }
+        );
+      } catch {
+        return;
       }
-    );
+    });
 
     // socket typing indicator stop
-    socket.on(
-      'typing:stop',
-      async (payload: { conversationId: string; candidateId?: string }) => {
-        try {
-          const canAccess = await userCanAccessConversation(
-            currentUserId,
-            payload.conversationId
-          );
+    socket.on('typing:stop', async (payload: { conversationId: string }) => {
+      try {
+        const canAccess = await userCanAccessConversation(
+          currentUserId,
+          payload.conversationId
+        );
 
-          if (!canAccess) {
-            return;
-          }
-
-          socket.to(getConversationRoom(payload.conversationId)).emit(
-            'typing:stop',
-            payload
-          );
-        } catch {
+        if (!canAccess) {
           return;
         }
+
+        socket.to(getConversationRoom(payload.conversationId)).emit(
+          'typing:stop',
+          {
+            conversationId: payload.conversationId,
+            userId: currentUserId,
+          }
+        );
+      } catch {
+        return;
       }
-    );
+    });
 
 
     // Handle socket disconnect

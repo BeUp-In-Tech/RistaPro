@@ -4,6 +4,7 @@ import { CatchAsync } from '../../utils/CatchAsync';
 import { StatusCodes } from 'http-status-codes';
 import { SendResponse } from '../../utils/SendResponse';
 import AppError from '../../errorHelpers/AppError';
+import { JwtPayload } from 'jsonwebtoken';
 
 const verifyFace = CatchAsync(async (req: Request, res: Response) => {
   const { candidateId, isFaceVerified } = req.body;
@@ -148,7 +149,8 @@ const getCandidateDocuments = CatchAsync(
   async (req: Request, res: Response) => {
     const { candidateId } = req.params;
     const result = await DocumentService.getCandidateDocuments(
-      candidateId as string
+      candidateId as string,
+      req.user as JwtPayload
     );
 
     SendResponse(res, {

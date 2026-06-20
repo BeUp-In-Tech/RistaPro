@@ -1,0 +1,27 @@
+﻿// 18. PERSONALITY TRAITS
+export const PERSONALITY_TRAITS = {
+  OUTGOING: 'Outgoing 😃',
+  INTROVERTED: 'Introverted 🤫',
+  CREATIVE: 'Creative 🎨',
+  HONEST: 'Honest 🤝',
+  SENSITIVE: 'Sensitive 🌿',
+  ROMANTIC: 'Romantic ❤️',
+  LOYAL: 'Loyal 🐾',
+  CONFIDENT: 'Confident 💪',
+  CALM_PATIENT: 'Calm/Patient 🧘',
+  ADVENTUROUS: 'Adventurous 🧭',
+  EMPATHETIC: 'Empathetic 🤗',
+  FUNNY: 'Funny 😂',
+  INDEPENDENT: 'Independent 🦅',
+  HARD_WORKING: 'Hard-working 🔨',
+  SPONTANEOUS: 'Spontaneous 🎉',
+  SOCIAL: 'Social 🗣️',
+  SUPPORTIVE: 'Supportive 🤝',
+  PRAGMATIC: 'Pragmatic 📐',
+  INTELLECTUAL: 'Intellectual 🧠',
+  COMPASSIONATE: 'Compassionate 💗',
+  GOAL_ORIENTED: 'Goal-Oriented 🎯',
+  ORGANIZED: 'Organized 📅',
+  EASY_GOING: 'Easy-going 😌',
+} as const;
+export type PersonalityKey = keyof typeof PERSONALITY_TRAITS;

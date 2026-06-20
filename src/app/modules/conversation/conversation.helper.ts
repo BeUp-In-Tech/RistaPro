@@ -19,6 +19,7 @@ import {
   IConversationGuardianParticipant,
   TConversationLean,
 } from './conversation.interface';
+import { buildMessageResponse } from '../message/message.helper';
 
 export const CHAT_CANDIDATE_SELECT =
   '_id name images';
@@ -345,3 +346,51 @@ export const getConversationAudienceUserIds = async (conversation: {
 
   return Array.from(new Set([...candidateUserIds, ...guardianUserIds]));
 };
+
+
+
+export const buildConversationClientResponse = (
+  conversation: TConversationLean,
+  userId: string
+) => {
+  const response = buildConversationResponse(conversation, userId);
+
+  if (response.lastMessage && typeof response.lastMessage === 'object') {
+    return {
+      ...response,
+      lastMessage: buildMessageResponse(
+        {
+          ...(response.lastMessage as unknown as Record<string, unknown>),
+          viewerUserId: userId,
+        }
+      ),
+    };
+  }
+
+  return response;
+};
+
+export const GUARDIAN_LINKED_USER_RELATIONS = [
+  CandidateLinkedUserRelation.FATHER,
+  CandidateLinkedUserRelation.MOTHER,
+  CandidateLinkedUserRelation.BROTHER,
+  CandidateLinkedUserRelation.SISTER,
+  CandidateLinkedUserRelation.GUARDIAN,
+  CandidateLinkedUserRelation.RELATIVE,
+  CandidateLinkedUserRelation.CONSULTANT,
+];
+
+export const getActiveGuardianParticipantsForCandidate = (
+  conversation: { guardianParticipants?: TConversationLean['guardianParticipants'] },
+  candidateId: string
+) =>
+  conversation.guardianParticipants?.filter(
+    (participant) =>
+      participant.isActive &&
+      participant.candidate.toString() === candidateId
+  ) ?? [];
+
+export const hasActiveGuardianForCandidate = (
+  conversation: { guardianParticipants?: TConversationLean['guardianParticipants'] },
+  candidateId: string
+) => getActiveGuardianParticipantsForCandidate(conversation, candidateId).length > 0;

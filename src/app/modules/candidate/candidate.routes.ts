@@ -20,6 +20,13 @@ const router = Router();
 // PUBLIC CANDIDATE CONSTANT DATA
 router.get('/constants', CandidateConstantController.getCandidateConstants);
 
+// ADMIN MIGRATION FOR LEGACY FLAT CASTE/RELIGION VALUES
+router.post(
+  '/admin/migrate-legacy-taxonomy',
+  checkAuth(Role.ADMIN),
+  CandidateController.migrateLegacyTaxonomy
+);
+
 // AUTHENTICATED USER CREATE CANDIDATE PROFILE
 router.post(
   '/',

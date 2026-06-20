@@ -3,8 +3,8 @@ import { Types } from 'mongoose';
 import AppError from '../../errorHelpers/AppError';
 import { uploadChatMediaToCloudinary } from '../../config/cloudinary.config';
 import { emitChatEvent } from '../../socket/socket.helper';
-import { sendNotificationByBullMQ } from '../../utils/backgroundJobProcessingHelper';
 import { getActiveLinkedUserAccessOrThrow } from '../candidate/linked-user/candidateLinkedUser.helper';
+import { CandidateLinkedUserRelation } from '../candidate/linked-user/candidateLinkedUser.interface';
 import {
   assertCanUseMessagingPlan,
   assertCandidateInConversation,
@@ -12,6 +12,7 @@ import {
   assertLinkedUserCanSendMessage,
   assertValidObjectId,
   CHAT_MESSAGE_SELECT,
+  CHAT_CANDIDATE_SELECT,
   getCandidatePlanOrDefault,
   getConversationAudienceUserIds,
   getConversationByIdOrThrow,
@@ -22,7 +23,6 @@ import {
   IChatMediaMetadataPayload,
 } from '../conversation/conversation.interface';
 import Conversation from '../conversation/conversation.model';
-import { NotificationType } from '../notification/notification.interface';
 import {
   RishtaProgressStep,
   RishtaProgressStepSource,
@@ -30,79 +30,14 @@ import {
 import { RishtaProgressService } from '../rishta_progress/rishta_progress.service';
 import { ChatMessageType, ISendMessagePayload } from './message.interface';
 import Message from './message.model';
-import { decryptChatText, encryptChatText } from '../../utils/chatEncryption';
+import {  encryptChatText } from '../../utils/chatEncryption';
+import { buildMessageClientResponse, queueGenericChatNotifications } from './message.helper';
 
 const MAX_CHAT_MEDIA_BYTES = 15 * 1024 * 1024;
+const CHAT_SENT_BY_USER_SELECT = '_id full_name picture role';
 
-type TMessageForClient = Record<string, unknown> & {
-  body?: unknown;
-  type?: ChatMessageType;
-};
 
-export const buildMessageResponse = <T extends TMessageForClient>(message: T) => {
-  const { body, ...rest } = message;
-  const response: Record<string, unknown> = { ...rest };
 
-  if (
-    (message.type === ChatMessageType.TEXT ||
-      message.type === ChatMessageType.IMAGE_TEXT) &&
-    body
-  ) {
-    try {
-      const plaintext = decryptChatText(
-        body as Parameters<typeof decryptChatText>[0]
-      );
-
-      if (message.type === ChatMessageType.TEXT) {
-        response.message = plaintext;
-      } else {
-        response.caption = plaintext;
-      }
-    } catch {
-      response.messageUnavailable = true;
-    }
-  }
-
-  return response;
-};
-
-const queueGenericChatNotifications = async (params: {
-  senderUserId: string;
-  audienceUserIds: string[];
-  conversationId: string;
-  messageId: string;
-  type: ChatMessageType;
-}) => {
-  const recipients = params.audienceUserIds.filter(
-    (audienceUserId) => audienceUserId !== params.senderUserId
-  );
-
-  const body =
-    params.type === ChatMessageType.IMAGE ||
-    params.type === ChatMessageType.IMAGE_TEXT
-      ? 'You received a photo'
-      : 'New message';
-
-  await Promise.all(
-    recipients.map((recipientUserId) =>
-      sendNotificationByBullMQ(
-        {
-          user: recipientUserId,
-          type: NotificationType.MESSAGE,
-          title: 'New message',
-          body,
-          entityId: new Types.ObjectId(params.messageId),
-          data: {
-            conversationId: params.conversationId,
-            messageId: params.messageId,
-            messageType: params.type,
-          },
-        },
-        `chat_message_${params.messageId}_${recipientUserId}`
-      )
-    )
-  );
-};
 
 // POST /messages - sends one backend-encrypted message into an open conversation.
 const sendMessage = async (userId: string, payload: ISendMessagePayload) => {
@@ -168,6 +103,9 @@ const sendMessage = async (userId: string, payload: ISendMessagePayload) => {
 
   const message = await Message.findById(messageDoc._id)
     .select(CHAT_MESSAGE_SELECT)
+    .populate({ path: 'sender', select: CHAT_CANDIDATE_SELECT })
+    .populate({ path: 'sentBy', select: CHAT_SENT_BY_USER_SELECT })
+    .populate({ path: 'seenBy', select: '_id full_name' })
     .lean();
 
   if (!message) {
@@ -203,7 +141,13 @@ const sendMessage = async (userId: string, payload: ISendMessagePayload) => {
     step: RishtaProgressStep.START_CHAT,
   });
 
-  const messageResponse = buildMessageResponse(message);
+  const messageResponse = buildMessageClientResponse(
+    message,
+    userId,
+    access.relationshipToCandidate === CandidateLinkedUserRelation.SELF
+      ? userId
+      : undefined
+  );
 
   emitChatEvent({
     conversationId: payload.conversationId,
@@ -296,7 +240,6 @@ async function uploadChatMedia(
 
 
 export const MessageService = {
-  buildMessageResponse,
   sendMessage,
   uploadChatMedia,
 };

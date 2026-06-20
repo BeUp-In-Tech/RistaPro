@@ -11,6 +11,7 @@ import {
   IDocumentFile,
 } from './document.interface';
 import { StatusCodes } from 'http-status-codes';
+import { JwtPayload } from 'jsonwebtoken';
 
 // FACE VERIFY
 const verifyFace = async (candidateId: string, isFaceVerified: boolean) => {
@@ -620,10 +621,22 @@ const rejectDocument = async (documentId: string, rejectedReason: string) => {
 };
 
 // READ CANDIDATE DOCUMENTS
-const getCandidateDocuments = async (candidateId: string) => {
+const getCandidateDocuments = async (candidateId: string, user: JwtPayload) => {
+
+  const candidate = await Candidate.findOne({user: user.userId }).select("user");
+
+  if (!candidate) {
+    throw new AppError(StatusCodes.NOT_FOUND, "Candidate profile not found");
+  }
+
+  if (candidate?._id.toString() !== candidateId) {
+    throw new AppError(StatusCodes.FORBIDDEN, "You are not permitted to access");
+  }
+
   const documents = await DocumentModel.find({ candidate: candidateId }).sort({
     createdAt: -1,
   });
+  
   return documents;
 };
 

@@ -1,7 +1,6 @@
 import { Types } from 'mongoose';
 import z from 'zod';
 import {
-  ConsultantAssignmentStatus,
   ConsultantMarriagePartyType,
   ConsultationCaseStatus,
 } from './consultant.interface';

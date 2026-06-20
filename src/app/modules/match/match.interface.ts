@@ -1,5 +1,5 @@
 import { Document, Types } from 'mongoose';
-import { Gender } from '../candidate/candidate.interface';
+import { Gender, ICandidateReligiousFields } from '../candidate/candidate.interface';
 
 export enum MatchStatus {
   ACTIVE = 'ACTIVE',
@@ -35,6 +35,7 @@ export interface TMatchCandidateLean {
   gender: Gender;
   images?: string[];
   name: string;
+  religious?: ICandidateReligiousFields;
   religion?: string;
 }
 

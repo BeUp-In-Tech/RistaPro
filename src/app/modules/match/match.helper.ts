@@ -28,7 +28,7 @@ export const MATCH_SELECT =
   '_id candidates conversation matchedBy pairKey status createdAt updatedAt';
 
 export const MATCH_CANDIDATE_SELECT =
-  '_id name dateOfBirth gender images religion address';
+  '_id name dateOfBirth gender images religious religion address';
 
 const MS_PER_YEAR = 365.2425 * 24 * 60 * 60 * 1000;
 
@@ -194,7 +194,7 @@ export const buildMatchCandidateSummary = (candidate: TMatchCandidateLean) => ({
   image: candidate.images?.[0] ?? null,
   livesIn: candidate.address?.split(',')[0]?.trim() || undefined,
   name: candidate.name,
-  religion: candidate.religion,
+  religion: candidate.religious?.religion ?? candidate.religion,
 });
 
 // Keeps all match endpoints returning the same predictable response shape.

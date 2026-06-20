@@ -1,18 +1,23 @@
 import {
-  CASTS,
+  CASTE_TREE,
   CHILDREN,
   DRINK_STATUSES,
   HIGHEST_EDUCATION,
   INTERESTS,
   INTERESTS_BY_CATEGORY,
   INTEREST_CATEGORIES,
+  MADHHABS,
   MOVE_ABROAD,
   OCCUPATIONS,
   PERSONALITY_TRAITS,
   RELATIONSHIP_STATUSES,
   RELIGIONS,
+  RELIGION_TREE,
   SECTS,
+  SECT_DETAILS,
   SMOKE_STATUSES,
+  SUFI_ORDERS,
+  THEOLOGICAL_ORIENTATIONS,
 } from '../../../constant/constant';
 import { RelationToUser } from '../candidate.interface';
 import {
@@ -46,6 +51,8 @@ const buildEnumOptions = <T extends string>(
   }));
 
 const getCandidateConstants = () => ({
+  casteTree: CASTE_TREE,
+  religionTree: RELIGION_TREE,
   religions: buildSelectOptions(RELIGIONS),
   sects: Object.entries(SECTS).reduce<Record<string, TSelectOption[]>>(
     (acc, [religionKey, sectMap]) => {
@@ -54,7 +61,26 @@ const getCandidateConstants = () => ({
     },
     {}
   ),
-  castes: buildSelectOptions(CASTS),
+  sectDetails: Object.entries(SECT_DETAILS).reduce<
+    Record<string, Record<string, TSelectOption[]>>
+  >((religionAcc, [religionKey, sectDetailMap]) => {
+    religionAcc[religionKey] = Object.entries(sectDetailMap).reduce<
+      Record<string, TSelectOption[]>
+    >((sectAcc, [sectKey, detailMap]) => {
+      sectAcc[sectKey] = buildSelectOptions(detailMap);
+      return sectAcc;
+    }, {});
+
+    return religionAcc;
+  }, {}),
+  madhhabs: buildSelectOptions(MADHHABS),
+  theologicalOrientations: buildSelectOptions(THEOLOGICAL_ORIENTATIONS),
+  sufiOrders: buildSelectOptions(SUFI_ORDERS),
+  deprecatedGroups: [
+    'madhhabs',
+    'theologicalOrientations',
+    'sufiOrders',
+  ],
   relationshipStatuses: buildSelectOptions(RELATIONSHIP_STATUSES),
   childrenStatuses: buildSelectOptions(CHILDREN),
   moveAbroadStatuses: buildSelectOptions(MOVE_ABROAD),

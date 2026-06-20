@@ -20,6 +20,8 @@ Stores partner preferences used by the swipe/feed ranking system.
 - `GET` uses a short Redis cache after authorization; writes invalidate the cache.
 - Preferences are auto-created with safe defaults when a candidate profile is created.
 - `MALE` candidates default to `preferredGenders: ["FEMALE"]`, `FEMALE` to `["MALE"]`, `OTHER` to `["MALE","FEMALE","OTHER"]`.
+- Candidate profiles now store identity data under `religious` and `casteIdentity`; preference arrays remain flat for simple filtering and ranking.
+- Preference matching reads nested candidate fields. Caste preferences use only `casteCategories`, `castes`, and `clans`.
 
 ---
 
@@ -55,7 +57,13 @@ Replace the full preference document.
   "heightMax": 180,
   "religions": ["ISLAM"],
   "sects": ["SUNNI"],
-  "castes": ["BENGALI"],
+  "casteCategories": ["PUNJABI"],
+  "castes": ["JATT"],
+  "clans": ["BAJWA"],
+  "madhhabs": ["HANAFI"],
+  "movements": ["DEOBANDI"],
+  "theologicalOrientations": ["BARELVI"],
+  "sufiOrders": ["QADRI"],
   "relationship_statuses": ["SINGLE"],
   "have_children": ["NONE"],
   "move_abroad": ["YES", "MAYBE"],
@@ -71,7 +79,14 @@ Replace the full preference document.
     "age": true,
     "height": false,
     "religion": false,
+    "sectDetail": false,
+    "casteCategory": false,
     "caste": false,
+    "clan": false,
+    "madhhab": false,
+    "movement": false,
+    "theologicalOrientation": false,
+    "sufiOrder": false,
     "location": false
   }
 }
@@ -102,6 +117,13 @@ Partially update preferences. Only sent fields are changed. Send `null` for null
 - `ageMin` cannot be greater than `ageMax`
 - `heightMin` cannot be greater than `heightMax`
 - If both `religions` and `sects` are sent, every sect must belong to a selected religion
+- If `religions`, `sects`, and `sectDetails` are sent, every sect detail must belong to a selected religion and sect
+- New cascading caste preferences use `casteCategories`, `castes`, and `clans` from `casteTree`
+- New religious preferences use `religions`, `sects`, `madhhabs`, and `movements` from `religionTree`
+- `religions`, `sects`, `madhhabs`, and `movements` match candidate `religious.*` fields
+- `casteCategories`, `castes`, and `clans` match candidate `casteIdentity.*` fields
+- `sectDetails`, `theologicalOrientations`, and `sufiOrders` remain supported for religious matching
+- New identity fields can be used as soft ranking signals or as strict filters when their matching `strictFilters` flag is true
 - Arrays cannot contain duplicate values
 - Enum values must use constant keys from `GET /candidates/constants`
 - At least one preference field required in patch

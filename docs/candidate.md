@@ -23,9 +23,50 @@ Load all dropdown/select data needed for candidate profile forms.
 
 **Auth:** Public
 
-**Response groups:** `religions`, `sects`, `castes`, `relationshipStatuses`, `childrenStatuses`, `moveAbroadStatuses`, `occupations`, `highestEducations`, `smokeStatuses`, `drinkStatuses`, `interests`, `interestCategories`, `personalityTraits`, `candidateCreatorRelations`, `candidateLinkedUserRelations`, `candidateLinkedUserAccessRoles`
+**Response groups:** `religionTree`, `casteTree`, `religions`, `sects`, `sectDetails`, `madhhabs`, `theologicalOrientations`, `sufiOrders`, `relationshipStatuses`, `childrenStatuses`, `moveAbroadStatuses`, `occupations`, `highestEducations`, `smokeStatuses`, `drinkStatuses`, `interests`, `interestCategories`, `personalityTraits`, `candidateCreatorRelations`, `candidateLinkedUserRelations`, `candidateLinkedUserAccessRoles`, `deprecatedGroups`
 
 **Important:** Send the `value` keys back to the backend. Use `label` for display only.
+
+Use `casteTree` for new cascading caste UI:
+
+```text
+Category -> Caste/Biradari/Tribe -> Clan/Sub-caste/Lineage
+```
+
+Use `religionTree` for new religious UI:
+
+```text
+Religion -> Sect -> Madhhab / Movement / Orientation
+```
+
+`casteTree` is the only caste/biradari/tribe source. Do not use separate flat caste, lineage, or tribe lists.
+
+---
+
+## Candidate Identity Shape
+
+New candidate profile writes store religious and caste values as nested ID-only objects:
+
+```json
+{
+  "religious": {
+    "religion": "ISLAM",
+    "sect": "SUNNI",
+    "sectDetail": "HANAFI",
+    "madhhab": "HANAFI",
+    "movement": "DEOBANDI",
+    "theologicalOrientation": "BARELVI",
+    "sufiOrder": "QADRI"
+  },
+  "casteIdentity": {
+    "category": "PUNJABI",
+    "caste": "JATT",
+    "clan": "BAJWA"
+  }
+}
+```
+
+Religious flat request fields are still accepted during transition. Caste identity must be sent through `casteIdentity`.
 
 ---
 
@@ -47,9 +88,20 @@ Create a candidate profile.
   "name": "Amina",
   "dateOfBirth": "1998-05-11",
   "gender": "FEMALE",
-  "religion": "ISLAM",
-  "sect": "SUNNI",
-  "caste": "BENGALI",
+  "religious": {
+    "religion": "ISLAM",
+    "sect": "SUNNI",
+    "sectDetail": "HANAFI",
+    "madhhab": "HANAFI",
+    "movement": "DEOBANDI",
+    "theologicalOrientation": "BARELVI",
+    "sufiOrder": "QADRI"
+  },
+  "casteIdentity": {
+    "category": "PUNJABI",
+    "caste": "JATT",
+    "clan": "BAJWA"
+  },
   "relationship_status": "SINGLE",
   "occupation": "SOFTWARE_ENGINEER",
   "highest_education": "BACHELORS",
@@ -67,12 +119,87 @@ Create a candidate profile.
 - `dateOfBirth`: must be in the past
 - `gender`: `MALE`, `FEMALE`, or `OTHER`
 - All enum fields must use constant keys from `GET /constants`
-- `sect` must belong to selected `religion`
+- `religious.sect` must belong to selected `religious.religion`
+- `religious.sectDetail` must belong to selected `religious.religion` and `religious.sect`
+- For new religious selection UIs, use `religionTree` and save selected IDs into `religious`
+- `casteIdentity.category`, `casteIdentity.caste`, and `casteIdentity.clan` must follow `casteTree` hierarchy when sent together
+- Caste flat fields such as `casteCategory`, `caste`, and `clan` are not accepted in new requests; use `casteIdentity`
 - `interests` and `personality` cannot have duplicates
 - Max 6 images per profile
 - Request body is strict — unknown fields are rejected
 
 **Response includes:** candidate profile + `labels` + `management` + `myAccess`
+
+**Identity response fields:**
+```json
+{
+  "religious": {
+    "religion": "ISLAM",
+    "sect": "SUNNI",
+    "madhhab": "HANAFI",
+    "movement": "DEOBANDI"
+  },
+  "casteIdentity": {
+    "category": "PUNJABI",
+    "caste": "JATT",
+    "clan": "BAJWA"
+  },
+  "labels": {
+    "religious": {
+      "religion": "Islam",
+      "sect": "Sunni",
+      "madhhab": "Hanafi",
+      "movement": "Deobandi"
+    },
+    "casteIdentity": {
+      "category": "Punjabi",
+      "caste": "Jatt",
+      "clan": "Bajwa"
+    }
+  }
+}
+```
+
+---
+
+## Admin Migration
+
+### `POST /admin/migrate-legacy-taxonomy`
+
+Migrates old flat religious/caste values into the new tree fields. This does not create MongoDB collections for constants.
+
+**Auth:** Bearer token (`ADMIN`)
+
+**Dry run:**
+```http
+POST /api/v1/candidates/admin/migrate-legacy-taxonomy?dryRun=true
+Authorization: Bearer <adminAccessToken>
+```
+
+**Writes migration:**
+```http
+POST /api/v1/candidates/admin/migrate-legacy-taxonomy
+Authorization: Bearer <adminAccessToken>
+```
+
+The migration copies legacy flat candidate fields and earlier lowercase nested values into uppercase-key `religious` and `casteIdentity` fields where a safe mapping exists. It also removes old flat candidate fields (`religion`, `sect`, `sectDetail`, `madhhab`, `movement`, `theologicalOrientation`, `sufiOrder`, `casteCategory`, `caste`, `clan`, `lineage`, `tribe`) after copying them into the nested shape. Preference migration removes old `lineages`/`tribes` arrays after mapping them into `casteCategories`, `castes`, and `clans`.
+
+**Response:**
+```json
+{
+  "dryRun": true,
+  "candidates": {
+    "scanned": 120,
+    "planned": 40,
+    "modified": 0
+  },
+  "preferences": {
+    "scanned": 120,
+    "planned": 35,
+    "modified": 0
+  }
+}
+```
 
 ---
 
@@ -88,6 +215,7 @@ Update candidate profile fields or images.
 
 **Body fields (all optional):**
 - Any profile field from create
+- Nested updates can send only the child fields that changed, for example `religious.sect` by sending `{ "religious": { "sect": "SUNNI" } }`
 - `deletedImages`: array of existing image URLs to remove
 - `interests`: array of interest keys to append
 - `deletedInterests`: array of interest keys to remove
