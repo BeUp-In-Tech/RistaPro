@@ -16,6 +16,7 @@ import { visitorRoutes } from '../modules/visitor/visitor.routes';
 import { callRoutes } from '../modules/call/call.routes';
 import { meetingScheduleRoutes } from '../modules/meeting_schedule/meetingSchedule.routes';
 import { consultantRoutes } from '../modules/consultant/consultant.routes';
+import { dashboardDocumentsRouter } from '../modules/dashboard/documents/dashboard.doc.routes';
 export const router = Router();
 
 const moduleRoutes = [
@@ -86,6 +87,10 @@ const moduleRoutes = [
   {
     path: '/visitors',
     route: visitorRoutes,
+  },
+  {
+    path: '/d/doc',
+    route: dashboardDocumentsRouter,
   },
 ];
 
