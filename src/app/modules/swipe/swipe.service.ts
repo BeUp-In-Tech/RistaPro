@@ -134,13 +134,26 @@ const getNearbyMatches = async (
     viewerCandidate: viewerCandidateFromSearchLocation,
   });
 
+ 
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const cardsData: any = [];
+  cards.map(c => {
+    cardsData.push({
+      ...c,
+      image: c.images?.[0],
+      images: null
+    })
+  })
+
+
   const response = buildNearbyMatchesResponse({
     currentLocation,
     limit: query.limit,
     origin: searchLocation.origin,
     page: query.page,
     radiusKm,
-    cards,
+    cards: cardsData,
   });
 
   const candidateById = new Map(

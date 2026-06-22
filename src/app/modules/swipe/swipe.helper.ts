@@ -568,7 +568,6 @@ export const buildFeedCard = (
   matchScore: score.matchScore,
   name: candidate.name,
   personality: candidate.personality ?? [],
-  religion: getCandidateReligiousFields(candidate).religion,
 });
 
 export const formatNearbyLivesIn = (address?: string | null) => {

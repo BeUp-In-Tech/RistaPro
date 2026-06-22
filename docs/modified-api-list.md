@@ -146,6 +146,8 @@ Base path: `/api/v1/swipes`
   - `casteIdentity.*`
 - Strict caste filters query nested `casteIdentity` paths.
 - Feed card labels now include nested identity labels.
+- Feed cards no longer return the deprecated top-level `religion` alias or
+  flat religious label aliases; use `labels.religious.*` instead.
 
 Main files:
 - `src/app/modules/swipe/swipe.helper.ts`

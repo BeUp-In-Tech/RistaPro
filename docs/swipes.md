@@ -65,8 +65,7 @@ Response:
       "livesIn": "Dhaka",
       "distanceKm": 8.4,
       "matchScore": 92,
-      "personality": ["HONEST"],
-      "religion": "ISLAM"
+      "personality": ["HONEST"]
     }
   ],
   "limit": 20,

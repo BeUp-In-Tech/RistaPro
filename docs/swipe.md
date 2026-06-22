@@ -62,8 +62,7 @@ Authorization: Bearer <accessToken>
       "livesIn": "Dhaka",
       "distanceKm": 8.4,
       "matchScore": 92,
-      "personality": ["HONEST"],
-      "religion": "ISLAM"
+      "personality": ["HONEST"]
     }
   ],
   "limit": 20,
@@ -120,7 +119,6 @@ Return preference-matching candidates near the requester's location.
       "livesIn": "Dhaka",
       "distanceKm": 8.4,
       "matchScore": 72,
-      "religion": "ISLAM",
       "labels": {
         "religious": {
           "religion": "Islam"

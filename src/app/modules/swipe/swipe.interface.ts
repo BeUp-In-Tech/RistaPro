@@ -111,7 +111,7 @@ export interface ISwipeFeedCard {
   age: number;
   badge?: boolean;
   gender: Gender;
-  images: string[];
+  images: string[] | string;
   labels: Record<string, unknown>;
   livesIn?: string;
   distanceKm?: number;
@@ -119,7 +119,6 @@ export interface ISwipeFeedCard {
   name: string;
   occupation?: OccupationKey;
   personality: PersonalityKey[];
-  religion?: ReligionKey;
 }
 
 export interface ISwipeFeedResponse {
