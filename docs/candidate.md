@@ -41,6 +41,10 @@ Religion -> Sect -> Madhhab / Movement / Orientation
 
 `casteTree` is the only caste/biradari/tribe source. Do not use separate flat caste, lineage, or tribe lists.
 
+Frontend examples:
+- Web HTML: [`docs/candidate-constants-ui-example.html`](candidate-constants-ui-example.html)
+- Flutter: [`docs/candidate-constants-flutter-example.md`](candidate-constants-flutter-example.md)
+
 ---
 
 ## Candidate Identity Shape
